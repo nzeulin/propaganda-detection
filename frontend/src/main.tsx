@@ -1,4 +1,5 @@
 import { Investigations } from "./Investigations";
+import { SystemExplorer } from "./SystemExplorer";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, features, labels, type Analysis, type Example } from "./types";
@@ -467,20 +468,24 @@ function Architecture() {
 
 function App() {
   const [page, setPage] = useState(
-    window.location.hash === "#investigations"
-      ? "investigations"
-      : window.location.hash === "#architecture"
-        ? "architecture"
-        : "analyze",
+    window.location.hash.startsWith("#system")
+      ? "system"
+      : window.location.hash === "#investigations"
+        ? "investigations"
+        : window.location.hash === "#architecture"
+          ? "architecture"
+          : "analyze",
   );
   useEffect(() => {
     const change = () =>
       setPage(
-        window.location.hash === "#investigations"
-          ? "investigations"
-          : window.location.hash === "#architecture"
-            ? "architecture"
-            : "analyze",
+        window.location.hash.startsWith("#system")
+          ? "system"
+          : window.location.hash === "#investigations"
+            ? "investigations"
+            : window.location.hash === "#architecture"
+              ? "architecture"
+              : "analyze",
       );
     window.addEventListener("hashchange", change);
     return () => window.removeEventListener("hashchange", change);
@@ -499,6 +504,12 @@ function App() {
           </span>
         </a>
         <nav aria-label="Main navigation">
+          <a
+            href="#system"
+            aria-current={page === "system" ? "page" : undefined}
+          >
+            System explorer
+          </a>
           <a
             href="#investigations"
             aria-current={page === "investigations" ? "page" : undefined}
@@ -521,7 +532,9 @@ function App() {
         <span className="experimental mono">EXPERIMENTAL / v0.1</span>
       </header>
       <main id="main-content" className="max-w-[1440px] mx-auto px-5 md:px-10">
-        {page === "investigations" ? (
+        {page === "system" ? (
+          <SystemExplorer />
+        ) : page === "investigations" ? (
           <Investigations />
         ) : page === "analyze" ? (
           <Analyze />

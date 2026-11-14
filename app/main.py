@@ -12,6 +12,7 @@ from app.api.jobs import content_handler
 from app.api.jobs import router as jobs_router
 from app.api.swarm import router as swarm_router
 from app.api.swarm import swarm_handler
+from app.api.system import router as system_router
 from app.content.config import Configuration
 from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
@@ -50,6 +51,7 @@ app = FastAPI(title="VeritasScope · experimental content screening", version="0
 app.include_router(datasets_router)
 app.include_router(jobs_router)
 app.include_router(swarm_router)
+app.include_router(system_router)
 
 
 @app.get("/health")
