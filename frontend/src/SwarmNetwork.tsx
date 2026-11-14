@@ -1109,6 +1109,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
+    if (fitted.current) return;
     const frame = requestAnimationFrame(() =>
       graphRef.current?.zoomToFit(0, 36),
     );
@@ -1147,6 +1148,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
     }
   }
   function zoom(factor: number) {
+    fitted.current = true;
     const instance = graphRef.current;
     if (instance)
       instance.zoom(
@@ -1173,7 +1175,12 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           onNodeClick={(node) => select({ kind: "entity", id: node.id })}
           linkColor={() => "#60584e"}
           linkWidth={0.8}
-          enableZoomInteraction={(event) => event.type !== "wheel" || event.ctrlKey || event.metaKey}
+          enableZoomInteraction={(event) => {
+            const enabled = event.type !== "wheel" || event.ctrlKey || event.metaKey;
+            // Once the user takes control, late layout or engine updates must not refit the camera.
+            if (enabled) fitted.current = true;
+            return enabled;
+          }}
           onEngineStop={() => { if (!fitted.current) { fitted.current = true; graphRef.current?.zoomToFit(250, 36); } }}
         />}
         {!graph.nodes.length && <p className="swarm-canvas-empty">No entities returned for this graph.</p>}
@@ -1192,7 +1199,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           </button>
           <button
             type="button"
-            onClick={() => graphRef.current?.zoomToFit(200, 36)}
+            onClick={() => { fitted.current = true; graphRef.current?.zoomToFit(200, 36); }}
           >
             Fit
           </button>
@@ -1247,95 +1254,84 @@ function ResultSummary({
       aria-label="Detector result"
     >
       <header className="swarm-panel-heading">
-        <span>Your result</span>
+        <h3>{snapshot.name}</h3>
         <button type="button" onClick={exportResult}>
           Export result JSON ↓
         </button>
       </header>
       <div className="swarm-panel-body">
-        <h3>{snapshot.name}</h3>
         <p className="swarm-muted">
           Source: {snapshot.provenance}. Status: {result.status.replaceAll("_", " ")}.
         </p>
         <p className="swarm-takeaway">{takeaway}</p>
         <dl className="swarm-metrics swarm-counts">
-          <Metric
-            label="Accounts analyzed"
-            value={number(result.counts.accounts)}
-            hint="Accounts with usable timed activity"
-          />
-          <Metric
-            label="Usable activity"
-            value={number(result.counts.eligible_events)}
-            hint="Eligible events—not suspicious events"
-          />
-          <Metric
-            label="Flagged account pairs"
-            value={number(result.counts.strong_pairs)}
-            hint="Connections to investigate, not confirmed bots"
-          />
-          <Metric
-            label="Groups to review"
-            value={number(result.clusters.length)}
-            hint="3+ mutually connected accounts per group"
-          />
+          {[
+            { label: "Accounts analyzed", value: result.counts.accounts, hint: "Accounts with usable timed activity" },
+            { label: "Usable activity", value: result.counts.eligible_events, hint: "Eligible events, not suspicious events" },
+            { label: "Flagged account pairs", value: result.counts.strong_pairs, hint: "Connections to investigate, not confirmed bots" },
+            { label: "Groups to review", value: result.clusters.length, hint: "3+ mutually connected accounts per group" },
+          ].map(({ label, value, hint }) => <div key={label} title={hint}>
+            <dt>{label}</dt><dd>{number(value)}</dd>
+          </div>)}
         </dl>
-        <details className="swarm-result-context"><summary>How to read this result</summary><p>{statusText}</p><p className="swarm-trust-note">Coordination is not proof of bots or malicious intent. {!result.clusters.length && "No strong groups does not prove safety or independence. A strong pair need not form a group."}</p></details>
-        {result.collection && <CollectionCoverage collection={result.collection} datasetId={snapshot.datasetId} />}
         {!!result.warnings?.length && <div className="swarm-notice"><h4>Detector warnings</h4><ul>{result.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
-        {result.status === "insufficient_data" ? <div className="swarm-next-step"><strong>What to do next</strong><p>Add timezone-aware timestamps and repeated activity from at least two accounts. The default settings need three usable events per account and an observation span longer than two minutes.</p></div>
-          : <div className="swarm-next-step"><strong>What to do next</strong><p>{result.findings.length ? "Choose a group or account pair below. Compare the actual posts and times before interpreting the score." : "Try a wider sample or a longer time period. This only tests the imported activity under the current matching rules."}</p><div className="swarm-result-links">{result.findings.length > 0 && <a href="#swarm-evidence">Review the matching activity ↓</a>}<a href="#swarm-map">Explore the network map ↓</a></div></div>}
-        <details className="swarm-coverage"><summary>What was analyzed? Data coverage &amp; counts</summary>
-          <dl className="swarm-score-variables">
-            <div>
-              <dt>Recorded actions (observations)</dt>
-              <dd>{number(result.counts.observations)}</dd>
-            </div>
-            <div>
-              <dt>Usable actions (eligible events)</dt>
-              <dd>{number(result.counts.eligible_events)}</dd>
-            </div>
-            <div>
-              <dt>Excluded from timing analysis</dt>
-              <dd>
-                {number(
-                  Math.max(
-                    0,
-                    result.counts.observations - result.counts.eligible_events,
-                  ),
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Candidate comparisons, including shuffles</dt>
-              <dd>{number(result.counts.pair_comparisons)}</dd>
-            </div>
-          </dl>
-          <p>
-            An observation records an action or relationship. A post with a URL
-            may create both an account-to-post action and a post-to-URL link, so
-            this is not necessarily a count of posts.
-          </p>
-          <p>
-            Usable activity needs a recorded time, referenced content and at
-            least four distinct words or a valid URL. Created, reposted and
-            replied-to actions can qualify; likes and derived URL links do not.
-            Missing or invalid data can also exclude an action.
-          </p>
-        </details>
-        <details className="swarm-method">
-          <summary>Method, parameters &amp; limitations</summary>
-          <p>
-            Window: {number(result.parameters.window_seconds)} s · minimum
-            episodes: {number(result.parameters.minimum_episodes)} · baseline
-            trials: {number(result.parameters.baseline_trials)}
-          </p>
-          <p className="swarm-formula">{result.formula}</p>
-          <ul>
-            {result.limitations?.map((limitation, index) => (
-              <li key={index}>{limitation}</li>
-            ))}
-          </ul>
+        {result.status === "insufficient_data" && <div className="swarm-next-step"><strong>What to do next</strong><p>Add timezone-aware timestamps and repeated activity from at least two accounts. The default settings need three usable events per account and an observation span longer than two minutes.</p></div>}
+        <details className="swarm-result-details">
+          <summary>Result details</summary>
+          <details className="swarm-result-context"><summary>How to read this result</summary><p>{statusText}</p><p className="swarm-trust-note">Coordination is not proof of bots or malicious intent. {!result.clusters.length && "No strong groups does not prove safety or independence. A strong pair need not form a group."}</p></details>
+          {result.collection && <CollectionCoverage collection={result.collection} datasetId={snapshot.datasetId} />}
+          <details className="swarm-coverage"><summary>What was analyzed? Data coverage &amp; counts</summary>
+            <dl className="swarm-score-variables">
+              <div>
+                <dt>Recorded actions (observations)</dt>
+                <dd>{number(result.counts.observations)}</dd>
+              </div>
+              <div>
+                <dt>Usable actions (eligible events)</dt>
+                <dd>{number(result.counts.eligible_events)}</dd>
+              </div>
+              <div>
+                <dt>Excluded from timing analysis</dt>
+                <dd>
+                  {number(
+                    Math.max(
+                      0,
+                      result.counts.observations - result.counts.eligible_events,
+                    ),
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Candidate comparisons, including shuffles</dt>
+                <dd>{number(result.counts.pair_comparisons)}</dd>
+              </div>
+            </dl>
+            <p>
+              An observation records an action or relationship. A post with a URL
+              may create both an account-to-post action and a post-to-URL link, so
+              this is not necessarily a count of posts.
+            </p>
+            <p>
+              Usable activity needs a recorded time, referenced content and at
+              least four distinct words or a valid URL. Created, reposted and
+              replied-to actions can qualify; likes and derived URL links do not.
+              Missing or invalid data can also exclude an action.
+            </p>
+          </details>
+          <details className="swarm-method">
+            <summary>Method, parameters &amp; limitations</summary>
+            <p>
+              Window: {number(result.parameters.window_seconds)} s · minimum
+              episodes: {number(result.parameters.minimum_episodes)} · baseline
+              trials: {number(result.parameters.baseline_trials)}
+            </p>
+            <p className="swarm-formula">{result.formula}</p>
+            <ul>
+              {result.limitations?.map((limitation, index) => (
+                <li key={index}>{limitation}</li>
+              ))}
+            </ul>
+          </details>
         </details>
       </div>
     </section>
@@ -1672,7 +1668,7 @@ export default function SwarmNetwork() {
           <h2 id="swarm-title">Find repeated posts across accounts.</h2>
         </div>
       </div>
-      <div className={`swarm-layout${snapshot ? "" : " swarm-layout-input-only"}`}>
+      <div className="swarm-layout">
         <div className="swarm-input-column">
           <form
             className="swarm-panel"
@@ -1715,103 +1711,62 @@ export default function SwarmNetwork() {
               {activeCollection && <CollectionCoverage collection={activeCollection.collection} datasetId={activeCollection.dataset_id} />}
             </div>
           </form>
-          {(busy || pending || error || snapshot) && <div className="swarm-panel swarm-job-panel" aria-busy={busy}>
-            <header className="swarm-panel-heading">Analysis progress</header>
+          <div className="swarm-panel swarm-job-panel" aria-busy={busy}>
             <div className="swarm-panel-body">
-              {busy && (
-                <ol
-                  className="swarm-run-progress"
-                  aria-label="Analysis progress"
-                >
-                  {(["importing", "analyzing", "loading"] as const).map(
-                    (step, index) => (
-                      <li
-                        key={step}
-                        aria-current={phase === step ? "step" : undefined}
-                      >
-                        <span>{index + 1}</span>
-                        {step === "importing"
-                          ? "Check & save activity"
-                          : step === "analyzing"
-                            ? "Compare repeated patterns"
-                            : "Prepare evidence & map"}
-                      </li>
-                    ),
-                  )}
-                </ol>
-              )}
-              <p role="status" aria-live="polite">
-                {activity}
-              </p>
-              {pending && (
-                <>
-                  <div className="swarm-actions">
-                    <button type="button" onClick={cancel}>
-                      Cancel server job
-                    </button>
-                    {!busy && (
-                      <button type="button" onClick={resume}>
-                        Resume tracking
-                      </button>
-                    )}
-                  </div>
-                  <details>
-                    <summary>Analysis reference</summary>
-                    <p className="swarm-muted">Job: {pending.jobId}</p>
-                  </details>
-                </>
-              )}
-              {busy && !pending && (
-                <p className="swarm-muted">
-                  Cancellation is available once the server returns a job ID.
-                </p>
-              )}
-              <details>
-                <summary>Connection &amp; timeout details</summary>
-                <p className="swarm-muted">
-                  30 s per request · 11 min tracking limit · no automatic
-                  retries.
-                </p>
-              </details>
-              {error && (
-                <div className="swarm-error" role="alert">
-                  <strong>Unable to publish a new result</strong>
-                  <p>{error}</p>
+              <div className="swarm-status-row">
+                <p className="swarm-status" role="status" aria-live="polite">{activity}</p>
+                <div className="swarm-actions swarm-job-actions">
+                  {pending && <>
+                    <button type="button" onClick={cancel}>Cancel server job</button>
+                    {!busy && <button type="button" onClick={resume}>Resume tracking</button>}
+                  </>}
+                  {busy && !pending && <p className="swarm-muted">Waiting for the server job reference…</p>}
                 </div>
-              )}
-              {snapshot && (
-                <p className="swarm-notice">
-                  {busy || error || snapshot.revision !== revision
-                    ? "Previous completed result remains visible: "
-                    : "Showing completed result: "}
-                  {snapshot.name}.{" "}
-                  {snapshot.revision !== revision &&
-                    "The editor differs from this result; import and run to update it."}
-                </p>
-              )}
+              </div>
+              {error && <div className="swarm-error" role="alert">
+                <strong>Unable to publish a new result</strong><p>{error}</p>
+              </div>}
+              {snapshot && <p className="swarm-notice">
+                {busy || error || snapshot.revision !== revision
+                  ? "Previous completed result remains visible: " : "Showing completed result: "}
+                {snapshot.name}. {snapshot.revision !== revision && "The editor differs from this result; import and run to update it."}
+              </p>}
+              <details>
+                <summary>Progress &amp; connection details</summary>
+                <ol className="swarm-run-progress" aria-label="Analysis progress">
+                  {(["importing", "analyzing", "loading"] as const).map((step, index) => (
+                    <li key={step} aria-current={phase === step ? "step" : undefined}>
+                      <span>{index + 1}</span>
+                      {step === "importing" ? "Check & save activity"
+                        : step === "analyzing" ? "Compare repeated patterns" : "Prepare evidence & map"}
+                    </li>
+                  ))}
+                </ol>
+                {pending && <p className="swarm-muted">Job: {pending.jobId}</p>}
+                <p className="swarm-muted">30 s per request · 11 min tracking limit · no automatic retries.</p>
+              </details>
             </div>
-          </div>}
+          </div>
         </div>
         {snapshot && <div className="swarm-results-column">
             <ResultSummary snapshot={snapshot} exportResult={exportResult} />
             <PostScoringProvider key={`${snapshot.datasetId}:${snapshot.jobId}`} initial={snapshot.graph.content_screenings}>
-              <div className="swarm-evidence-grid" id="swarm-evidence">
-                <section className="swarm-panel swarm-selection" aria-label="Select investigation evidence">
-                  <header className="swarm-panel-heading">Evidence</header>
-                  <div className="swarm-panel-body">
-                    <h4>Choose something to inspect</h4>
-                    <div className="swarm-groups">{snapshot.result.clusters.map((cluster) => <button type="button" key={cluster.id} aria-pressed={selection?.kind === "cluster" && selection.id === cluster.id} onClick={() => inspect({ kind: "cluster", id: cluster.id })}><span>{groupLabel(cluster.id, snapshot)} <span className="swarm-group-arrow">↗</span></span><span>{cluster.account_ids.length} connected accounts</span></button>)}</div>
-                    {!snapshot.result.clusters.length && <p className="swarm-muted">No account groups were found.</p>}
-                    <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => inspect({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
-                    {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)}</option>)}</select></details>}
-                    <details><summary>Browse individual accounts &amp; posts</summary><label className="swarm-field" htmlFor="swarm-entity">Items on the map ({snapshot.graph.nodes.length})</label>
-                      <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
-                    <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
-                  </div>
-                </section>
-                {evidenceOpen ? <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={inspect} onClose={() => setEvidenceOpen(false)} /> : <aside className="swarm-panel swarm-evidence-closed"><div className="swarm-panel-body"><h3>Select evidence to inspect</h3><p className="swarm-muted">Choose a group, pair, or item from the list.</p>{selection && <button type="button" onClick={() => setEvidenceOpen(true)}>Open selected evidence →</button>}</div></aside>}
-              </div>
               <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
+              <details className="swarm-panel swarm-selection swarm-evidence-picker" id="swarm-evidence">
+                <summary>Explore evidence</summary>
+                <div className="swarm-panel-body">
+                  <h4>Choose something to inspect</h4>
+                  <div className="swarm-groups">{snapshot.result.clusters.map((cluster) => <button type="button" key={cluster.id} aria-pressed={selection?.kind === "cluster" && selection.id === cluster.id} onClick={() => inspect({ kind: "cluster", id: cluster.id })}><span>{groupLabel(cluster.id, snapshot)} <span className="swarm-group-arrow">↗</span></span><span>{cluster.account_ids.length} connected accounts</span></button>)}</div>
+                  {!snapshot.result.clusters.length && <p className="swarm-muted">No account groups were found.</p>}
+                  <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => inspect({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
+                  {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)}</option>)}</select></details>}
+                  <details><summary>Browse individual accounts &amp; posts</summary><label className="swarm-field" htmlFor="swarm-entity">Items on the map ({snapshot.graph.nodes.length})</label>
+                    <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
+                  <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
+                  {selection && !evidenceOpen && <button type="button" onClick={() => setEvidenceOpen(true)}>Open selected evidence →</button>}
+                </div>
+              </details>
+              {evidenceOpen && <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={inspect} onClose={() => setEvidenceOpen(false)} />}
             </PostScoringProvider>
         </div>}
       </div>
