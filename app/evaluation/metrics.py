@@ -120,8 +120,10 @@ def evaluate_predictions(records, predictions, features):
             **{k: counts[k] for k in ("tp", "fp", "tn", "fn", "abstained")},
             "precision": precision,
             "recall": recall,
-            "f1": 2 * precision * recall / (precision + recall)
-            if precision is not None and recall is not None and precision + recall
+            "f1": (
+                2 * precision * recall / (precision + recall) if precision + recall else 0.0
+            )
+            if precision is not None and recall is not None
             else None,
         }
     total = sum(confusion.values())
