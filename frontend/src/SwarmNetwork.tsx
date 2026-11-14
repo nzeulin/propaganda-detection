@@ -15,7 +15,7 @@ type Example = {
 };
 type Entity = {
   id: string;
-  kind: "account" | "content" | "url";
+  kind: "account" | "content";
   data: { source_id: string; text?: string; url?: string; platform?: string; handle?: string; source_post_url?: string };
   x?: number;
   y?: number;
@@ -26,8 +26,6 @@ type Edge = {
   target_id: string;
   action: string;
   timestamp?: string | null;
-  inferred?: boolean;
-  score?: number;
 };
 type Cluster = { id: string; account_ids: string[]; density: number };
 type Graph = { nodes: Entity[]; edges: Edge[]; hidden_nodes: number; clusters: Cluster[] };
@@ -96,7 +94,7 @@ type PendingJob = RunContext & { jobId: string };
 type Snapshot = PendingJob & { result: SwarmResult; graph: Graph };
 type Selection = { kind: "cluster" | "pair" | "entity"; id: string };
 type Operation = { controller: AbortController; deadline: number; timedOut: boolean };
-type DisplayLink = { id: string; source: string; target: string; inferred: boolean };
+type DisplayLink = { id: string; source: string; target: string };
 type CollectionInfo = {
   post_count: number;
   accounts_with_posts: number;
@@ -533,7 +531,6 @@ function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot
     if (cluster) return cluster.account_ids.includes(finding.source_id) && cluster.account_ids.includes(finding.target_id);
     if (selection.kind === "entity") {
       return finding.source_id === selection.id || finding.target_id === selection.id || finding.episodes.some((episode) =>
-        (node?.kind === "url" && episode.shared_urls?.includes(node.data.url || node.data.source_id)) ||
         episode.matched_events?.some((event) => event.content_id === selection.id || event.content_id === node?.data.source_id));
     }
     return false;
@@ -552,9 +549,9 @@ function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot
             <p className="swarm-muted">Select a name to inspect that account, or compare a pair below.</p>
           </>}
           {selection.kind === "entity" && <>
-            <p className="swarm-kicker">{node?.kind === "content" ? "Post / content" : node?.kind === "url" ? "Shared link" : "Account"}{node?.data.platform ? ` / ${node.data.platform}` : ""}</p>
-            <p className="swarm-muted">{node?.kind === "content" ? "This is one post, not an account. Identical wording can appear in other posts." : node?.kind === "url" ? "This is a destination URL linked from imported content. We do not fetch it." : "This is an account that performed recorded actions. Its name is not evidence that it is a bot."}</p>
-            {!node && <p className="swarm-notice">This account is outside the displayed graph subset.</p>}
+            <p className="swarm-kicker">{node?.kind === "content" ? "Post / content" : "Account"}{node?.data.platform ? ` / ${node.data.platform}` : ""}</p>
+            <p className="swarm-muted">{node?.kind === "content" ? "This is one post, not an account. Identical wording can appear in other posts." : "This is an account that performed recorded actions. Its name is not evidence that it is a bot."}</p>
+            {!node && <p className="swarm-notice">This account is outside the displayed graph. The map includes only attributed agents with publishing or editing activity or declared capability; at most 300 entities are drawn.</p>}
             {node?.data.text && <div className="swarm-entity-text"><p>{node.data.text.slice(0, 1200)}</p>{node.data.text.length > 1200 && <p className="swarm-notice">Text preview truncated.</p>}</div>}
             {node?.data.url && <p><SourceLink url={node.data.url} /></p>}
             {node?.data.source_post_url && <p className="swarm-original-link">Open original on Bluesky: <SourceLink url={node.data.source_post_url} /></p>}
@@ -575,15 +572,12 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   const [size, setSize] = useState({ width: 0, height: 0 });
   const fitted = useRef(false);
   const graph = useMemo(() => {
-    const nodeIds = new Set(snapshot.graph.nodes.map((node) => node.id));
+    const contents = new Set(snapshot.graph.nodes.filter((node) => node.kind === "content").map((node) => node.id));
     const accounts = new Set(snapshot.graph.nodes.filter((node) => node.kind === "account").map((node) => node.id));
-    // The detector findings, not an arbitrary score threshold in the UI, define strong links.
+    // Relationships come from the observed graph; detector findings stay in the evidence panels.
     const links: DisplayLink[] = snapshot.graph.edges
-      .filter((edge) => !edge.inferred && edge.action !== "suspicious_coordination" && nodeIds.has(edge.source_id) && nodeIds.has(edge.target_id))
-      .map((edge) => ({ id: edge.id, source: edge.source_id, target: edge.target_id, inferred: false }));
-    for (const finding of snapshot.result.findings) {
-      if (finding.strong && accounts.has(finding.source_id) && accounts.has(finding.target_id)) links.push({ id: finding.id, source: finding.source_id, target: finding.target_id, inferred: true });
-    }
+      .filter((edge) => accounts.has(edge.source_id) && contents.has(edge.target_id))
+      .map((edge) => ({ id: edge.id, source: edge.source_id, target: edge.target_id }));
     // d3-force mutates positions and link endpoints. Never hand it the API snapshot.
     return { nodes: snapshot.graph.nodes.map((node) => ({ ...node, data: { ...node.data } })), links };
   }, [snapshot]);
@@ -614,10 +608,9 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   function drawNode(node: Entity, context: CanvasRenderingContext2D, scale: number) {
     const x = node.x ?? 0, y = node.y ?? 0;
     const radius = node.kind === "account" ? 4.5 : 3.5;
-    context.fillStyle = node.kind === "account" ? "#a2927f" : node.kind === "content" ? "#f4efe6" : "#777d83";
+    context.fillStyle = node.kind === "account" ? "#a2927f" : "#f4efe6";
     context.beginPath();
-    if (node.kind === "url") context.rect(x - radius, y - radius, radius * 2, radius * 2);
-    else context.arc(x, y, radius, 0, Math.PI * 2);
+    context.arc(x, y, radius, 0, Math.PI * 2);
     context.fill();
     if (highlighted.has(node.id)) {
       context.strokeStyle = "#e34e48";
@@ -637,8 +630,8 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   }
   return (
     <section className="swarm-panel" id="swarm-map" aria-label="Observed network graph">
-      <header className="swarm-panel-heading"><span>NETWORK MAP / WHO ACTED ON WHAT</span><span>{graph.nodes.length} items · {graph.links.filter((link) => !link.inferred).length} recorded links · {graph.links.filter((link) => link.inferred).length} flagged pair links shown</span></header>
-      <p className="swarm-map-explainer">Accounts connect to the posts they acted on; posts may connect to URLs. Dashed red lines are calculated coordination signals between accounts—not observed proof of shared control.</p>
+      <header className="swarm-panel-heading"><span>NETWORK MAP / WHO ACTED ON WHAT</span><span>{graph.nodes.length} items · {graph.links.length} observed actions</span></header>
+      <p className="swarm-map-explainer">Agents connect to posts through observed actions, including replies recorded in post metadata. Agents need attributed publishing or editing activity or declared capability. URLs appear in post details; coordination findings remain in the evidence panels and may cover accounts outside this map.</p>
       {snapshot.graph.hidden_nodes > 0 && <p className="swarm-notice swarm-graph-warning" role="note">Graph truncated: {number(snapshot.graph.hidden_nodes)} entities hidden; at most 300 are drawn. Counts and evidence below cover the full detector result, not just this view.</p>}
       <div className="swarm-canvas" ref={containerRef}>
         {size.width > 0 && size.height > 0 && <ForceGraph2D<Entity, DisplayLink>
@@ -653,9 +646,8 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           nodeCanvasObject={drawNode}
           nodeLabel={() => ""}
           onNodeClick={(node) => select({ kind: "entity", id: node.id })}
-          linkColor={(link) => link.inferred ? "#e34e48" : "#60584e"}
-          linkLineDash={(link) => link.inferred ? [5, 4] : null}
-          linkWidth={(link) => link.inferred ? 1.8 : 0.8}
+          linkColor={() => "#60584e"}
+          linkWidth={0.8}
           enableZoomInteraction={(event) => event.type !== "wheel" || event.ctrlKey || event.metaKey}
           onEngineStop={() => { if (!fitted.current) { fitted.current = true; graphRef.current?.zoomToFit(250, 36); } }}
         />}
@@ -667,7 +659,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           <button type="button" onClick={() => zoom(1 / 1.3)} aria-label="Zoom out">−</button>
           <button type="button" onClick={() => graphRef.current?.zoomToFit(200, 36)}>Fit</button>
         </div>
-        <div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />account</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-url-key" />URL</span><span><i className="swarm-observed-key" />recorded action</span><span><i className="swarm-inferred-key" />flagged pair</span></div>
+        <div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />agent</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-observed-key" />observed action</span></div>
       </div>
       <p className="swarm-graph-hint">Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom · select an entity below without using the canvas.</p>
     </section>
@@ -988,7 +980,7 @@ export default function SwarmNetwork() {
                   <select id="swarm-pair" disabled={!pairs.length} value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) setSelection({ kind: "pair", id: event.target.value }); }}><option value="">{pairs.length ? "Select pair evidence…" : "No pair findings returned"}</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)} · {pair.strong ? "strong" : "candidate"}</option>)}</select>
                   <div className="swarm-pair-list">{pairs.slice(0, 6).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => setSelection({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions · {pair.strong ? "flagged pair" : "candidate only"}</small></button>)}</div>
                   {pairs.length > 6 && <p className="swarm-muted">Showing the first 6 pairs. Use the selector for all {pairs.length}.</p>}
-                  <details><summary>Browse individual accounts, posts &amp; links</summary><label className="swarm-field" htmlFor="swarm-entity">ITEMS IN THE MAP / {snapshot.graph.nodes.length}</label>
+                  <details><summary>Browse individual agents &amp; posts</summary><label className="swarm-field" htmlFor="swarm-entity">ITEMS IN THE MAP / {snapshot.graph.nodes.length}</label>
                   <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) setSelection({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
                   <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
                 </div>

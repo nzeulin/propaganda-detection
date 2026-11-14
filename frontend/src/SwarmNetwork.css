@@ -82,9 +82,7 @@
 .swarm-legend i { width: 7px; height: 7px; display: inline-block; flex-shrink: 0; }
 .swarm-account-key { background: #a2927f; border-radius: 50%; }
 .swarm-content-key { background: #f4efe6; border-radius: 50%; }
-.swarm-url-key { background: #777d83; }
 .swarm-legend .swarm-observed-key { width: 16px; height: 0; border-top: 1px solid #807568; }
-.swarm-legend .swarm-inferred-key { width: 16px; height: 0; border-top: 2px dashed #e34e48; }
 .swarm-workbench .swarm-graph-hint { color: var(--swarm-muted); font-size: 9px; padding: 0 12px 10px; margin: 0; }
 .swarm-evidence-grid { display: grid; grid-template-columns: minmax(210px, .65fr) minmax(0, 1.35fr); gap: 16px; align-items: start; scroll-margin-top: 20px; }
 .swarm-inspection { scroll-margin-block: 16px; }

@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.core.database import analyses, datasets, entities, feedback, observations, utc_now
 from app.core.ingestion import DatasetInput, prepare_dataset
+from app.core.interactions import observed_graph
 
 router = APIRouter(prefix="/api/v1")
 
@@ -112,6 +113,8 @@ async def dataset_graph(
             .order_by(analyses.c.created_at.desc())
             .limit(1)
         ).scalar()
+    eligible, edges = observed_graph(nodes.values(), edges)
+    nodes = {node["id"]: node for node in eligible}
     if since or until:
         edges = [
             e
@@ -120,17 +123,20 @@ async def dataset_graph(
             and (not since or datetime.fromisoformat(e["timestamp"]) >= since)
             and (not until or datetime.fromisoformat(e["timestamp"]) <= until)
         ]
-    clusters = swarm["clusters"] if swarm else []
-    inferred = [f for f in swarm["findings"] if f["strong"]] if swarm and not (since or until) else []
-    edges.extend(inferred)
+    clusters = [
+        {**group, "account_ids": [agent for agent in group["account_ids"] if agent in nodes]}
+        for group in (swarm["clusters"] if swarm else [])
+    ]
+    clusters = [group for group in clusters if len(group["account_ids"]) >= 3]
     adjacency = {node: set() for node in nodes}
     for edge in edges:
         adjacency[edge["source_id"]].add(edge["target_id"])
         adjacency[edge["target_id"]].add(edge["source_id"])
     if focus:
-        seeds = [focus] if focus in nodes else []
+        seeds = [focus] if focus in nodes and (not (since or until) or adjacency[focus]) else []
     elif cluster:
         seeds = next((c["account_ids"] for c in clusters if c["id"] == cluster), [])
+        seeds = [node for node in seeds if not (since or until) or adjacency[node]]
     else:
         seeds = [
             node_id
