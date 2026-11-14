@@ -304,7 +304,7 @@ function ReadingGuide() {
     ["Coordination score", "A 0–1 heuristic combining recurrence, match strength and excess over shuffled timing. It is not a bot probability."],
   ];
   return <details className="swarm-reading-guide">
-    <summary><span>New here? Understand what you’re looking at</span><span className="swarm-muted">A quick guide to the words and numbers</span></summary>
+    <summary>How this investigation works</summary>
     <div className="swarm-glossary">{terms.map(([term, meaning]) => <div key={term}><h4>{term}</h4><p>{meaning}</p></div>)}</div>
     <p className="swarm-guide-note">We look for repeated similar wording or shared URLs close together in time. Scheduled campaigns, news sharing and legitimate organizations can also match. No AI provider or bot classifier is used here.</p>
   </details>;
@@ -523,7 +523,7 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
   );
 }
 
-function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void }) {
+function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void; onClose: () => void }) {
   const [pairId, setPairId] = useState("");
   const node = selection?.kind === "entity" ? snapshot.graph.nodes.find((entry) => entry.id === selection.id) : undefined;
   const cluster = selection?.kind === "cluster" ? snapshot.result.clusters.find((entry) => entry.id === selection.id) : undefined;
@@ -542,7 +542,7 @@ function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot
   const heading = cluster ? groupLabel(cluster.id, snapshot) : selection?.kind === "entity" ? entityLabel(selection.id, snapshot) : "Two-account comparison";
   return (
     <aside className="swarm-panel swarm-inspection" aria-label="Swarm evidence inspector">
-      <header className="swarm-panel-heading">THE EVIDENCE / {cluster ? "ACCOUNT GROUP" : selection?.kind === "entity" ? "SELECTED ITEM" : "ACCOUNT PAIR"}</header>
+      <header className="swarm-panel-heading"><span>THE EVIDENCE / {cluster ? "ACCOUNT GROUP" : selection?.kind === "entity" ? "SELECTED ITEM" : "ACCOUNT PAIR"}</span><button type="button" className="swarm-close-panel" onClick={onClose} aria-label="Close evidence panel">Close ×</button></header>
       <div className="swarm-panel-body">
         {!selection ? <p className="swarm-muted">Select an entity, group, or pair to inspect evidence.</p> : <>
           <h3>{heading}</h3>
@@ -638,7 +638,6 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   return (
     <section className="swarm-panel" id="swarm-map" aria-label="Observed network graph">
       <header className="swarm-panel-heading"><span>NETWORK MAP / WHO ACTED ON WHAT</span><span>{graph.nodes.length} items · {graph.links.filter((link) => !link.inferred).length} recorded links · {graph.links.filter((link) => link.inferred).length} flagged pair links shown</span></header>
-      <p className="swarm-map-explainer">Accounts connect to the posts they acted on; posts may connect to URLs. Dashed red lines are calculated coordination signals between accounts—not observed proof of shared control.</p>
       {snapshot.graph.hidden_nodes > 0 && <p className="swarm-notice swarm-graph-warning" role="note">Graph truncated: {number(snapshot.graph.hidden_nodes)} entities hidden; at most 300 are drawn. Counts and evidence below cover the full detector result, not just this view.</p>}
       <div className="swarm-canvas" ref={containerRef}>
         {size.width > 0 && size.height > 0 && <ForceGraph2D<Entity, DisplayLink>
@@ -667,9 +666,8 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           <button type="button" onClick={() => zoom(1 / 1.3)} aria-label="Zoom out">−</button>
           <button type="button" onClick={() => graphRef.current?.zoomToFit(200, 36)}>Fit</button>
         </div>
-        <div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />account</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-url-key" />URL</span><span><i className="swarm-observed-key" />recorded action</span><span><i className="swarm-inferred-key" />flagged pair</span></div>
       </div>
-      <p className="swarm-graph-hint">Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom · select an entity below without using the canvas.</p>
+      <details className="swarm-graph-help"><summary>How to read this map</summary><p>Accounts connect to the posts they acted on; posts may connect to URLs. Dashed red lines are calculated coordination signals, not proof of shared control.</p><div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />account</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-url-key" />URL</span><span><i className="swarm-observed-key" />recorded action</span><span><i className="swarm-inferred-key" />flagged pair</span></div><p className="swarm-graph-hint">Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom.</p></details>
     </section>
   );
 }
@@ -695,14 +693,13 @@ function ResultSummary({ snapshot, exportResult }: { snapshot: Snapshot; exportR
         <h3>{snapshot.name}</h3>
         <p className="swarm-kicker">{snapshot.provenance} · {result.status.replaceAll("_", " ").toUpperCase()}</p>
         <p className="swarm-takeaway">{takeaway}</p>
-        <p>{statusText}</p>
         <dl className="swarm-metrics swarm-counts">
           <Metric label="Accounts analyzed" value={number(result.counts.accounts)} hint="Accounts with usable timed activity" />
           <Metric label="Usable activity" value={number(result.counts.eligible_events)} hint="Eligible events—not suspicious events" />
           <Metric label="Flagged account pairs" value={number(result.counts.strong_pairs)} hint="Connections to investigate, not confirmed bots" />
           <Metric label="Groups to review" value={number(result.clusters.length)} hint="3+ mutually connected accounts per group" />
         </dl>
-        <p className="swarm-trust-note">Coordination is not proof of bots or malicious intent. {!result.clusters.length && "No strong groups does not prove safety or independence. A strong pair need not form a group."}</p>
+        <details className="swarm-result-context"><summary>How to read this result</summary><p>{statusText}</p><p className="swarm-trust-note">Coordination is not proof of bots or malicious intent. {!result.clusters.length && "No strong groups does not prove safety or independence. A strong pair need not form a group."}</p></details>
         {result.collection && <CollectionCoverage collection={result.collection} datasetId={snapshot.datasetId} />}
         {!!result.warnings?.length && <div className="swarm-notice"><h4>Detector warnings</h4><ul>{result.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
         {result.status === "insufficient_data" ? <div className="swarm-next-step"><strong>What to do next</strong><p>Add timezone-aware timestamps and repeated activity from at least two accounts. The default settings need three usable events per account and an observation span longer than two minutes.</p></div>
@@ -750,6 +747,7 @@ export default function SwarmNetwork() {
   const [pending, setPending] = useState<PendingJob | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const operationRef = useRef<Operation | null>(null);
   const pendingRef = useRef<PendingJob | null>(null);
   const fileReaderRef = useRef<FileReader | null>(null);
@@ -807,7 +805,7 @@ export default function SwarmNetwork() {
     if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges) || typeof graph.hidden_nodes !== "number") throw new Error("The graph response was incomplete. The previous result has been preserved.");
     if (operationRef.current !== operation || operation.controller.signal.aborted) return;
     const next = { ...context, result, graph };
-    setSnapshot(next); setSelection(defaultSelection(next));
+    setSnapshot(next); setSelection(defaultSelection(next)); setEvidenceOpen(false);
     setActivity(`Finished: ${result.status.replaceAll("_", " ")}. Showing ${context.name}.`);
   }
 
@@ -905,17 +903,22 @@ export default function SwarmNetwork() {
     anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
+  function inspect(nextSelection: Selection) {
+    setSelection(nextSelection);
+    setEvidenceOpen(true);
+  }
+
   const pairs = useMemo(() => snapshot ? [...snapshot.result.findings].sort((a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score) : [], [snapshot]);
   const disabled = busy || reading || collecting;
   const activeCollection = collected && name === collected.name && format === "json" && input === JSON.stringify(collected.rows, null, 2) ? collected : null;
   return (
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>03 / FOLLOW THE NETWORK</span><a href="#analysis">↑ CONTENT ANALYSIS</a></header>
-      <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Follow the pattern.</h2></div><p>Do the same accounts keep sharing similar posts at nearly the same time? Import public Bluesky profiles, try a demo or add your own activity, then inspect the original posts. A pattern is a reason to investigate—not proof of bots.</p></div>
+      <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Follow the pattern.</h2></div><p>Find repeated posting patterns. A pattern is a lead to investigate—not proof of bots.</p></div>
       <ol className="swarm-steps" aria-label="Investigation steps">
-        <li aria-current={!snapshot && !busy ? "step" : undefined}><span>1</span><div><strong>Add activity</strong><small>Fetch Bluesky posts, try a demo or upload</small></div></li>
-        <li aria-current={busy ? "step" : undefined}><span>2</span><div><strong>Find repeated patterns</strong><small>Compare wording, links and timing</small></div></li>
-        <li aria-current={snapshot && !busy ? "step" : undefined}><span>3</span><div><strong>Read the evidence</strong><small>Compare actual posts, not just scores</small></div></li>
+        <li aria-current={!snapshot && !busy ? "step" : undefined}><span>1</span><div><strong>Add activity</strong></div></li>
+        <li aria-current={busy ? "step" : undefined}><span>2</span><div><strong>Find patterns</strong></div></li>
+        <li aria-current={snapshot && !busy ? "step" : undefined}><span>3</span><div><strong>Inspect evidence</strong></div></li>
       </ol>
       <ReadingGuide />
       <div className="swarm-layout">
@@ -980,22 +983,19 @@ export default function SwarmNetwork() {
               <section className="swarm-panel swarm-selection" aria-label="Select investigation evidence">
                 <header className="swarm-panel-heading">3 / FOLLOW THE EVIDENCE</header>
                 <div className="swarm-panel-body">
-                  <h4>Account groups <span className="swarm-count-pill">{snapshot.result.clusters.length}</span></h4>
-                  <p className="swarm-muted">A group has at least three accounts, with a flagged connection between every pair. “Cluster” means the same thing.</p>
-                  <div className="swarm-groups">{snapshot.result.clusters.map((cluster) => <button type="button" key={cluster.id} aria-pressed={selection?.kind === "cluster" && selection.id === cluster.id} onClick={() => setSelection({ kind: "cluster", id: cluster.id })}><span>{groupLabel(cluster.id, snapshot)} <span className="swarm-group-arrow">↗</span></span><span>{cluster.account_ids.length} accounts · {cluster.account_ids.length * (cluster.account_ids.length - 1) / 2} mutual pair connections</span><span>{cluster.account_ids.map((id) => entityLabel(id, snapshot)).join(", ")}</span></button>)}</div>
-                  {!snapshot.result.clusters.length && <p className="swarm-muted">No strong groups returned. A flagged pair can still appear below; no groups is not a safety verdict.</p>}
-                  <label className="swarm-field" htmlFor="swarm-pair">OR CHOOSE AN ACCOUNT PAIR / {pairs.length}</label>
-                  <select id="swarm-pair" disabled={!pairs.length} value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) setSelection({ kind: "pair", id: event.target.value }); }}><option value="">{pairs.length ? "Select pair evidence…" : "No pair findings returned"}</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)} · {pair.strong ? "strong" : "candidate"}</option>)}</select>
-                  <div className="swarm-pair-list">{pairs.slice(0, 6).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => setSelection({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions · {pair.strong ? "flagged pair" : "candidate only"}</small></button>)}</div>
-                  {pairs.length > 6 && <p className="swarm-muted">Showing the first 6 pairs. Use the selector for all {pairs.length}.</p>}
+                  <h4>Choose something to inspect</h4>
+                  <div className="swarm-groups">{snapshot.result.clusters.map((cluster) => <button type="button" key={cluster.id} aria-pressed={selection?.kind === "cluster" && selection.id === cluster.id} onClick={() => inspect({ kind: "cluster", id: cluster.id })}><span>{groupLabel(cluster.id, snapshot)} <span className="swarm-group-arrow">↗</span></span><span>{cluster.account_ids.length} connected accounts</span></button>)}</div>
+                  {!snapshot.result.clusters.length && <p className="swarm-muted">No account groups were found.</p>}
+                  <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => inspect({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
+                  {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)}</option>)}</select></details>}
                   <details><summary>Browse individual accounts, posts &amp; links</summary><label className="swarm-field" htmlFor="swarm-entity">ITEMS IN THE MAP / {snapshot.graph.nodes.length}</label>
-                  <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) setSelection({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
+                  <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
                   <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
                 </div>
               </section>
-              <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={setSelection} />
+              {evidenceOpen ? <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={inspect} onClose={() => setEvidenceOpen(false)} /> : <aside className="swarm-panel swarm-evidence-closed"><div className="swarm-panel-body"><p className="swarm-kicker">EVIDENCE PANEL</p><h3>Keep the map clear.</h3><p className="swarm-muted">Select a group, pair, or item to open its evidence.</p>{selection && <button type="button" onClick={() => setEvidenceOpen(true)}>Open selected evidence →</button>}</div></aside>}
             </div>
-            <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={setSelection} />
+            <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
           </>}
         </div>
       </div>

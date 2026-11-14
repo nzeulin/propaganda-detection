@@ -86,8 +86,15 @@
 .swarm-legend .swarm-observed-key { width: 16px; height: 0; border-top: 1px solid #807568; }
 .swarm-legend .swarm-inferred-key { width: 16px; height: 0; border-top: 2px dashed #e34e48; }
 .swarm-workbench .swarm-graph-hint { color: var(--swarm-muted); font-size: 9px; padding: 0 12px 10px; margin: 0; }
+.swarm-workbench .swarm-graph-help { margin: 0; padding: 8px 12px 0; border-top: 1px solid #38332f; }
+.swarm-workbench .swarm-graph-help > summary { font-size: 10px; }
+.swarm-workbench .swarm-graph-help > p { margin: 8px 0; color: var(--swarm-muted); font-size: 11px; }
+.swarm-graph-help .swarm-legend { margin: 10px 0; }
 .swarm-evidence-grid { display: grid; grid-template-columns: minmax(210px, .65fr) minmax(0, 1.35fr); gap: 16px; align-items: start; scroll-margin-top: 20px; }
 .swarm-inspection { scroll-margin-block: 16px; }
+.swarm-evidence-closed { min-height: 210px; display: grid; align-items: center; }
+.swarm-evidence-closed h3 { max-width: 320px; }
+.swarm-close-panel { min-height: 30px !important; padding: 5px 8px !important; font-size: 9px !important; }
 .swarm-members { display: flex; flex-wrap: wrap; gap: 6px; }
 .swarm-members button { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 .swarm-groups { display: grid; gap: 7px; max-height: 400px; overflow: auto; }
