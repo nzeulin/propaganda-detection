@@ -1735,7 +1735,7 @@ export default function SwarmNetwork() {
   return (
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>03 / FOLLOW THE NETWORK</span><a href="#analysis">↑ CONTENT ANALYSIS</a></header>
-      <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Follow the pattern.</h2></div><p>Find repeated posting patterns. A pattern is a lead to investigate—not proof of bots.</p></div>
+      <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Find repeated posts across accounts.</h2></div><p>Find repeated posting patterns. A pattern is a lead to investigate, not proof of bots.</p></div>
       {!snapshot && <p className="swarm-first-run">Try a fictional example, or upload activity you already have. We’ll show the evidence behind any pattern we find.</p>}
       <div className="swarm-layout">
         <div className="swarm-input-column">
@@ -1856,7 +1856,7 @@ export default function SwarmNetwork() {
           </div>}
         </div>
         <div className="swarm-results-column">
-          {!snapshot ? <div className="swarm-panel swarm-welcome"><p className="swarm-kicker">START WITH A SAMPLE</p><h3>See how it works</h3><p>Pick one example, then analyze it. The examples are fictional and help explain what the results mean.</p>
+          {!snapshot ? <div className="swarm-panel swarm-welcome"><p className="swarm-kicker">START WITH A SAMPLE</p><h3>Choose a sample to see what the evidence can and cannot show</h3><p>Pick one example, then analyze it. The examples are fictional and help explain what the results mean.</p>
             {examplesError && <div className="swarm-notice"><p>{examplesError}</p><button type="button" disabled={loadingExamples} onClick={() => setExamplesAttempt((value) => value + 1)}>Try again</button></div>}
             <div className="swarm-demo-cards">{examples.map((example) => <button type="button" key={example.id} disabled={disabled} aria-pressed={exampleId === example.id} onClick={() => loadExample(example.id)}><strong>{example.name.replace(/^Synthetic /, "")}</strong><span>{example.id === "coordinated-network" ? "Repeated similar posts" : example.id === "benign-announcement" ? "One shared announcement" : "Not enough timing information"}</span><span className="swarm-demo-cta">{exampleId === example.id ? "Selected" : "Choose sample"}</span></button>)}</div>
             {!examples.length && <p className="swarm-muted">{loadingExamples ? "Loading samples…" : "Samples are unavailable. Upload a file or paste activity."}</p>}

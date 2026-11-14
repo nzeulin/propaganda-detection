@@ -343,10 +343,10 @@ function Briefing() {
           <p className="briefing-index"><span /> UNDERSTAND THE MESSAGE. TRACE THE SPREAD.</p>
           <h1>See how persuasion works <em>and how it spreads.</em></h1>
           <p className="briefing-description">
-            Veritascope helps you examine persuasive language and repeated posting patterns. Follow the evidence, explore the context, and decide what deserves a closer look.
+            Veritascope helps you examine persuasive language and repeated posting patterns. Read the highlighted persuasion tactics, then inspect the posts and timing behind each coordination signal.
           </p>
           <div className="briefing-actions">
-            <a className="briefing-primary-cta" href="#analysis">Explore a sample analysis <span aria-hidden="true">↓</span></a>
+            <a className="briefing-primary-cta" href="#analysis">See a statement analyzed <span aria-hidden="true">↓</span></a>
             <a className="briefing-secondary-cta" href="#swarm">See how messages spread</a>
           </div>
           <p className="briefing-trust-note">Investigation signals for people—not automated verdicts.</p>
