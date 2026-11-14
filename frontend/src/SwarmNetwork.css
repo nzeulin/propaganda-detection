@@ -54,6 +54,12 @@
   padding: 0 clamp(24px, 6vw, 96px) 44px;
 }
 
+.swarm-layout.swarm-layout-input-only {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 800px;
+  margin-inline: auto;
+}
+
 .swarm-input-column,
 .swarm-results-column {
   display: grid;
@@ -195,19 +201,8 @@
   margin: 0;
 }
 
-.swarm-workbench input[type="file"] {
-  padding: 7px;
-  font-size: 10px;
-}
-
-.swarm-workbench input[type="file"]::file-selector-button {
-  font: inherit;
-  background: #302a26;
-  border: 0;
-  color: #f4efe6;
-  padding: 5px 8px;
-  margin-right: 8px;
-  cursor: pointer;
+.swarm-workbench .swarm-file-upload {
+  margin-top: 18px;
 }
 
 .swarm-workbench textarea {

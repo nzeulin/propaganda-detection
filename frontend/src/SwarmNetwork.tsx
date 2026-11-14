@@ -7,13 +7,6 @@ import "./SwarmNetwork.css";
 
 type InputFormat = "json" | "csv";
 type InputRow = Record<string, unknown>;
-type Example = {
-  id: string;
-  name: string;
-  description: string;
-  synthetic: true;
-  rows: InputRow[];
-};
 type Entity = {
   id: string;
   kind: "account" | "content";
@@ -301,7 +294,7 @@ function validateInput(
     throw new Error("Investigation name must contain 1–200 characters.");
   if (!input.trim())
     throw new Error(
-      "Load an example, upload a file, or paste event rows first.",
+      "Upload a file or paste event rows first.",
     );
   if (new Blob([input]).size > MAX_BYTES)
     throw new Error("Input exceeds 10 MB.");
@@ -554,7 +547,6 @@ function BlueskyImport({
   onPendingChange: (value: boolean) => void;
   ref: Ref<BlueskyImportHandle>;
 }) {
-  const [limit, setLimit] = useState(50);
   const [busy, setBusy] = useState(false);
   const [jobId, setJobId] = useState("");
   const [message, setMessage] = useState(
@@ -672,7 +664,7 @@ function BlueskyImport({
           "/bluesky/collect",
           {
             method: "POST",
-            body: JSON.stringify({ actors, per_actor: limit }),
+            body: JSON.stringify({ actors }),
           },
           controller.signal,
         );
@@ -756,30 +748,8 @@ function BlueskyImport({
         aria-describedby="swarm-bluesky-help"
       />
       <p id="swarm-bluesky-help" className="swarm-muted">
-        One per line, up to 10. Use profile URLs, @handles or exact Bluesky post
-        URLs—not article links or keywords. A single post cannot establish
-        recurring coordination; a few linked posts may return insufficient data.
-      </p>
-      <label className="swarm-field" htmlFor="swarm-bluesky-limit">
-        Maximum posts per profile
-      </label>
-      <select
-        id="swarm-bluesky-limit"
-        value={limit}
-        disabled={disabled || busy || !!jobId}
-        onChange={(event) => setLimit(Number(event.target.value))}
-      >
-        {[10, 50, 100, 200].map((value) => (
-          <option key={value} value={value}>
-            {value} posts per account
-          </option>
-        ))}
-      </select>
-      <p className="swarm-muted">
-        This limit applies to profiles only, with at most three feed pages each.
-        A post URL imports one post, not the author's feed or replies/reposts.
-        Public posts only; no login, LLM calls or account discovery. Original
-        records are stored on this server.
+        Up to 10 unique sources per run. Profiles import at most 50 recent posts;
+        post links import only the linked posts. Extra sources show an error.
       </p>
       <p className="swarm-collection-status" role="status" aria-live="polite">
         {message}
@@ -1373,13 +1343,6 @@ function ResultSummary({
 }
 
 export default function SwarmNetwork() {
-  const [examples, setExamples] = useState<Example[]>([]);
-  const [examplesError, setExamplesError] = useState("");
-  const [loadingExamples, setLoadingExamples] = useState(true);
-  const [examplesAttempt, setExamplesAttempt] = useState(0);
-  const [exampleId, setExampleId] = useState("");
-  const [exampleSource, setExampleSource] = useState<Example | null>(null);
-  const [exampleEdited, setExampleEdited] = useState(false);
   const [name, setName] = useState("Untitled investigation");
   const [input, setInput] = useState("");
   const [format, setFormat] = useState<InputFormat>("json");
@@ -1395,7 +1358,7 @@ export default function SwarmNetwork() {
     "idle" | "importing" | "analyzing" | "loading"
   >("idle");
   const [activity, setActivity] = useState(
-    "Start with a demo, upload a file, or paste your activity below.",
+    "Add Bluesky links, upload a file, or paste activity data.",
   );
   const [error, setError] = useState("");
   const [pending, setPending] = useState<PendingJob | null>(null);
@@ -1405,41 +1368,8 @@ export default function SwarmNetwork() {
   const operationRef = useRef<Operation | null>(null);
   const pendingRef = useRef<PendingJob | null>(null);
   const fileReaderRef = useRef<FileReader | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const blueskyRef = useRef<BlueskyImportHandle | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoadingExamples(true);
-    setExamplesError("");
-    request<Example[]>("/swarm/examples", {}, controller.signal)
-      .then((items) => {
-        if (
-          !Array.isArray(items) ||
-          items.some(
-            (item) =>
-              !item ||
-              typeof item.id !== "string" ||
-              typeof item.name !== "string" ||
-              item.synthetic !== true ||
-              !Array.isArray(item.rows),
-          )
-        )
-          throw new Error(
-            "The examples endpoint returned an unexpected format.",
-          );
-        if (!controller.signal.aborted) setExamples(items);
-      })
-      .catch((failure) => {
-        if (!controller.signal.aborted)
-          setExamplesError(
-            `Examples unavailable: ${failure instanceof Error ? failure.message : errorText(failure)} You can still upload or paste input.`,
-          );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoadingExamples(false);
-      });
-    return () => controller.abort();
-  }, [examplesAttempt]);
 
   useEffect(
     () => () => {
@@ -1627,9 +1557,7 @@ export default function SwarmNetwork() {
           ? runCollected.collection.requested_post_count
             ? "Bluesky public posts"
             : "Bluesky public feeds"
-          : exampleSource
-            ? `Fictional example${exampleEdited ? ", edited" : ""}`
-            : "Uploaded or pasted activity",
+          : "Uploaded or pasted activity",
       };
       updatePending(context);
       await track(job, context, operation);
@@ -1669,22 +1597,6 @@ export default function SwarmNetwork() {
     });
   }
 
-  function loadExample(id: string) {
-    setProfiles("");
-    setCollected(null);
-    setExampleId(id);
-    const example = examples.find((item) => item.id === id);
-    if (!example) return;
-    setInput(JSON.stringify(example.rows, null, 2));
-    setFormat("json");
-    setName(example.name);
-    setEditorOpen(false);
-    setExampleSource(example);
-    setExampleEdited(false);
-    setRevision((value) => value + 1);
-    setError("");
-  }
-
   function upload(file: File | undefined) {
     if (!file) return;
     if (file.size > MAX_BYTES) {
@@ -1694,7 +1606,7 @@ export default function SwarmNetwork() {
       return;
     }
     if (!/\.(csv|json)$/i.test(file.name)) {
-      setError("Choose a CSV or JSON file.");
+      setError("Unsupported file type. Only CSV and JSON are accepted.");
       return;
     }
     fileReaderRef.current?.abort();
@@ -1711,9 +1623,6 @@ export default function SwarmNetwork() {
         file.name.replace(/\.(csv|json)$/i, "").slice(0, 200) ||
         "Uploaded investigation",
       );
-      setExampleId("");
-      setExampleSource(null);
-      setExampleEdited(false);
       setRevision((value) => value + 1);
       setError("");
       setReading(false);
@@ -1763,12 +1672,7 @@ export default function SwarmNetwork() {
           <h2 id="swarm-title">Find repeated posts across accounts.</h2>
         </div>
       </div>
-      {!snapshot && (
-        <p className="swarm-first-run">
-          Paste Bluesky links, try a fictional example, or upload activity you already have. We’ll show the evidence behind any pattern we find.
-        </p>
-      )}
-      <div className="swarm-layout">
+      <div className={`swarm-layout${snapshot ? "" : " swarm-layout-input-only"}`}>
         <div className="swarm-input-column">
           <form
             className="swarm-panel"
@@ -1789,26 +1693,23 @@ export default function SwarmNetwork() {
                 setProfiles(value); setRevision((value) => value + 1);
               }} disabled={busy || reading || !!pending} onBusyChange={setCollecting} onPendingChange={setCollectionPending} onLoad={async (value) => {
                 setCollected(value); setInput(JSON.stringify(value.rows, null, 2)); setFormat("json"); setName(value.name);
-                setExampleId(""); setExampleSource(null); setExampleEdited(false); setEditorOpen(false);
+                setEditorOpen(false);
                 setRevision((value) => value + 1); setError("");
                 await start(value);
               }} />
-              {exampleSource && <div className="swarm-example-description"><span className="swarm-evidence-badge">Fictional demo{exampleEdited ? " · edited" : ""}</span><p>{exampleSource.description}</p></div>}
-              <label className="swarm-field" htmlFor="swarm-file">Upload activity file</label>
-              <input id="swarm-file" type="file" accept=".json,.csv,application/json,text/csv" disabled={disabled} onChange={(event) => { upload(event.target.files?.[0]); event.target.value = ""; }} />
-              {!input.trim() && !profiles.trim() && <p className="swarm-muted swarm-file-hint">Choose a CSV or JSON file, or pick a sample from the panel beside this one.</p>}
+              <button type="button" className="swarm-file-upload" disabled={disabled} onClick={() => fileInputRef.current?.click()}>Upload CSV / JSON</button>
+              <input ref={fileInputRef} id="swarm-file" type="file" hidden aria-label="Upload activity file" accept=".json,.csv,application/json,text/csv" disabled={disabled} onChange={(event) => { upload(event.target.files?.[0]); event.target.value = ""; }} />
               <details className="swarm-advanced-input" open={editorOpen} onToggle={(event) => setEditorOpen(event.currentTarget.open)}>
                 <summary>{input ? "Review or edit activity data" : "Paste data or edit advanced options"}</summary>
                 <label className="swarm-field" htmlFor="swarm-name">Investigation name</label>
                 <input id="swarm-name" value={name} maxLength={200} disabled={disabled} onChange={(event) => { setProfiles(""); setName(event.target.value); setRevision((value) => value + 1); }} />
-                <div className="swarm-editor-heading"><label htmlFor="swarm-input">Activity data</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setProfiles(""); setFormat(event.target.value as InputFormat); if (exampleSource) setExampleEdited(true); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
-                <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-describedby="swarm-fields" placeholder={format === "json" ? "Paste a JSON array of event objects, or load an example above." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setProfiles(""); setInput(event.target.value); if (exampleSource) setExampleEdited(true); setRevision((value) => value + 1); }} />
-                <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setProfiles(""); setInput(""); setExampleSource(null); setExampleId(""); setExampleEdited(false); setRevision((value) => value + 1); }}>Clear input</button></div>
+                <div className="swarm-editor-heading"><label htmlFor="swarm-input">Activity data</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setProfiles(""); setFormat(event.target.value as InputFormat); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
+                <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-describedby="swarm-fields" placeholder={format === "json" ? "Paste a JSON array of event objects." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setProfiles(""); setInput(event.target.value); setRevision((value) => value + 1); }} />
+                <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setProfiles(""); setInput(""); setRevision((value) => value + 1); }}>Clear input</button></div>
                 <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform. JSON must be an array of objects; CSV needs a header row. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Missing timestamps and likes are excluded by the detector and may lead to insufficient data.</p><p>Created content needs text or a URL. Source validation on the server is authoritative.</p></details>
               </details>
               <p className="swarm-muted swarm-privacy-note">Activity is stored on this server. Optional post scoring uses AI only when requested. Only upload data you have permission to use.</p>
               <button type="submit" className="swarm-run" disabled={disabled || !!pending || (!input.trim() && !profiles.trim())}>{reading ? "Reading file…" : busy ? "Analyzing…" : collecting ? "Fetching posts…" : "Analyze activity"}</button>
-              {!input.trim() && !profiles.trim() && <p className="swarm-run-hint">Paste Bluesky links, choose a sample or add a file to get started.</p>}
               {collected && !activeCollection && <p className="swarm-notice">The name or raw data was edited. This will be saved as user-provided input, without claiming server-verified Bluesky provenance.</p>}
               <InputPreview input={input} format={format} collected={activeCollection} />
               {activeCollection && <CollectionCoverage collection={activeCollection.collection} datasetId={activeCollection.dataset_id} />}
@@ -1891,12 +1792,7 @@ export default function SwarmNetwork() {
             </div>
           </div>}
         </div>
-        <div className="swarm-results-column">
-          {!snapshot ? <div className="swarm-panel swarm-welcome"><h3>Try an example</h3><p>Choose one to see a different kind of result. Examples are fictional.</p>
-            {examplesError && <div className="swarm-notice"><p>{examplesError}</p><button type="button" disabled={loadingExamples} onClick={() => setExamplesAttempt((value) => value + 1)}>Try again</button></div>}
-            <div className="swarm-demo-cards">{examples.map((example) => <button type="button" key={example.id} disabled={disabled} aria-pressed={exampleId === example.id} onClick={() => loadExample(example.id)}><strong>{example.name.replace(/^Synthetic /, "")}</strong><span>{example.id === "coordinated-network" ? "Repeated similar posts" : example.id === "benign-announcement" ? "One shared announcement" : "Not enough timing information"}</span><span className="swarm-demo-cta">{exampleId === example.id ? "Selected" : "Choose sample"}</span></button>)}</div>
-            {!examples.length && <p className="swarm-muted">{loadingExamples ? "Loading samples…" : "Samples are unavailable. Upload a file or paste activity."}</p>}
-            <details className="swarm-reading-guide"><summary>What does this check?</summary><p className="swarm-guide-note">It looks for repeated similar wording or shared links posted close together in time. A match is a reason to investigate, not proof that accounts are bots. Legitimate groups can show similar patterns too.</p></details></div> : <>
+        {snapshot && <div className="swarm-results-column">
             <ResultSummary snapshot={snapshot} exportResult={exportResult} />
             <PostScoringProvider key={`${snapshot.datasetId}:${snapshot.jobId}`} initial={snapshot.graph.content_screenings}>
               <div className="swarm-evidence-grid" id="swarm-evidence">
@@ -1917,12 +1813,11 @@ export default function SwarmNetwork() {
               </div>
               <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
             </PostScoringProvider>
-          </>}
-        </div>
+        </div>}
       </div>
       <footer className="swarm-disclaimer">
         Coordination ≠ bots or malice. Investigate context, provenance, and
-        alternative explanations. Synthetic examples ≠ benchmark.
+        alternative explanations.
       </footer>
     </section>
   );
