@@ -1,6 +1,6 @@
 # VeritasScope
 
-Experimental manipulation-indicator screening for pasted text and public article URLs. FastAPI/Pydantic backend; React, TypeScript, Vite and Tailwind frontend. Implements milestones A/B of [the classifier specification](docs/content_classifier.md). Local investigations persist imported observations and entity reviews in SQLite. Analysis jobs, source verification, coordination analysis, deployment and authentication remain under development.
+Experimental manipulation-indicator screening for pasted text and public article URLs. FastAPI/Pydantic backend; React, TypeScript, Vite and Tailwind frontend. Implements milestones A/B of [the classifier specification](docs/content_classifier.md). Local investigations persist imported observations, analysis jobs and entity reviews in SQLite. The Spot the Swarm MVP supports CPU-only coordination analysis and source evidence; production deployment, authentication and real-world detection evaluation remain unfinished.
 
 ## Run locally
 
@@ -85,6 +85,12 @@ Deterministic fixture checks found zero score change from an irrelevant zero-rel
 
 Local HTTP and browser checks cover the frontend, API proxy, demos, diagnostic display, request failures and mobile layout. Live provider checks send explicitly requested text or synthetic samples. Luna extraction and Jev scoring were exercised successfully on the supplied post. No calibrated accuracy, latency target or verified propaganda verdict is claimed.
 
-## Saved investigations
+## Spot the Swarm
 
-Open **Investigations** to import plain text, CSV events, or a JSON event array and review observed entities. Imports do not run model analysis. Data is saved in ignored `.local-data/investigations.db` (`DATABASE_PATH` overrides the path). The current interface lists up to 50 recent investigations and displays up to 300 entities; filtered graph exploration is planned. Dataset-scoped IDs and reviews survive restarts.
+The current frontend's third section, **Follow the pattern** (`/#swarm`), supports CSV/JSON import, real CPU-only coordination jobs, an observed network graph and inspectable source evidence. It does not require AI API keys. Choose the coordinated-network, benign-library or missing-timestamps demo and select **Analyze activity**. A guided workflow, built-in glossary, readable data preview, side-by-side supporting posts and worked score breakdown explain the findings without requiring technical terminology. Synthetic input exercises the real engine; it is not measured real-world accuracy or proof of bots.
+
+Use http://127.0.0.1:5173/#swarm during development. Build with `npm run build --prefix frontend` to serve the latest UI from http://127.0.0.1:8000/#swarm. Restart the backend after backend edits unless using reload. See [the swarm runbook](docs/swarm.md) for input fields, API flow, method, limitations and regression checks.
+
+### Earlier investigation workspace
+
+The earlier **Investigations** screen was replaced by the merged single-page frontend. Its dataset and review APIs remain available, and existing records are preserved in ignored `.local-data/investigations.db` (`DATABASE_PATH` overrides the path). Dataset-scoped IDs, analysis jobs and reviews survive restarts.

@@ -1,579 +1,367 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
+/// <reference types="vite/client" />
+import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { api, features, labels, type Analysis, type Example } from "./types";
-import { Results } from "./Results";
-import { JobPanel, type Job } from "./JobPanel";
 import "./style.css";
+import SwarmNetwork from "./SwarmNetwork";
 
-const Investigations = lazy(() =>
-  import("./Investigations").then((module) => ({
-    default: module.Investigations,
-  })),
-);
-const SystemExplorer = lazy(() =>
-  import("./SystemExplorer").then((module) => ({
-    default: module.SystemExplorer,
-  })),
-);
-const Evaluations = lazy(() =>
-  import("./Evaluations").then((module) => ({ default: module.Evaluations })),
-);
+type Dimension =
+  | "Factual"
+  | "Selective"
+  | "Emotional"
+  | "Logical"
+  | "Authority"
+  | "Repetition"
+  | "Strategic";
 
-const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
-const scoreLabel = (value: number | null) =>
-  value === null ? "—" : value.toFixed(3);
+type Scores = Record<Dimension, number>;
 
-function Analyze() {
-  const [jobId, setJobId] = useState(
-    () => localStorage.getItem("last-analysis-job") || "",
-  );
-  const [mode, setMode] = useState<"text" | "url">("text");
-  const [input, setInput] = useState("");
-  const [title, setTitle] = useState("");
-  const [examples, setExamples] = useState<Example[]>([]);
-  const [example, setExample] = useState<string | null>(null);
-  const [result, setResult] = useState<Analysis | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [error, setError] = useState("");
-  const [live, setLive] = useState<boolean | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  useEffect(() => {
-    if (!loading) return;
-    const started = Date.now();
-    const timer = window.setInterval(
-      () => setElapsed(Math.floor((Date.now() - started) / 1000)),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [loading]);
-  useEffect(() => {
-    const abort = new AbortController();
-    api<Example[]>("/examples", undefined, abort.signal)
-      .then(setExamples)
-      .catch((e) => {
-        if (!abort.signal.aborted)
-          setError(`Cannot reach the API: ${e.message}`);
-      });
-    api<{ live_configured: boolean }>("/health", undefined, abort.signal)
-      .then((r) => setLive(r.live_configured))
-      .catch(() => {});
-    return () => {
-      abort.abort();
-      controller.current?.abort();
-    };
-  }, []);
-  const chooseMode = (next: "text" | "url") => {
-    setMode(next);
-    setInput("");
-    setExample(null);
-    setResult(null);
-    setError("");
-  };
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    controller.current = new AbortController();
-    setError("");
-    setElapsed(0);
-    setLoading(true);
-    setResult(null);
-    try {
-      if (example) {
-        const job = await api<Job>(
-          `/api/v1/demos/${example}`,
-          {},
-          controller.current.signal,
-        );
-        setJobId(job.id);
-        localStorage.setItem("last-analysis-job", job.id);
-      } else {
-        const dataset = await api<{ id: string }>(
-          "/api/v1/datasets",
-          { name: title || "Content investigation", [mode]: input },
-          controller.current.signal,
-        );
-        const graph = await api<{ nodes: { id: string; kind: string }[] }>(
-          `/api/v1/datasets/${dataset.id}/graph`,
-          undefined,
-          controller.current.signal,
-        );
-        const content = graph.nodes.find((n) => n.kind === "content")!;
-        const job = await api<Job>(
-          "/api/v1/content/analyze",
-          { content_id: content.id },
-          controller.current.signal,
-        );
-        setJobId(job.id);
-        localStorage.setItem("last-analysis-job", job.id);
-      }
-    } catch (err) {
-      if (!(err instanceof DOMException && err.name === "AbortError"))
-        setError(err instanceof Error ? err.message : "Analysis failed.");
-    } finally {
-      setLoading(false);
-    }
-  }
+type Statement = {
+  id: string;
+  text: string;
+  start: number;
+  end: number;
+  attribution: string;
+  stance: string;
+  features: Scores;
+  technique_spans: TechniqueSpan[];
+};
+
+type TechniqueSpan = {
+  technique: string;
+  confidence: number;
+  justification: string;
+};
+
+const article =
+  "Officials insist the proposal is the only responsible path, despite independent reporting that documents unresolved costs. Anyone questioning the plan is accused of putting public safety at risk. The same warning appeared repeatedly across coordinated accounts before the committee vote.";
+
+const contentAnalysis: {
+  content_id: string;
+  main_idea: string;
+  statements: Statement[];
+} = {
+  content_id: "CT-441",
+  main_idea:
+    "A coordinated message frames dissent as a risk to public safety while narrowing the evidence considered.",
+  statements: [
+    {
+      id: "ST-01",
+      text: "Officials insist the proposal is the only responsible path, despite independent reporting that documents unresolved costs.",
+      start: 0,
+      end: 119,
+      attribution: "Narrator",
+      stance: "asserted",
+      features: {
+        Factual: 0.38,
+        Selective: 0.84,
+        Emotional: 0.21,
+        Logical: 0.67,
+        Authority: 0.73,
+        Repetition: 0.18,
+        Strategic: 0.76,
+      },
+      technique_spans: [
+        {
+          technique: "False dilemma",
+          confidence: 0.88,
+          justification: "Positions one option as the only responsible path.",
+        },
+        {
+          technique: "Selective presentation",
+          confidence: 0.84,
+          justification: "Acknowledges but does not engage documented costs.",
+        },
+      ],
+    },
+    {
+      id: "ST-02",
+      text: "Anyone questioning the plan is accused of putting public safety at risk.",
+      start: 120,
+      end: 193,
+      attribution: "Narrator",
+      stance: "asserted",
+      features: {
+        Factual: 0.19,
+        Selective: 0.32,
+        Emotional: 0.89,
+        Logical: 0.72,
+        Authority: 0.12,
+        Repetition: 0.24,
+        Strategic: 0.91,
+      },
+      technique_spans: [
+        {
+          technique: "Appeal to fear",
+          confidence: 0.93,
+          justification: "Links questioning the plan to a threat to safety.",
+        },
+      ],
+    },
+    {
+      id: "ST-03",
+      text: "The same warning appeared repeatedly across coordinated accounts before the committee vote.",
+      start: 194,
+      end: 286,
+      attribution: "Network trace",
+      stance: "observed",
+      features: {
+        Factual: 0.61,
+        Selective: 0.18,
+        Emotional: 0.23,
+        Logical: 0.12,
+        Authority: 0.08,
+        Repetition: 0.96,
+        Strategic: 0.82,
+      },
+      technique_spans: [
+        {
+          technique: "Coordinated repetition",
+          confidence: 0.96,
+          justification:
+            "Identical warning amplified across a timed account network.",
+        },
+      ],
+    },
+  ],
+};
+
+const dimensions = Object.keys(
+  contentAnalysis.statements[0].features,
+) as Dimension[];
+
+function Meter({ name, score }: { name: Dimension; score: number }) {
   return (
-    <>
-      <div className="page-intro">
-        <div className="eyebrow">
-          CONTENT INTELLIGENCE / EVIDENCE & VERIFICATION
-        </div>
-        <h1>
-          Read beyond
-          <br />
-          <span>the narrative.</span>
-        </h1>
-        <p>
-          Explore how a message persuades. Trace every assessed indicator back
-          to its words, context and weight.
-        </p>
+    <div className="meter">
+      <div>
+        <span>{name}</span>
+        <button
+          className="info"
+          title={`${name} score: observed strength from 0.00 to 1.00.`}
+        >
+          [i]
+        </button>
+        <b>{score.toFixed(2)}</b>
       </div>
-      <form className="panel input-panel" onSubmit={submit}>
-        <div className="panel-heading">
-          <div className="input-tabs" aria-label="Input type">
-            <button
-              type="button"
-              aria-pressed={mode === "text"}
-              className={mode === "text" ? "active" : ""}
-              disabled={loading}
-              onClick={() => chooseMode("text")}
-            >
-              Paste text
-            </button>
-            <button
-              type="button"
-              aria-pressed={mode === "url"}
-              className={mode === "url" ? "active" : ""}
-              disabled={loading}
-              onClick={() => chooseMode("url")}
-            >
-              Article URL ↗
-            </button>
-          </div>
-          <span className="mono connection">
-            <i />
-            {live === null
-              ? "API CONNECTING"
-              : live
-                ? "LIVE CONFIGURED"
-                : "DEMO READY"}
-          </span>
-        </div>
-        <label className="field-label" htmlFor="article-title-input">
-          Title <span className="muted">(optional)</span>
-        </label>
-        <input
-          id="article-title-input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Give this analysis a title"
-          maxLength={500}
-          disabled={loading}
-        />
-        <label className="field-label" htmlFor="article-input">
-          {mode === "text" ? "Article text" : "Public article URL"}
-        </label>
-        {mode === "text" ? (
-          <textarea
-            id="article-input"
-            placeholder="Paste an article, commentary or speech…"
-            value={input}
-            disabled={loading}
-            onChange={(e) => {
-              setInput(Array.from(e.target.value).slice(0, 40000).join(""));
-              setExample(null);
-            }}
-            required
-          />
-        ) : (
-          <input
-            id="article-input"
-            type="url"
-            placeholder="https://example.com/article"
-            value={input}
-            disabled={loading}
-            onChange={(e) => setInput(e.target.value)}
-            required
-          />
-        )}
-        <div className="input-footer">
-          <span className="small muted">
-            {example
-              ? "Labeled synthetic sample · no provider calls"
-              : mode === "text"
-                ? `${Array.from(input).length.toLocaleString()} / 40,000 characters · live providers required`
-                : "Readable public HTTP(S) articles · live providers required"}
-          </span>
-          <button className="primary" disabled={loading || !input.trim()}>
-            {loading ? (
-              <>
-                <span className="spinner" /> Analyzing…
-              </>
-            ) : (
-              <>
-                Analyze content <span>↗</span>
-              </>
-            )}
-          </button>
-        </div>
-        <div className="sample-row">
-          <span className="mono muted">TRY A DEMO</span>
-          {examples.map((item) => (
-            <button
-              type="button"
-              disabled={loading}
-              key={item.id}
-              className={`sample ${example === item.id ? "selected" : ""}`}
-              onClick={() => {
-                setMode("text");
-                setInput(item.text);
-                setTitle(item.title);
-                setExample(item.id);
-                setError("");
-                setResult(null);
-              }}
-            >
-              {item.title}
-              <small>{item.label}</small>
-            </button>
-          ))}
-        </div>
-        {loading && (
-          <p className="small cyan" role="status">
-            Extracting, validating and scoring evidence · {elapsed}s elapsed.
-            Live analysis may take several minutes.
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-      </form>
-      <p className="screening-note">
-        Experimental manipulation-indicator screening. Scores describe observed
-        techniques, not truth or the probability of propaganda.
-      </p>
-      {jobId && (
-        <JobPanel
-          id={jobId}
-          onChange={(id) => {
-            setJobId(id);
-            localStorage.setItem("last-analysis-job", id);
-          }}
-        />
-      )}
-      {result ? (
-        <Results result={result} />
-      ) : (
-        <div className="workflow-teaser">
-          <span className="mono cyan">01 / EXTRACT</span>
-          <span>→</span>
-          <span className="mono">02 / ASSESS</span>
-          <span>→</span>
-          <span className="mono">03 / TRACE EVIDENCE</span>
-        </div>
-      )}
-    </>
+      <div className="track">
+        <i style={{ width: `${score * 100}%` }} />
+      </div>
+    </div>
   );
 }
 
-function Architecture() {
-  const [result, setResult] = useState<Analysis | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    const abort = new AbortController();
-    api<Analysis>("/analyze", { example_id: "town-hall" }, abort.signal)
-      .then(setResult)
-      .catch((e) => {
-        if (!abort.signal.aborted) setError(e.message);
-      });
-    return () => abort.abort();
-  }, []);
-  const stages = [
-    [
-      "Ingestion",
-      "Public URL or pasted text. Preserve the source and freeze normalized Unicode text.",
-    ],
-    [
-      "Extraction",
-      "Luna extracts narratives, sections, atomic claims, speakers, stances and source spans.",
-    ],
-    [
-      "Validation & grouping",
-      "Validate exact excerpts. Group equivalent claims, retaining every occurrence and separate attribution.",
-    ],
-    [
-      "Scoring",
-      "Jev assesses relevance and eligible techniques using five descriptive rubric levels, normalized by four.",
-    ],
-    [
-      "Aggregation",
-      "Normalize section and within-section importance; publish statement scores at ≥80% coverage.",
-    ],
-    [
-      "Screening",
-      "Apply a versioned experimental policy. Missing required dimensions or independent narratives yield inconclusive.",
-    ],
-  ];
+type StatementViewProps = {
+  statement: Statement;
+  selected: boolean;
+  registerElement: (element: HTMLElement | null) => void;
+};
+
+function StatementView({
+  statement,
+  selected,
+  registerElement,
+}: StatementViewProps) {
+  const [review, setReview] = useState("UNREVIEWED");
+
   return (
-    <>
-      <div className="page-intro">
-        <div className="eyebrow">METHOD / EXPLAINABILITY FIRST</div>
-        <h1>
-          From words
-          <br />
-          <span>to evidence.</span>
-        </h1>
-        <p>
-          A transparent pipeline. Fixed rubrics, normalized weights and
-          explanations you can inspect.
-        </p>
-      </div>
-      <div className="architecture-flow" aria-label="Analysis pipeline">
-        {stages.map(([title, description], i) => (
-          <section className="panel stage" key={title}>
-            <span className="mono cyan">
-              0{i + 1} {i < 5 && "→"}
-            </span>
-            <h2>{title}</h2>
-            <p>{description}</p>
-          </section>
+    <article
+      className={`statement ${selected ? "selected-statement" : ""}`}
+      ref={registerElement}
+    >
+      <header>
+        <span>
+          {statement.id} · {statement.attribution.toUpperCase()}
+        </span>
+        <span>
+          {statement.start}—{statement.end}
+        </span>
+      </header>
+
+      <p className="statement-text">{statement.text}</p>
+
+      <div className="tags">
+        {statement.technique_spans.map((span) => (
+          <span key={span.technique}>
+            {span.technique} <b>{span.confidence.toFixed(2)}</b>
+            <em title={span.justification}>[i]</em>
+          </span>
         ))}
       </div>
-      <section className="method-notes">
+
+      <div className="feature-grid">
+        {dimensions.map((name) => (
+          <Meter key={name} name={name} score={statement.features[name]} />
+        ))}
+      </div>
+
+      <footer className="review">
+        <span>REVIEW CONTROL / {review}</span>
         <div>
-          <div className="eyebrow">THE BASELINE</div>
-          <h2>Every claim counts once.</h2>
-          <p>
-            Section weights sum to one. Within each section, relevance × role
-            coefficients normalize to one. Their product gives a claim’s global
-            weight. A repeated claim belongs to its earliest valid occurrence’s
-            section; every occurrence remains available for repetition and
-            highlights.
-          </p>
-          <div className="formula mono">
-            wᵢ = vⱼ × aᵢ|ⱼ
-            <br />
-            Aₖ = Σ(wᵢ × xᵢ,ₖ) / coverageₖ
-            <br />
-            Cᵢ,ₖ = wᵢ × xᵢ,ₖ / coverageₖ
+          <button onClick={() => setReview("CONFIRMED")}>Confirm</button>
+          <button onClick={() => setReview("FALSE POSITIVE")}>
+            Dismiss / false positive
+          </button>
+          <button onClick={() => setReview("NEEDS REVIEW")}>
+            Needs review
+          </button>
+        </div>
+      </footer>
+    </article>
+  );
+}
+
+function Analysis() {
+  const [input, setInput] = useState(article);
+  const [analyzed, setAnalyzed] = useState(true);
+  const [selectedStatementId, setSelectedStatementId] = useState(
+    contentAnalysis.statements[0].id,
+  );
+  const resultElements = useRef<Record<string, HTMLElement | null>>({});
+
+  function updateInput(value: string) {
+    setInput(value);
+    setAnalyzed(false);
+  }
+
+  function selectStatement(statementId: string) {
+    setSelectedStatementId(statementId);
+    requestAnimationFrame(() => {
+      resultElements.current[statementId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+  }
+
+  const canHighlightInput = analyzed && input === article;
+
+  return (
+    <section className="screen analysis-screen" id="analysis">
+      <div className="input-column">
+        <header className="section-title">
+          <span>02 / NAME THE TECHNIQUE</span>
+          <span>CONTENT ANALYSIS</span>
+        </header>
+
+        <div className="input-meta">
+          <span>CONTENT_ID / {contentAnalysis.content_id}</span>
+          <span>{input.length} CHARS</span>
+          {analyzed && (
+            <button className="edit-input" onClick={() => setAnalyzed(false)}>
+              EDIT INPUT
+            </button>
+          )}
+        </div>
+
+        {canHighlightInput ? (
+          <div className="input-highlighter" aria-label="Analyzed article text">
+            {contentAnalysis.statements.map((statement, index) => (
+              <span key={statement.id}>
+                <button
+                  className={`sentence-highlight highlight-${index + 1} ${selectedStatementId === statement.id ? "is-selected" : ""
+                    }`}
+                  onClick={() => selectStatement(statement.id)}
+                  aria-pressed={selectedStatementId === statement.id}
+                  title={`View ${statement.id} analysis`}
+                >
+                  {statement.text}
+                </button>{" "}
+              </span>
+            ))}
           </div>
-        </div>
-        <div>
-          <div className="eyebrow">EVIDENCE BOUNDARIES</div>
-          <h2>Missing means unassessed.</h2>
+        ) : (
+          <textarea
+            value={input}
+            onChange={(event) => updateInput(event.target.value)}
+            aria-label="Article text to analyze"
+          />
+        )}
+
+        <div className="input-bottom">
           <p>
-            Text alone cannot verify facts or establish what was omitted. Those
-            features remain null. Authority scores concern misleading appeals;
-            fabricated sources need verification. Rejected or neutrally reported
-            quotations do not become the author’s manipulation.
+            Paste a document, statement, or post for statement-level feature
+            analysis.
           </p>
-          <p>
-            The screen requires emotional, logical and strategic assessment.
-            Indicators are flagged when at least two assessed dimensions reach
-            0.50 and one reaches 0.75. Overall risk stays null. Top-three
-            pooling is an optional diagnostic, disabled by default.
-          </p>
+          <button className="analyze-button" onClick={() => setAnalyzed(true)}>
+            ANALYZE <span>→</span>
+          </button>
         </div>
-      </section>
-      <div className="worked-heading">
-        <div className="eyebrow">SYNTHETIC WORKED EXAMPLE</div>
-        <h2>A town hall under pressure</h2>
-        <p className="muted">
-          The same offline pipeline used by Analyze. Fixture scores illustrate
-          behavior; they are not a validated model assessment.
+      </div>
+
+      <div className="results-column">
+        <header className="section-title">
+          <span>RESULTS / {analyzed ? "COMPLETE" : "PENDING"}</span>
+          <span>MODEL: DEMO-01</span>
+        </header>
+
+        {analyzed ? (
+          <>
+            <div className="idea">
+              <label>MAIN IDEA</label>
+              <p>{contentAnalysis.main_idea}</p>
+            </div>
+            <div className="results-list">
+              {contentAnalysis.statements.map((statement) => (
+                <StatementView
+                  key={statement.id}
+                  statement={statement}
+                  selected={selectedStatementId === statement.id}
+                  registerElement={(element) => {
+                    resultElements.current[statement.id] = element;
+                  }}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="empty result-empty">
+            <div className="crosshair">+</div>
+            <p>
+              Press ANALYZE to generate
+              <br />
+              statement-level findings
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Briefing() {
+  function moveToInvestigation() {
+    document.getElementById("swarm")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  return (
+    <section className="screen briefing-screen" id="briefing">
+      <div className="briefing-identity">VERITASCOPE / FIELD BRIEFING</div>
+
+      <div className="briefing-copy">
+        <p className="briefing-index">01 / INVESTIGATION INITIALIZATION</p>
+        <h1>Explainable Propaganda &amp; Coordinated Manipulation Detection.</h1>
+        <p className="briefing-description">
+          An investigation platform analyzing what content says and how networks
+          spread it. These are investigation signals, not definitive verdicts.
         </p>
       </div>
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      {!result && !error && <p role="status">Loading worked example…</p>}
-      {result && (
-        <>
-          <section className="panel calculation">
-            <div className="panel-heading">
-              <h2>Canonical claims & exact contributions</h2>
-              <span className="mono">EMOTIONAL DIMENSION</span>
-            </div>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Claim / stance</th>
-                    <th>Section</th>
-                    <th>Occurrences</th>
-                    <th>rᵢ</th>
-                    <th>qᵢ</th>
-                    <th>wᵢ</th>
-                    <th>xᵢ</th>
-                    <th>Cᵢ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.statements.map((claim) => (
-                    <tr key={claim.id}>
-                      <td>
-                        {claim.text}
-                        <small>
-                          {claim.stance.replaceAll("_", " ")} ·{" "}
-                          {claim.role.replaceAll("_", " ")}
-                        </small>
-                      </td>
-                      <td>{claim.section_id}</td>
-                      <td>{claim.occurrence_count}</td>
-                      <td>{scoreLabel(claim.relevance)}</td>
-                      <td>{scoreLabel(claim.role_coefficient)}</td>
-                      <td>{scoreLabel(claim.weight)}</td>
-                      <td>
-                        {scoreLabel(
-                          claim.features.emotional_manipulation ?? null,
-                        )}
-                      </td>
-                      <td>
-                        {scoreLabel(
-                          claim.contributions.emotional_manipulation ?? null,
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="small muted">
-              Σ wᵢ ={" "}
-              {result.statements
-                .reduce((sum, c) => sum + (c.weight ?? 0), 0)
-                .toFixed(8)}{" "}
-              · Coverage ={" "}
-              {percent(result.feature_details.emotional_manipulation.coverage)}{" "}
-              · Σ Cᵢ ={" "}
-              {result.statements
-                .reduce(
-                  (sum, c) =>
-                    sum + (c.contributions.emotional_manipulation ?? 0),
-                  0,
-                )
-                .toFixed(8)}
-            </p>
-            <p className="small muted">
-              Section weights:{" "}
-              {result.sections
-                .filter((s) => s.weight !== undefined)
-                .map((s) => `${s.id} = ${s.weight!.toFixed(4)}`)
-                .join(" · ")}
-              . Repetition retains both endorsed occurrences; the reported
-              accusation is rejected and receives no author highlight.
-            </p>
-          </section>
-          <Results result={result} />
-        </>
-      )}
-    </>
+
+      <button className="briefing-scroll-cue" onClick={moveToInvestigation}>
+        [ ↓ ]
+      </button>
+    </section>
   );
 }
 
 function App() {
-  const [page, setPage] = useState(
-    window.location.hash === "#evaluations"
-      ? "evaluations"
-      : window.location.hash.startsWith("#system")
-        ? "system"
-        : window.location.hash === "#investigations"
-          ? "investigations"
-          : window.location.hash === "#architecture"
-            ? "architecture"
-            : "analyze",
-  );
-  useEffect(() => {
-    const change = () =>
-      setPage(
-        window.location.hash === "#evaluations"
-          ? "evaluations"
-          : window.location.hash.startsWith("#system")
-            ? "system"
-            : window.location.hash === "#investigations"
-              ? "investigations"
-              : window.location.hash === "#architecture"
-                ? "architecture"
-                : "analyze",
-      );
-    window.addEventListener("hashchange", change);
-    return () => window.removeEventListener("hashchange", change);
-  }, []);
   return (
-    <>
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
-      <header className="site-header">
-        <a className="brand" href="#analyze">
-          <span className="brand-icon">V</span>
-          <span>
-            VERITAS<span className="cyan">SCOPE</span>
-            <small>CONTENT ANALYTICS</small>
-          </span>
-        </a>
-        <nav aria-label="Main navigation">
-          <a
-            href="#evaluations"
-            aria-current={page === "evaluations" ? "page" : undefined}
-          >
-            Evaluation
-          </a>
-          <a
-            href="#system"
-            aria-current={page === "system" ? "page" : undefined}
-          >
-            System explorer
-          </a>
-          <a
-            href="#investigations"
-            aria-current={page === "investigations" ? "page" : undefined}
-          >
-            Investigations
-          </a>
-          <a
-            href="#analyze"
-            aria-current={page === "analyze" ? "page" : undefined}
-          >
-            Analyze
-          </a>
-          <a
-            href="#architecture"
-            aria-current={page === "architecture" ? "page" : undefined}
-          >
-            Architecture & Example
-          </a>
-        </nav>
-        <span className="experimental mono">EXPERIMENTAL / v0.1</span>
-      </header>
-      <main id="main-content" className="max-w-[1440px] mx-auto px-5 md:px-10">
-        <Suspense fallback={<p role="status">Loading workspace…</p>}>
-          {page === "evaluations" ? (
-            <Evaluations />
-          ) : page === "system" ? (
-            <SystemExplorer />
-          ) : page === "investigations" ? (
-            <Investigations />
-          ) : page === "analyze" ? (
-            <Analyze />
-          ) : (
-            <Architecture />
-          )}
-        </Suspense>
-      </main>
-      <footer>
-        <span className="mono">VERITAS//ANALYTICS</span>
-        <span>
-          Evidence before conclusions. Human review remains essential.
-        </span>
-        <span className="mono cyan">LOCAL INVESTIGATION LAB</span>
-      </footer>
-    </>
+    <main className="app-shell">
+      <Briefing />
+      <Analysis />
+      <SwarmNetwork />
+    </main>
   );
 }
 

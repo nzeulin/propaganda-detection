@@ -6,8 +6,9 @@ import io
 import json
 from datetime import UTC, datetime
 from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 
 class ImportRow(BaseModel):
@@ -21,6 +22,11 @@ class ImportRow(BaseModel):
     reply_to_content_id: str | None = Field(default=None, max_length=200)
     platform: str = Field(default="unknown", min_length=1, max_length=100)
 
+    @field_validator("url", "reply_to_content_id", mode="before")
+    @classmethod
+    def empty_optional_field(cls, value):
+        return None if value == "" else value
+
     @model_validator(mode="after")
     def validate_time_and_content(self):
         if not self.account_id.strip() or not self.content_id.strip():
@@ -32,6 +38,20 @@ class ImportRow(BaseModel):
             self.timestamp = parsed.astimezone(UTC).isoformat()
         else:
             self.timestamp = None
+        if self.url:
+            try:
+                parts = urlsplit(self.url)
+                if (
+                    parts.scheme not in ("http", "https")
+                    or not parts.hostname
+                    or parts.username is not None
+                    or parts.password is not None
+                    or any(c.isspace() for c in self.url)
+                ):
+                    raise ValueError("Invalid URL")
+                _ = parts.port
+            except ValueError as exc:
+                raise ValueError("URL must be an absolute HTTP(S) URL with a valid host and port, without credentials") from exc
         if self.action == "created" and not (self.text.strip() or self.url):
             raise ValueError("Created content requires readable text or a URL")
         return self

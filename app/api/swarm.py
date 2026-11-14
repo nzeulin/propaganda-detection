@@ -4,19 +4,26 @@ import asyncio
 from threading import Event
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from app.api.contracts import JobRecord
 from app.core.database import analyses, datasets, entities, observations
-from app.swarm.engine import analyze_coordination
+from app.swarm.engine import VERSION, analyze_coordination
+from app.swarm.examples import swarm_examples
 
 router = APIRouter(prefix="/api/v1")
 
 
 class SwarmInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    dataset_id: str
+    dataset_id: str = Field(min_length=1, max_length=200)
+
+
+@router.get("/swarm/examples")
+async def examples():
+    """Return input observations, never precomputed detector verdicts."""
+    return swarm_examples()
 
 
 def swarm_handler(state):
@@ -53,7 +60,7 @@ async def submit_swarm(body: SwarmInput, request: Request):
         found = connection.execute(select(datasets.c.id).where(datasets.c.id == body.dataset_id)).first()
     if not found:
         raise HTTPException(404, "Unknown dataset")
-    return request.app.state.jobs.submit("swarm", body.dataset_id, body.model_dump(), {"coordination": "v1"})
+    return request.app.state.jobs.submit("swarm", body.dataset_id, body.model_dump(), {"coordination": VERSION})
 
 
 @router.get("/swarm/{dataset_id}/analysis")

@@ -40,7 +40,6 @@ export interface Annotation {
   assessment: Assessment;
 }
 export interface Claim {
-  techniques?: { technique: string; excerpt: string; explanation: string }[];
   id: string;
   text: string;
   section_id: string;
@@ -61,20 +60,12 @@ export interface Analysis {
   normalized_text: string;
   demo: boolean;
   primary_narrative: string | null;
-  narratives: {
-    id: string;
-    summary: string;
-    kind: "argumentative" | "informational";
-  }[];
   review_required: boolean;
   features: Record<Feature, number | null>;
   feature_details: Record<
     Feature,
     { status: string; coverage: number; reason: string; scope: string }
   >;
-  diagnostics?: Partial<
-    Record<Feature, { partial_estimate: number | null; coverage: number }>
-  > | null;
   classification: {
     label: string;
     policy_version: string;
@@ -116,19 +107,9 @@ export async function api<T>(
       : {}),
     signal,
   });
-  let data;
-  try {
-    data = await response.json();
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    throw new Error(
-      response.ok
-        ? "The API returned an unreadable response. Try again."
-        : `The API request failed (HTTP ${response.status}). Check that the backend is running and try again.`,
-    );
-  }
+  const data = await response.json();
   if (!response.ok) {
-    const detail = data?.detail;
+    const detail = data.detail;
     throw new Error(
       typeof detail === "string"
         ? detail

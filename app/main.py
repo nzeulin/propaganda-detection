@@ -73,7 +73,7 @@ async def health(request: Request):
         "status": "ok",
         "demo_available": True,
         "live_configured": request.app.state.live is not None,
-        "enabled_modes": ["text_only"],
+        "enabled_modes": ["text_only", "swarm"],
     }
 
 
