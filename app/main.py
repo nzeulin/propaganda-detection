@@ -10,6 +10,8 @@ from fastapi import FastAPI, HTTPException, Request
 from app.api.datasets import router as datasets_router
 from app.api.jobs import content_handler
 from app.api.jobs import router as jobs_router
+from app.api.swarm import router as swarm_router
+from app.api.swarm import swarm_handler
 from app.content.config import Configuration
 from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
@@ -30,7 +32,9 @@ async def lifespan(app: FastAPI):
         from app.providers.live import LiveProvider
 
         app.state.live = LiveProvider(app.state.config)
-    app.state.jobs = JobRunner(app.state.database, {"content": content_handler(app.state)})
+    app.state.jobs = JobRunner(
+        app.state.database, {"content": content_handler(app.state), "swarm": swarm_handler(app.state)}
+    )
     try:
         yield
     finally:
@@ -45,6 +49,7 @@ app = FastAPI(title="VeritasScope · experimental content screening", version="0
 
 app.include_router(datasets_router)
 app.include_router(jobs_router)
+app.include_router(swarm_router)
 
 
 @app.get("/health")
