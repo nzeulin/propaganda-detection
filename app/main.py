@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 
 from app.api.datasets import import_dataset
 from app.api.datasets import router as datasets_router
+from app.api.evaluations import router as evaluations_router
 from app.api.jobs import content_handler
 from app.api.jobs import router as jobs_router
 from app.api.swarm import router as swarm_router
@@ -22,6 +23,7 @@ from app.content.schemas import AnalysisResponse, AnalyzeRequest
 from app.core.database import entities, open_database
 from app.core.ingestion import DatasetInput
 from app.core.jobs import JobRunner
+from app.evaluation.runner import evaluation_handler
 
 
 @asynccontextmanager
@@ -36,7 +38,12 @@ async def lifespan(app: FastAPI):
 
         app.state.live = LiveProvider(app.state.config)
     app.state.jobs = JobRunner(
-        app.state.database, {"content": content_handler(app.state), "swarm": swarm_handler(app.state)}
+        app.state.database,
+        {
+            "content": content_handler(app.state),
+            "swarm": swarm_handler(app.state),
+            "evaluation": evaluation_handler(app.state),
+        },
     )
     app.state.slots = app.state.jobs.slots
     try:
@@ -55,6 +62,7 @@ app.include_router(datasets_router)
 app.include_router(jobs_router)
 app.include_router(swarm_router)
 app.include_router(system_router)
+app.include_router(evaluations_router)
 
 
 @app.get("/health")
