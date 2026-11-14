@@ -3,7 +3,12 @@ import { api, labels, type Feature } from "./types";
 import { JobPanel, type Job } from "./JobPanel";
 
 type Metrics = {
-  provider_usage: {records_with_usage:number; input_tokens:number;output_tokens:number; complete:boolean};
+  provider_usage: {
+    records_with_usage: number;
+    input_tokens: number;
+    output_tokens: number;
+    complete: boolean;
+  };
   evaluated: number;
   confusion: Record<string, number>;
   families: Record<
@@ -165,6 +170,18 @@ export function Evaluations() {
                 </div>
               ))}
             </div>
+            <p className="small muted">
+              Provider accounting:{" "}
+              {summary.metrics.provider_usage.records_with_usage} records with
+              usage ·{" "}
+              {summary.metrics.provider_usage.input_tokens.toLocaleString()}{" "}
+              input tokens ·{" "}
+              {summary.metrics.provider_usage.output_tokens.toLocaleString()}{" "}
+              output tokens.{" "}
+              {summary.metrics.provider_usage.complete
+                ? "Complete for this selection."
+                : "Older predictions have incomplete token accounting."}
+            </p>
             <h2>Material confusion</h2>
             <div className="confusion-grid">
               {Object.entries(summary.metrics.confusion).map(([label, n]) => (
