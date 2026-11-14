@@ -909,3 +909,54 @@ select {
     color: #555;
   }
 }
+.metric-grid,
+.confusion-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+.metric-card {
+  background: #0a1526;
+  border: 1px solid #263a52;
+  border-radius: 10px;
+  padding: 18px;
+}
+.metric-card small {
+  display: block;
+  color: #98a9c1;
+}
+.metric-card strong {
+  font-size: 26px;
+  color: #63dce6;
+  display: block;
+  margin-top: 10px;
+}
+.record-list {
+  max-height: 500px;
+  overflow: auto;
+}
+.corpus-record {
+  display: flex;
+  gap: 14px;
+  border-top: 1px solid #263a52;
+  padding: 14px 0;
+}
+.corpus-record button {
+  background: none;
+  border: 0;
+  text-align: left;
+  color: #dde6f3;
+}
+.corpus-record strong,
+.corpus-record span {
+  display: block;
+}
+.corpus-record span {
+  font-size: 13px;
+  color: #98a9c1;
+  margin-top: 7px;
+}
+.table-scroll {
+  overflow-x: auto;
+}

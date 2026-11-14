@@ -1,5 +1,6 @@
 import { Investigations } from "./Investigations";
 import { SystemExplorer } from "./SystemExplorer";
+import { Evaluations } from "./Evaluations";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, features, labels, type Analysis, type Example } from "./types";
@@ -468,24 +469,28 @@ function Architecture() {
 
 function App() {
   const [page, setPage] = useState(
-    window.location.hash.startsWith("#system")
-      ? "system"
-      : window.location.hash === "#investigations"
-        ? "investigations"
-        : window.location.hash === "#architecture"
-          ? "architecture"
-          : "analyze",
+    window.location.hash === "#evaluations"
+      ? "evaluations"
+      : window.location.hash.startsWith("#system")
+        ? "system"
+        : window.location.hash === "#investigations"
+          ? "investigations"
+          : window.location.hash === "#architecture"
+            ? "architecture"
+            : "analyze",
   );
   useEffect(() => {
     const change = () =>
       setPage(
-        window.location.hash.startsWith("#system")
-          ? "system"
-          : window.location.hash === "#investigations"
-            ? "investigations"
-            : window.location.hash === "#architecture"
-              ? "architecture"
-              : "analyze",
+        window.location.hash === "#evaluations"
+          ? "evaluations"
+          : window.location.hash.startsWith("#system")
+            ? "system"
+            : window.location.hash === "#investigations"
+              ? "investigations"
+              : window.location.hash === "#architecture"
+                ? "architecture"
+                : "analyze",
       );
     window.addEventListener("hashchange", change);
     return () => window.removeEventListener("hashchange", change);
@@ -504,6 +509,12 @@ function App() {
           </span>
         </a>
         <nav aria-label="Main navigation">
+          <a
+            href="#evaluations"
+            aria-current={page === "evaluations" ? "page" : undefined}
+          >
+            Evaluation
+          </a>
           <a
             href="#system"
             aria-current={page === "system" ? "page" : undefined}
@@ -532,7 +543,9 @@ function App() {
         <span className="experimental mono">EXPERIMENTAL / v0.1</span>
       </header>
       <main id="main-content" className="max-w-[1440px] mx-auto px-5 md:px-10">
-        {page === "system" ? (
+        {page === "evaluations" ? (
+          <Evaluations />
+        ) : page === "system" ? (
           <SystemExplorer />
         ) : page === "investigations" ? (
           <Investigations />
