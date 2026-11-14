@@ -43,6 +43,31 @@ feedback = Table(
     Column("reason", String, nullable=False),
     Column("created_at", String, nullable=False),
 )
+jobs = Table(
+    "jobs",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("kind", String, nullable=False),
+    Column("target_id", String, nullable=False, index=True),
+    Column("fingerprint", String, nullable=False, index=True),
+    Column("status", String, nullable=False),
+    Column("created_at", String, nullable=False),
+    Column("updated_at", String, nullable=False),
+    Column("payload", JSON, nullable=False),
+    Column("trace", JSON, nullable=False),
+    Column("result", JSON),
+    Column("error", JSON),
+)
+analyses = Table(
+    "analyses",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("job_id", ForeignKey("jobs.id"), nullable=False, unique=True),
+    Column("target_id", String, nullable=False, index=True),
+    Column("kind", String, nullable=False),
+    Column("created_at", String, nullable=False),
+    Column("result", JSON, nullable=False),
+)
 
 
 def utc_now():
@@ -59,10 +84,12 @@ def open_database(path: str):
         connection.execute("PRAGMA journal_mode=WAL")
 
     with engine.begin() as connection:
-        metadata.create_all(connection)
+        revisions.create(connection, checkfirst=True)
         version = connection.execute(revisions.select()).scalar()
-        if version is None:
-            connection.execute(revisions.insert().values(version=1))
-        elif version != 1:
+        if version not in (None, 1, 2):
             raise RuntimeError(f"Unsupported database schema revision {version}; migration required.")
+        # Revision 2 is additive: existing observations and reviews remain immutable.
+        metadata.create_all(connection)
+        connection.execute(revisions.delete())
+        connection.execute(revisions.insert().values(version=2))
     return engine
