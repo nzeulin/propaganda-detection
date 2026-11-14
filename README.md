@@ -75,6 +75,11 @@ readability status, techniques with evidence, and the caption's stance when
 supported by a verbatim excerpt. An original poster can show a technique even
 when the person posting it is quoting or criticizing it. Where more context
 would change the reading, the response explains what context is missing.
+When the first pass proposes a technique or an explicit caption stance, a review call
+sees the pixels and full caption again. It checks proposed evidence and considers
+ordinary explanations such as reporting, documentation, or a routine warning.
+Unsupported techniques are omitted. Ambiguous or unreviewed evidence stays unresolved.
+This extra request is skipped when there are no findings or stance to review.
 Results are model interpretations of the submitted material. The API does
 not look up the image's origin or verify factual claims.
 

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from openai import APITimeoutError, AsyncOpenAI
 from PIL import Image, PngImagePlugin
 
-from app.content.image_analysis import ImageObservation, assess_image
+from app.content.image_analysis import ImageEvidenceReview, ImageObservation, apply_image_review, assess_image
 from app.main import app
 from app.providers.image_vision import ImageAnalyzer
 
@@ -42,6 +42,20 @@ def observation(**changes):
         "context_needed": None,
     }
     return report | changes
+
+
+def check(index=0, decision="supported", **changes):
+    return {
+        "candidate_index": index,
+        "decision": decision,
+        "alternative_explanation": "The figure could be a historic illustration.",
+        "reason": "The figure is positioned to reinforce the direct appeal to enlist.",
+        "visible_quotes": ["ENLIST"],
+    } | changes
+
+
+def review(*findings, stance="neutrally_reported", excerpt="shown as a recruiting example"):
+    return {"findings": list(findings), "caption_assessment": {"stance": stance, "excerpt": excerpt}}
 
 
 @pytest.fixture
@@ -108,6 +122,8 @@ def test_disabled_reports_configuration_and_keeps_existing_routes(http):
 
 
 def test_sdk_request_uses_actual_pixels_caption_and_no_metadata(http):
+    seen = []
+
     def provider(request):
         assert request.url.path == "/v1/responses"
         body = json.loads(request.content)
@@ -116,7 +132,8 @@ def test_sdk_request_uses_actual_pixels_caption_and_no_metadata(http):
         assert "tools" not in body
         assert body["text"]["format"]["strict"] is True
         content = body["input"][0]["content"]
-        assert json.loads(content[0]["text"]) == {"caption": CAPTION}
+        payload = json.loads(content[0]["text"])
+        assert payload["caption"] == CAPTION
         data_url = content[1]["image_url"]
         assert data_url.startswith("data:image/png;base64,")
         with Image.open(BytesIO(base64.b64decode(data_url.split(",")[1]))) as sent:
@@ -124,7 +141,13 @@ def test_sdk_request_uses_actual_pixels_caption_and_no_metadata(http):
             assert sent.size == (2048, 68)
             assert sent.getpixel((0, 0)) == (0, 0, 0)
             assert "author" not in sent.info
-        return reply(observation())
+        seen.append(body["instructions"])
+        if len(seen) == 1:
+            assert payload == {"caption": CAPTION}
+            return reply(observation())
+        assert payload["candidates"][0]["candidate_index"] == 0
+        assert payload["candidates"][0]["technique"] == "appeal_to_fear"
+        return reply(review(check()))
 
     http.app.state.image_analyzer = mock_analyzer(provider)
     metadata = PngImagePlugin.PngInfo()
@@ -137,6 +160,8 @@ def test_sdk_request_uses_actual_pixels_caption_and_no_metadata(http):
     assert report["image_text"] == "ENLIST"
     assert report["caption_assessment"]["stance"] == "neutrally_reported"
     assert report["findings"][0]["technique"] == "appeal_to_fear"
+    assert len(seen) == 2
+    assert seen[0] != seen[1]
 
 
 def test_rules_do_not_guarantee_author_endorsement_or_keep_unanchored_text():
@@ -172,15 +197,115 @@ def test_unreadable_image_and_benign_image_are_separate_outcomes():
 
 @pytest.mark.parametrize("format", ["JPEG", "WEBP"])
 def test_supported_formats_are_decoded_instead_of_trusting_the_extension(http, format):
-    http.app.state.image_analyzer = mock_analyzer(lambda _: reply(observation()))
+    http.app.state.image_analyzer = mock_analyzer(lambda _: reply(observation(findings=[])))
     assert upload(http, image_bytes(format=format)).status_code == 200
 
 
 def test_caption_is_optional(http):
-    http.app.state.image_analyzer = mock_analyzer(lambda _: reply(observation()))
+    http.app.state.image_analyzer = mock_analyzer(lambda _: reply(observation(findings=[])))
     response = http.post(URL, files={"image": ("source.png", image_bytes(), "image/png")})
     assert response.status_code == 200
     assert response.json()["caption_assessment"] == {"stance": "not_provided", "excerpt": None}
+
+
+@pytest.mark.parametrize(
+    ("second_pass", "expected_status", "expected_caption"),
+    [
+        (review(check(decision="unsupported")), "no_clear_signals", "neutrally_reported"),
+        (review(check(decision="needs_context")), "needs_context", "neutrally_reported"),
+        (review(check(visible_quotes=[])), "needs_context", "neutrally_reported"),
+        (review(check(), stance="endorsed", excerpt="In this archive lesson"), "signals_found", "unclear"),
+        (review(check(), excerpt="invented quote"), "signals_found", "unclear"),
+        (review(check(), check()), "needs_context", "unclear"),
+        (review(check(index=1)), "needs_context", "unclear"),
+        (review(), "needs_context", "neutrally_reported"),
+        (None, "needs_context", "unclear"),
+    ],
+)
+def test_only_reviewed_signals_survive_without_upgrading_caption(
+    second_pass, expected_status, expected_caption
+):
+    report = assess_image(ImageObservation.model_validate(observation()), CAPTION, "test")
+    parsed = ImageEvidenceReview.model_validate(second_pass) if second_pass else None
+    checked = apply_image_review(report, parsed, CAPTION)
+    assert checked.status == expected_status
+    assert bool(checked.findings) == (expected_status == "signals_found")
+    assert checked.caption_assessment.stance == expected_caption
+
+
+def test_reports_can_contain_supported_and_uncertain_findings():
+    raw = observation()
+    raw["findings"].append(
+        {
+            "technique": "appeal_to_authority",
+            "explanation": "A possible official seal appears at the bottom of the poster.",
+            "evidence": [{"source": "visual", "excerpt": "A blurred circular mark in the lower right."}],
+        }
+    )
+    report = assess_image(ImageObservation.model_validate(raw), CAPTION, "test")
+    checked = apply_image_review(
+        report,
+        ImageEvidenceReview.model_validate(
+            review(
+                check(),
+                check(
+                    index=1,
+                    decision="needs_context",
+                    reason="Read the mark in a higher-resolution image.",
+                    visible_quotes=[],
+                ),
+            )
+        ),
+        CAPTION,
+    )
+    assert [finding.technique for finding in checked.findings] == ["appeal_to_fear"]
+    assert checked.status == "signals_found"
+    assert checked.context_needed == "Read the mark in a higher-resolution image."
+
+
+def test_no_evidence_or_stance_skips_second_provider_call(http):
+    seen = []
+
+    def provider(request):
+        seen.append(request)
+        return reply(observation(findings=[]))
+
+    http.app.state.image_analyzer = mock_analyzer(provider)
+    response = upload(http, caption="")
+    assert response.json()["status"] == "no_clear_signals"
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize("failure", ["timeout", "invalid_schema", "refusal"])
+def test_second_provider_failure_withholds_unreviewed_findings(http, failure):
+    def provider(request):
+        payload = json.loads(json.loads(request.content)["input"][0]["content"][0]["text"])
+        if "candidates" not in payload:
+            return reply(observation())
+        if failure == "timeout":
+            raise APITimeoutError(request=request)
+        if failure == "invalid_schema":
+            return reply(review(check(decision="certain")))
+        return reply()
+
+    http.app.state.image_analyzer = mock_analyzer(provider)
+    response = upload(http)
+    assert response.status_code == 200
+    assert response.json()["status"] == "needs_context"
+    assert response.json()["findings"] == []
+
+
+def test_explicit_caption_stance_gets_review_even_without_visual_findings(http):
+    def provider(request):
+        payload = json.loads(json.loads(request.content)["input"][0]["content"][0]["text"])
+        if payload.get("candidates") == []:
+            return reply(review(stance="unclear", excerpt=None))
+        return reply(observation(findings=[]))
+
+    http.app.state.image_analyzer = mock_analyzer(provider)
+    result = upload(http).json()
+    assert result["caption_assessment"]["stance"] == "unclear"
+    assert result["status"] == "needs_context"
 
 
 def test_rejects_bad_or_oversized_uploads_before_provider_call(http):

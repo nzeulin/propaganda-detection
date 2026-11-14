@@ -7,6 +7,7 @@ from pydantic import Field
 from app.content.schemas import Entity
 
 TextStatus = Literal["readable", "partially_readable", "unreadable", "no_visible_text"]
+ReportStatus = Literal["signals_found", "needs_context", "no_clear_signals"]
 
 
 class ImageEvidence(Entity):
@@ -45,7 +46,41 @@ class ImageObservation(Entity):
 
 class ImageAnalysisReport(ImageObservation):
     model: str
-    status: Literal["signals_found", "needs_context", "no_clear_signals"]
+    status: ReportStatus
+
+
+class ImageFindingCheck(Entity):
+    candidate_index: int = Field(ge=0, lt=5)
+    decision: Literal["supported", "unsupported", "needs_context"]
+    alternative_explanation: str
+    reason: str
+    visible_quotes: list[str] = Field(max_length=4)
+
+
+class ImageEvidenceReview(Entity):
+    findings: list[ImageFindingCheck] = Field(max_length=5)
+    caption_assessment: CaptionAssessment
+
+
+def _anchor_caption(assessment: CaptionAssessment, caption: str) -> CaptionAssessment:
+    if not caption:
+        return CaptionAssessment(stance="not_provided", excerpt=None)
+    if (
+        assessment.stance in {"not_provided", "unclear"}
+        or not assessment.excerpt
+        or not assessment.excerpt.strip()
+        or assessment.excerpt not in caption
+    ):
+        return CaptionAssessment(stance="unclear", excerpt=None)
+    return assessment
+
+
+def _report_status(findings: list[ImageFinding], context_needed: str | None) -> ReportStatus:
+    if findings:
+        return "signals_found"
+    if context_needed:
+        return "needs_context"
+    return "no_clear_signals"
 
 
 def assess_image(observation: ImageObservation, caption: str, model: str) -> ImageAnalysisReport:
@@ -56,16 +91,7 @@ def assess_image(observation: ImageObservation, caption: str, model: str) -> Ima
     elif not image_text:
         text_status = "unreadable"
 
-    caption_assessment = observation.caption_assessment
-    if not caption:
-        caption_assessment = CaptionAssessment(stance="not_provided", excerpt=None)
-    elif (
-        caption_assessment.stance in {"not_provided", "unclear"}
-        or not caption_assessment.excerpt
-        or not caption_assessment.excerpt.strip()
-        or caption_assessment.excerpt not in caption
-    ):
-        caption_assessment = CaptionAssessment(stance="unclear", excerpt=None)
+    caption_assessment = _anchor_caption(observation.caption_assessment, caption)
 
     findings = []
     sources = {"image_text": image_text, "caption": caption}
@@ -86,12 +112,6 @@ def assess_image(observation: ImageObservation, caption: str, model: str) -> Ima
             context_needed = "Some image text could not be read. A clearer image could help."
         elif caption_assessment.stance == "unclear":
             context_needed = "The post caption does not settle how its author frames the image."
-    if findings:
-        status = "signals_found"
-    elif context_needed:
-        status = "needs_context"
-    else:
-        status = "no_clear_signals"
     return ImageAnalysisReport(
         description=observation.description,
         image_text=image_text,
@@ -100,5 +120,53 @@ def assess_image(observation: ImageObservation, caption: str, model: str) -> Ima
         findings=findings,
         context_needed=context_needed,
         model=model,
-        status=status,
+        status=_report_status(findings, context_needed),
+    )
+
+
+def apply_image_review(
+    report: ImageAnalysisReport, review: ImageEvidenceReview | None, caption: str
+) -> ImageAnalysisReport:
+    checks = {check.candidate_index: check for check in review.findings} if review else {}
+    if review and (len(checks) != len(review.findings) or any(i >= len(report.findings) for i in checks)):
+        review = None
+        checks.clear()
+
+    notes = [report.context_needed] if report.context_needed else []
+    findings = []
+    if review is None:
+        notes.append("The evidence review could not finish. Unverified findings are withheld.")
+    else:
+        for index, finding in enumerate(report.findings):
+            check = checks.get(index)
+            if not check or not check.alternative_explanation.strip() or not check.reason.strip():
+                notes.append("The evidence review did not resolve every possible finding.")
+            elif check.decision == "supported":
+                if any(
+                    item.source == "image_text" and item.excerpt not in check.visible_quotes
+                    for item in finding.evidence
+                ):
+                    notes.append("The evidence review could not confirm the quoted wording in the image.")
+                else:
+                    findings.append(finding)
+            elif check.decision == "needs_context":
+                notes.append(check.reason.strip())
+
+    caption_assessment = report.caption_assessment
+    if caption_assessment.stance not in {"not_provided", "unclear"}:
+        checked = _anchor_caption(review.caption_assessment, caption) if review else None
+        if checked is not None and checked.stance == caption_assessment.stance:
+            caption_assessment = checked
+        else:
+            caption_assessment = CaptionAssessment(stance="unclear", excerpt=None)
+            notes.append("The available caption evidence did not settle how the author frames the image.")
+
+    context_needed = " ".join(dict.fromkeys(notes)) or None
+    return report.model_copy(
+        update={
+            "findings": findings,
+            "caption_assessment": caption_assessment,
+            "context_needed": context_needed,
+            "status": _report_status(findings, context_needed),
+        }
     )
