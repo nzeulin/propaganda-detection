@@ -51,6 +51,38 @@ The synthetic town-hall example includes an emoji, repeated endorsed threats, mo
 
 The screen returns `indicators_detected`. Scores are illustrative fixtures, not model predictions. The architecture page shows the actual article, canonical claims, occurrences, section weights, coverage and exact contributions from this same offline pipeline. `public-notice` illustrates informational writing. Arbitrary text is always live input, even if it matches a sample; missing/failed providers never activate fixture scoring.
 
+### Analyze an image
+
+In local `.env`, set `IMAGE_ANALYSIS_ENABLED=true` and a server-side
+`OPENAI_API_KEY`. The default image model is `gpt-4.1-mini`. Override it
+using `IMAGE_ANALYSIS_MODEL`. Image analysis runs independently of TypeSafe.
+Restart the backend and open **Content analysis → Add image**. Choose a file
+or paste a copied image or screenshot with Ctrl+V or ⌘V. Add the original
+post caption if available, then select **Analyze image**. The **Image analysis**
+section in `/docs` also exposes the endpoint directly.
+
+```bash
+curl -F "image=@poster.png" -F "caption=This poster is shown in a history lesson." http://127.0.0.1:8000/api/v1/images/analyze
+```
+
+On Windows, use `curl.exe`. The caption is optional. Upload one still PNG, JPEG,
+or WebP at up to 5 MiB and 16 megapixels. The endpoint re-encodes the image
+without metadata and sends it and the caption to the model. The application
+does not create a saved dataset or job from these uploads.
+
+The response includes a visual description, a best-effort transcription with
+readability status, techniques with evidence, and the caption's stance when
+supported by a verbatim excerpt. An original poster can show a technique even
+when the person posting it is quoting or criticizing it. Where more context
+would change the reading, the response explains what context is missing.
+When the first pass proposes a technique or an explicit caption stance, a review call
+sees the pixels and full caption again. It checks proposed evidence and considers
+ordinary explanations such as reporting, documentation, or a routine warning.
+Unsupported techniques are omitted. Ambiguous or unreviewed evidence stays unresolved.
+This extra request is skipped when there are no findings or stance to review.
+Results are model interpretations of the submitted material. The API does
+not look up the image's origin or verify factual claims.
+
 ## Method and boundaries
 
 - `app/content/` owns ingestion, schemas, span validation/grouping, orchestration, aggregation and policy. `app/providers/` contains reusable Luna/Jev adapters and bounded transport/cache behavior. Creator analysis remains separate future work.
