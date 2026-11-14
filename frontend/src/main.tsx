@@ -1,720 +1,711 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import ForceGraph2D, {
+  type ForceGraphMethods,
+} from "react-force-graph-2d";
 import { createRoot } from "react-dom/client";
-import {
-  api,
-  features,
-  labels,
-  type Analysis,
-  type Annotation,
-  type Example,
-} from "./types";
-import { segmentText } from "./highlights";
 import "./style.css";
 
-const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
-const scoreLabel = (value: number | null) =>
-  value === null ? "—" : value.toFixed(3);
+type Dimension =
+  | "Factual"
+  | "Selective"
+  | "Emotional"
+  | "Logical"
+  | "Authority"
+  | "Repetition"
+  | "Strategic";
 
-function Article({ result }: { result: Analysis }) {
-  const [selected, setSelected] = useState<Annotation[]>([]);
-  const segments = segmentText(
-    result.normalized_text,
-    result.annotations,
-    result.highlight_thresholds,
-  );
-  return (
-    <div className="article-layout">
-      <section className="panel article-panel" aria-labelledby="article-title">
-        <div className="panel-heading">
-          <h2 id="article-title">Annotated article</h2>
-          <span className="mono">UNICODE SOURCE SPANS</span>
-        </div>
-        <div className="legend">
-          <span>
-            <i className="yellow-dot" />
-            Clear local indicator ≥{" "}
-            {result.highlight_thresholds.yellow.toFixed(2)}
-          </span>
-          <span>
-            <i className="red-dot" />
-            Strong ≥ {result.highlight_thresholds.red.toFixed(2)}
-          </span>
-        </div>
-        <p className="small muted">
-          Select or keyboard-focus a passage to inspect all associated findings.
-          Color describes local severity; article contribution depends on weight
-          and coverage.
-        </p>
-        <div className="article-text">
-          {segments.map((segment) =>
-            segment.severity ? (
-              <mark
-                key={segment.start}
-                className={`highlight ${segment.severity}`}
-                tabIndex={0}
-                role="button"
-                aria-label={`${segment.severity === "red" ? "Strong" : "Clear"} local indicator: ${segment.findings.map((a) => labels[a.feature]).join(", ")}. ${segment.text}`}
-                onFocus={() => setSelected(segment.findings)}
-                onClick={() => setSelected(segment.findings)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelected(segment.findings);
-                  }
-                }}
-              >
-                {segment.text}
-              </mark>
-            ) : (
-              <React.Fragment key={segment.start}>
-                {segment.text}
-              </React.Fragment>
-            ),
-          )}
-        </div>
-      </section>
-      <aside
-        className="panel evidence-panel"
-        aria-label="Passage evidence"
-        aria-live="polite"
-      >
-        <div className="panel-heading">
-          <h2>Evidence inspector</h2>
-          <span className="cyan">↗</span>
-        </div>
-        {selected.length === 0 ? (
-          <div className="empty-evidence">
-            <span className="inspect-symbol">⌖</span>
-            <h3>Follow the evidence</h3>
-            <p>
-              Select a highlighted passage to see the technique, attribution,
-              rubric and exact contribution.
-            </p>
-            {!result.annotations.length && (
-              <p>No passages met the local highlight thresholds.</p>
-            )}
-          </div>
-        ) : (
-          selected.map((finding) => (
-            <div className="finding" key={finding.id}>
-              <div className="eyebrow">{labels[finding.feature]}</div>
-              <blockquote>{finding.excerpt}</blockquote>
-              <div className="finding-numbers">
-                <div>
-                  <small>LOCAL SCORE</small>
-                  <strong>{scoreLabel(finding.score)}</strong>
-                </div>
-                <div>
-                  <small>ARTICLE CONTRIBUTION</small>
-                  <strong>{scoreLabel(finding.contribution)}</strong>
-                </div>
-              </div>
-              <p className="small">
-                {finding.speaker_name || finding.speaker.replaceAll("_", " ")} ·{" "}
-                {finding.attribution}
-              </p>
-              <p className="small muted">
-                {finding.contribution_scope === "material_level"
-                  ? "Contextual finding: score belongs to the full material and is not allocated to this passage."
-                  : "Contribution belongs to the canonical claim, counted once across all repeated occurrences. It may be diagnostic when material coverage is insufficient."}
-              </p>
-              <details>
-                <summary>Five-level rubric & provider record</summary>
-                <ol start={0}>
-                  {finding.rubric.map((level) => (
-                    <li key={level}>{level}</li>
-                  ))}
-                </ol>
-                <p className="mono small">
-                  Raw: {finding.assessment.raw_score.toFixed(3)} / 4<br />
-                  Confidence: {scoreLabel(finding.assessment.confidence)}
-                  <br />
-                  Model: {finding.assessment.model}
-                </p>
-                <p className="small muted">
-                  Level distribution:{" "}
-                  {finding.assessment.probabilities
-                    .map((p) => p.toFixed(3))
-                    .join(" · ")}
-                  . Confidence is concentration, not validated accuracy.
-                </p>
-              </details>
-            </div>
-          ))
-        )}
-      </aside>
-    </div>
-  );
-}
+type Scores = Record<Dimension, number>;
 
-function Results({ result }: { result: Analysis }) {
-  const label = result.classification.label;
-  return (
-    <div className="results" key={result.material_id}>
-      <section className="result-banner panel" aria-live="polite">
-        <div>
-          <div className="eyebrow">
-            {result.demo ? "OFFLINE SYNTHETIC DEMO" : "LIVE TEXT-ONLY ANALYSIS"}
-          </div>
-          <h2>
-            {label === "indicators_detected"
-              ? "Manipulation indicators detected"
-              : label === "inconclusive"
-                ? "Assessment inconclusive"
-                : "No strong text indicators"}
-          </h2>
-          <p className="muted">
-            Experimental screening · {result.classification.policy_version} ·
-            Overall risk score: not assessed
-          </p>
-        </div>
-        <span
-          className={`status-orb ${label === "indicators_detected" ? "caution" : ""}`}
-        >
-          {label === "inconclusive" ? "?" : "◎"}
-        </span>
-      </section>
-      <section className="narrative">
-        <div className="eyebrow">CENTRAL NARRATIVE</div>
-        <p>{result.primary_narrative || "No valid narrative extracted."}</p>
-        {result.review_required && (
-          <p className="notice">
-            Independent narratives require human review. Combined profile
-            withheld; local findings remain diagnostic.
-          </p>
-        )}
-      </section>
-      <section className="panel profile">
-        <div className="panel-heading">
-          <h2>Seven-feature profile</h2>
-          <span className="mono">OBSERVED STRENGTH · 0–1</span>
-        </div>
-        <div className="meters">
-          {features.map((feature, index) => {
-            const value = result.features[feature];
-            const detail = result.feature_details[feature];
-            return (
-              <div className="meter" key={feature}>
-                <div className="meter-title">
-                  <span className="mono muted">0{index + 1}</span>
-                  <h3>{labels[feature]}</h3>
-                  <strong>
-                    {value === null ? "Not assessed" : value.toFixed(3)}
-                  </strong>
-                </div>
-                <div
-                  className="meter-track"
-                  role={value === null ? "img" : "meter"}
-                  aria-label={`${labels[feature]}${value === null ? ": Not assessed" : ""}`}
-                  {...(value === null
-                    ? {}
-                    : {
-                        "aria-valuenow": value,
-                        "aria-valuemin": 0,
-                        "aria-valuemax": 1,
-                      })}
-                >
-                  <div
-                    style={{ width: value === null ? "0%" : percent(value) }}
-                  />
-                </div>
-                <p>
-                  {value === null
-                    ? detail.reason
-                    : `${percent(detail.coverage)} coverage · ${detail.scope.replaceAll("_", " ")}`}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-      <Article result={result} />
-      <details className="panel provenance">
-        <summary>Assessment limits & provenance</summary>
-        <ul>
-          {result.warnings.map((w) => (
-            <li key={w}>{w}</li>
-          ))}
-        </ul>
-        <p className="mono small">
-          Extractor: {result.model_versions.extractor}
-          <br />
-          Scorer: {result.model_versions.scorer}
-          <br />
-          Rubrics: {result.versions.rubrics}
-          <br />
-          Aggregation: {result.provenance.aggregation}
-          <br />
-          SHA-256: {result.provenance.content_sha256}
-        </p>
-      </details>
-    </div>
-  );
-}
+type Statement = {
+  id: string;
+  text: string;
+  start: number;
+  end: number;
+  attribution: string;
+  stance: string;
+  features: Scores;
+  technique_spans: TechniqueSpan[];
+};
 
-function Analyze() {
-  const [mode, setMode] = useState<"text" | "url">("text");
-  const [input, setInput] = useState("");
-  const [title, setTitle] = useState("");
-  const [examples, setExamples] = useState<Example[]>([]);
-  const [example, setExample] = useState<string | null>(null);
-  const [result, setResult] = useState<Analysis | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [live, setLive] = useState<boolean | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  useEffect(() => {
-    const abort = new AbortController();
-    api<Example[]>("/examples", undefined, abort.signal)
-      .then(setExamples)
-      .catch((e) => {
-        if (!abort.signal.aborted)
-          setError(`Cannot reach the API: ${e.message}`);
-      });
-    api<{ live_configured: boolean }>("/health", undefined, abort.signal)
-      .then((r) => setLive(r.live_configured))
-      .catch(() => {});
-    return () => {
-      abort.abort();
-      controller.current?.abort();
-    };
-  }, []);
-  const chooseMode = (next: "text" | "url") => {
-    setMode(next);
-    setInput("");
-    setExample(null);
-    setResult(null);
-    setError("");
+type TechniqueSpan = {
+  technique: string;
+  confidence: number;
+  justification: string;
+};
+
+type Cluster = {
+  cluster_id: string;
+  account_ids: string[];
+  content_ids: string[];
+  risk_score: number;
+  evidence: string[];
+  events: CoordinatedEvent[];
+  links: string[];
+};
+
+type CoordinatedEvent = {
+  time: string;
+  event: string;
+};
+
+type GraphNode = {
+  id: string;
+  label: string;
+  kind: "cluster" | "account" | "content";
+  cluster?: string;
+  risk?: number;
+  x?: number;
+  y?: number;
+};
+
+type GraphLink = {
+  source: string;
+  target: string;
+  cluster: string;
+};
+
+const northstarAccounts = [
+  "@civic_current",
+  "@northstar_report",
+  "@signal_desk",
+  "@public_eye_02",
+];
+
+const northstarContent = ["CT-441", "CT-449", "CT-455"];
+
+const echoAccounts = [
+  "@metro_voice",
+  "@axis_comment",
+  "@watchtower_feed",
+];
+
+const echoContent = ["CT-462", "CT-468"];
+
+const graphEdges: [string, string][] = [
+  ["@civic_current", "@northstar_report"],
+  ["@civic_current", "@signal_desk"],
+  ["@signal_desk", "@public_eye_02"],
+  ["@civic_current", "CT-441"],
+  ["@northstar_report", "CT-449"],
+  ["@signal_desk", "CT-455"],
+  ["CL-07", "@civic_current"],
+  ["CL-07", "CT-441"],
+  ["@metro_voice", "@axis_comment"],
+  ["@axis_comment", "@watchtower_feed"],
+  ["@metro_voice", "CT-462"],
+  ["@watchtower_feed", "CT-468"],
+  ["CL-12", "@metro_voice"],
+  ["CL-12", "CT-462"],
+];
+
+const swarmAnalysis: {
+  clusters: Cluster[];
+  graph: {
+    nodes: GraphNode[];
+    links: GraphLink[];
   };
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    controller.current = new AbortController();
-    setError("");
-    setLoading(true);
-    setResult(null);
-    try {
-      setResult(
-        await api<Analysis>(
-          "/analyze",
-          {
-            ...(example ? { example_id: example } : { [mode]: input }),
-            ...(title ? { title } : {}),
-            include_details: true,
-          },
-          controller.current.signal,
-        ),
-      );
-    } catch (err) {
-      if (!(err instanceof DOMException && err.name === "AbortError"))
-        setError(err instanceof Error ? err.message : "Analysis failed.");
-    } finally {
-      setLoading(false);
+} = {
+  clusters: [
+    {
+      cluster_id: "CL-07 / Northstar relay",
+      account_ids: northstarAccounts,
+      content_ids: northstarContent,
+      risk_score: 0.91,
+      evidence: [
+        "14 posts repeated the same claim in 38 minutes",
+        "Four accounts linked to the same shortened URL",
+        "Posting cadence began within 71 seconds",
+      ],
+      events: [
+        {
+          time: "09:14:02",
+          event: "@civic_current publishes CT-441",
+        },
+        {
+          time: "09:15:13",
+          event: "@northstar_report repeats key phrase",
+        },
+        {
+          time: "09:21:44",
+          event: "three accounts share shortened target",
+        },
+      ],
+      links: [
+        "relay-watch.example/brief-44",
+        "short.link/k2m",
+        "archive.example/CT-441",
+      ],
+    },
+    {
+      cluster_id: "CL-12 / Echo depot",
+      account_ids: echoAccounts,
+      content_ids: echoContent,
+      risk_score: 0.74,
+      evidence: [
+        "Shared image hash detected across three accounts",
+        "Two accounts were created within one day",
+      ],
+      events: [
+        {
+          time: "11:02:19",
+          event: "@metro_voice posts CT-462",
+        },
+        {
+          time: "11:08:57",
+          event: "image hash replicated",
+        },
+      ],
+      links: [
+        "archive.example/CT-462",
+        "media.example/hash-88",
+      ],
+    },
+  ],
+  graph: {
+    nodes: [
+      {
+        id: "CL-07",
+        label: "CL-07",
+        kind: "cluster",
+        risk: 0.91,
+      },
+      {
+        id: "CL-12",
+        label: "CL-12",
+        kind: "cluster",
+        risk: 0.74,
+      },
+      ...northstarAccounts.map((id) => ({
+        id,
+        label: id,
+        kind: "account" as const,
+        cluster: "CL-07",
+      })),
+      ...northstarContent.map((id) => ({
+        id,
+        label: id,
+        kind: "content" as const,
+        cluster: "CL-07",
+      })),
+      ...echoAccounts.map((id) => ({
+        id,
+        label: id,
+        kind: "account" as const,
+        cluster: "CL-12",
+      })),
+      ...echoContent.map((id) => ({
+        id,
+        label: id,
+        kind: "content" as const,
+        cluster: "CL-12",
+      })),
+    ],
+    links: graphEdges.map(([source, target]) => ({
+      source,
+      target,
+      cluster: isEchoNode(source) ? "CL-12" : "CL-07",
+    })),
+  },
+};
+
+const article =
+  "Officials insist the proposal is the only responsible path, despite independent reporting that documents unresolved costs. Anyone questioning the plan is accused of putting public safety at risk. The same warning appeared repeatedly across coordinated accounts before the committee vote.";
+
+const contentAnalysis: {
+  content_id: string;
+  main_idea: string;
+  statements: Statement[];
+} = {
+  content_id: "CT-441",
+  main_idea:
+    "A coordinated message frames dissent as a risk to public safety while narrowing the evidence considered.",
+  statements: [
+    {
+      id: "ST-01",
+      text: "Officials insist the proposal is the only responsible path, despite independent reporting that documents unresolved costs.",
+      start: 0,
+      end: 119,
+      attribution: "Narrator",
+      stance: "asserted",
+      features: {
+        Factual: 0.38,
+        Selective: 0.84,
+        Emotional: 0.21,
+        Logical: 0.67,
+        Authority: 0.73,
+        Repetition: 0.18,
+        Strategic: 0.76,
+      },
+      technique_spans: [
+        {
+          technique: "False dilemma",
+          confidence: 0.88,
+          justification: "Positions one option as the only responsible path.",
+        },
+        {
+          technique: "Selective presentation",
+          confidence: 0.84,
+          justification: "Acknowledges but does not engage documented costs.",
+        },
+      ],
+    },
+    {
+      id: "ST-02",
+      text: "Anyone questioning the plan is accused of putting public safety at risk.",
+      start: 120,
+      end: 193,
+      attribution: "Narrator",
+      stance: "asserted",
+      features: {
+        Factual: 0.19,
+        Selective: 0.32,
+        Emotional: 0.89,
+        Logical: 0.72,
+        Authority: 0.12,
+        Repetition: 0.24,
+        Strategic: 0.91,
+      },
+      technique_spans: [
+        {
+          technique: "Appeal to fear",
+          confidence: 0.93,
+          justification: "Links questioning the plan to a threat to safety.",
+        },
+      ],
+    },
+    {
+      id: "ST-03",
+      text: "The same warning appeared repeatedly across coordinated accounts before the committee vote.",
+      start: 194,
+      end: 286,
+      attribution: "Network trace",
+      stance: "observed",
+      features: {
+        Factual: 0.61,
+        Selective: 0.18,
+        Emotional: 0.23,
+        Logical: 0.12,
+        Authority: 0.08,
+        Repetition: 0.96,
+        Strategic: 0.82,
+      },
+      technique_spans: [
+        {
+          technique: "Coordinated repetition",
+          confidence: 0.96,
+          justification:
+            "Identical warning amplified across a timed account network.",
+        },
+      ],
+    },
+  ],
+};
+
+const dimensions = Object.keys(
+  contentAnalysis.statements[0].features,
+) as Dimension[];
+
+function isEchoNode(id: string) {
+  return (
+    id.includes("metro") ||
+    id.includes("axis") ||
+    id.includes("watchtower") ||
+    id === "CL-12"
+  );
+}
+
+function Inspector({ cluster }: { cluster: Cluster | null }) {
+  if (!cluster) {
+    return (
+      <aside className="inspector">
+        <header>
+          <span>SWARM INSPECTOR</span>
+          <span className="mono">IDLE</span>
+        </header>
+        <div className="empty">
+          <div className="crosshair">+</div>
+          <p>
+            Select a node to inspect
+            <br />
+            behavioral clusters
+          </p>
+        </div>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="inspector">
+      <header>
+        <span>SWARM INSPECTOR</span>
+        <span className="danger">RISK {cluster.risk_score.toFixed(2)}</span>
+      </header>
+      <div className="inspect-body">
+        <h2>{cluster.cluster_id}</h2>
+        <div className="timeline">
+          {cluster.events.map((item) => (
+            <div className="event" key={item.time}>
+              <time>{item.time}</time>
+              <p>{item.event}</p>
+            </div>
+          ))}
+        </div>
+        <section>
+          <label>MEMBER ACCOUNTS / {cluster.account_ids.length}</label>
+          {cluster.account_ids.map((id) => (
+            <div className="data-row" key={id}>
+              {id}
+            </div>
+          ))}
+        </section>
+        <section>
+          <label>SHARED LINKS</label>
+          {cluster.links.map((link) => (
+            <div className="data-row link" key={link}>
+              {link}
+            </div>
+          ))}
+        </section>
+      </div>
+    </aside>
+  );
+}
+
+function Network() {
+  const graphRef = useRef<
+    ForceGraphMethods<GraphNode, GraphLink> | undefined
+  >(undefined);
+  const [cluster, setCluster] = useState<Cluster | null>(null);
+
+  function inspectNode(node: GraphNode) {
+    const clusterId = node.kind === "cluster" ? node.id : node.cluster;
+    const matchingCluster = swarmAnalysis.clusters.find((entry) =>
+      entry.cluster_id.startsWith(clusterId || ""),
+    );
+
+    setCluster(matchingCluster || null);
+  }
+
+  function drawNode(node: GraphNode, context: CanvasRenderingContext2D, scale: number) {
+    const radius =
+      node.kind === "cluster" ? 9 : node.kind === "content" ? 5 : 4;
+
+    context.fillStyle =
+      node.kind === "cluster"
+        ? "#D32F2F"
+        : node.kind === "content"
+          ? "#F4EFE6"
+          : "#8d8274";
+    context.beginPath();
+    context.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);
+    context.fill();
+
+    if (scale > 1.25 && node.kind === "cluster") {
+      context.fillStyle = "#F4EFE6";
+      context.font = `${10 / scale}px monospace`;
+      context.fillText(node.label, (node.x || 0) + 12, (node.y || 0) + 4);
     }
   }
+
   return (
-    <>
-      <div className="page-intro">
-        <div className="eyebrow">CONTENT INTELLIGENCE / TEXT ONLY</div>
-        <h1>
-          Read beyond
-          <br />
-          <span>the narrative.</span>
-        </h1>
-        <p>
-          Explore how a message persuades. Trace every assessed indicator back
-          to its words, context and weight.
-        </p>
-      </div>
-      <form className="panel input-panel" onSubmit={submit}>
-        <div className="panel-heading">
-          <div className="input-tabs" aria-label="Input type">
-            <button
-              type="button"
-              aria-pressed={mode === "text"}
-              className={mode === "text" ? "active" : ""}
-              disabled={loading}
-              onClick={() => chooseMode("text")}
-            >
-              Paste text
-            </button>
-            <button
-              type="button"
-              aria-pressed={mode === "url"}
-              className={mode === "url" ? "active" : ""}
-              disabled={loading}
-              onClick={() => chooseMode("url")}
-            >
-              Article URL ↗
-            </button>
-          </div>
-          <span className="mono connection">
-            <i />
-            {live === null
-              ? "API CONNECTING"
-              : live
-                ? "LIVE CONFIGURED"
-                : "DEMO READY"}
-          </span>
-        </div>
-        <label className="field-label" htmlFor="article-title-input">
-          Title <span className="muted">(optional)</span>
-        </label>
-        <input
-          id="article-title-input"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Give this analysis a title"
-          maxLength={500}
-          disabled={loading}
+    <section className="screen swarm-screen" id="swarm">
+      <div className="graph">
+        <ForceGraph2D
+          ref={graphRef}
+          graphData={swarmAnalysis.graph}
+          backgroundColor="#141414"
+          nodeRelSize={5}
+          cooldownTicks={100}
+          enableZoomInteraction={false}
+          enablePanInteraction
+          onNodeClick={inspectNode}
+          linkColor={(link) =>
+            link.cluster === "CL-07" ? "#8d2929" : "#633333"
+          }
+          linkWidth={1}
+          nodeCanvasObject={drawNode}
         />
-        <label className="field-label" htmlFor="article-input">
-          {mode === "text" ? "Article text" : "Public article URL"}
-        </label>
-        {mode === "text" ? (
-          <textarea
-            id="article-input"
-            placeholder="Paste an article, commentary or speech…"
-            value={input}
-            disabled={loading}
-            onChange={(e) => {
-              setInput(Array.from(e.target.value).slice(0, 40000).join(""));
-              setExample(null);
-            }}
-            required
-          />
-        ) : (
-          <input
-            id="article-input"
-            type="url"
-            placeholder="https://example.com/article"
-            value={input}
-            disabled={loading}
-            onChange={(e) => setInput(e.target.value)}
-            required
-          />
-        )}
-        <div className="input-footer">
-          <span className="small muted">
-            {example
-              ? "Labeled synthetic sample · no provider calls"
-              : mode === "text"
-                ? `${Array.from(input).length.toLocaleString()} / 40,000 characters · live providers required`
-                : "Readable public HTTP(S) articles · live providers required"}
-          </span>
-          <button className="primary" disabled={loading || !input.trim()}>
-            {loading ? (
-              <>
-                <span className="spinner" /> Analyzing…
-              </>
-            ) : (
-              <>
-                Analyze content <span>↗</span>
-              </>
-            )}
-          </button>
-        </div>
-        <div className="sample-row">
-          <span className="mono muted">TRY A DEMO</span>
-          {examples.map((item) => (
-            <button
-              type="button"
-              disabled={loading}
-              key={item.id}
-              className={`sample ${example === item.id ? "selected" : ""}`}
-              onClick={() => {
-                setMode("text");
-                setInput(item.text);
-                setTitle(item.title);
-                setExample(item.id);
-                setError("");
-                setResult(null);
-              }}
-            >
-              {item.title}
-              <small>{item.label}</small>
-            </button>
-          ))}
-        </div>
-        {loading && (
-          <p className="small cyan" role="status">
-            Extracting, validating and scoring evidence. Live analysis may take
-            several minutes.
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-      </form>
-      <p className="screening-note">
-        Experimental manipulation-indicator screening. Scores describe observed
-        techniques, not truth or the probability of propaganda.
-      </p>
-      {result ? (
-        <Results result={result} />
-      ) : (
-        <div className="workflow-teaser">
-          <span className="mono cyan">01 / EXTRACT</span>
-          <span>→</span>
-          <span className="mono">02 / ASSESS</span>
-          <span>→</span>
-          <span className="mono">03 / TRACE EVIDENCE</span>
-        </div>
-      )}
-    </>
+      </div>
+
+      <div className="dataset">
+        <label htmlFor="dataset">ACTIVE DATASET</label>
+        <select id="dataset" defaultValue="Baltic civic / 48h">
+          <option>Baltic civic / 48h</option>
+          <option>Election discourse / 7d</option>
+          <option>Public health claims / 30d</option>
+        </select>
+        <p>14,882 accounts · 3,106 content objects</p>
+      </div>
+
+      <div className="graph-tools">
+        <button
+          onClick={() => graphRef.current?.zoom(1.3, 250)}
+          aria-label="Zoom in"
+        >
+          +
+        </button>
+        <button
+          onClick={() => graphRef.current?.zoom(0.77, 250)}
+          aria-label="Zoom out"
+        >
+          −
+        </button>
+      </div>
+
+      <Inspector cluster={cluster} />
+
+      <a className="analyze-anchor" href="#analysis">
+        [ ↓ ANALYZE TEXT ]
+      </a>
+
+      <div className="graph-key">
+        <span>
+          <i className="red-key" /> cluster
+        </span>
+        <span>
+          <i className="cream-key" /> content
+        </span>
+        <span>
+          <i /> account
+        </span>
+      </div>
+    </section>
   );
 }
 
-function Architecture() {
-  const [result, setResult] = useState<Analysis | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    const abort = new AbortController();
-    api<Analysis>("/analyze", { example_id: "town-hall" }, abort.signal)
-      .then(setResult)
-      .catch((e) => {
-        if (!abort.signal.aborted) setError(e.message);
-      });
-    return () => abort.abort();
-  }, []);
-  const stages = [
-    [
-      "Ingestion",
-      "Public URL or pasted text. Preserve the source and freeze normalized Unicode text.",
-    ],
-    [
-      "Extraction",
-      "Luna extracts narratives, sections, atomic claims, speakers, stances and source spans.",
-    ],
-    [
-      "Validation & grouping",
-      "Validate exact excerpts. Group equivalent claims, retaining every occurrence and separate attribution.",
-    ],
-    [
-      "Scoring",
-      "Jev assesses relevance and eligible techniques using five descriptive rubric levels, normalized by four.",
-    ],
-    [
-      "Aggregation",
-      "Normalize section and within-section importance; publish statement scores at ≥80% coverage.",
-    ],
-    [
-      "Screening",
-      "Apply a versioned experimental policy. Missing required dimensions or independent narratives yield inconclusive.",
-    ],
-  ];
+function Meter({ name, score }: { name: Dimension; score: number }) {
   return (
-    <>
-      <div className="page-intro">
-        <div className="eyebrow">METHOD / EXPLAINABILITY FIRST</div>
-        <h1>
-          From words
-          <br />
-          <span>to evidence.</span>
-        </h1>
-        <p>
-          A transparent pipeline. Fixed rubrics, normalized weights and
-          explanations you can inspect.
-        </p>
+    <div className="meter">
+      <div>
+        <span>{name}</span>
+        <button
+          className="info"
+          title={`${name} score: observed strength from 0.00 to 1.00.`}
+        >
+          [i]
+        </button>
+        <b>{score.toFixed(2)}</b>
       </div>
-      <div className="architecture-flow" aria-label="Analysis pipeline">
-        {stages.map(([title, description], i) => (
-          <section className="panel stage" key={title}>
-            <span className="mono cyan">
-              0{i + 1} {i < 5 && "→"}
-            </span>
-            <h2>{title}</h2>
-            <p>{description}</p>
-          </section>
+      <div className="track">
+        <i style={{ width: `${score * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+type StatementViewProps = {
+  statement: Statement;
+  selected: boolean;
+  registerElement: (element: HTMLElement | null) => void;
+};
+
+function StatementView({
+  statement,
+  selected,
+  registerElement,
+}: StatementViewProps) {
+  const [review, setReview] = useState("UNREVIEWED");
+
+  return (
+    <article
+      className={`statement ${selected ? "selected-statement" : ""}`}
+      ref={registerElement}
+    >
+      <header>
+        <span>
+          {statement.id} · {statement.attribution.toUpperCase()}
+        </span>
+        <span>
+          {statement.start}—{statement.end}
+        </span>
+      </header>
+
+      <p className="statement-text">{statement.text}</p>
+
+      <div className="tags">
+        {statement.technique_spans.map((span) => (
+          <span key={span.technique}>
+            {span.technique} <b>{span.confidence.toFixed(2)}</b>
+            <em title={span.justification}>[i]</em>
+          </span>
         ))}
       </div>
-      <section className="method-notes">
+
+      <div className="feature-grid">
+        {dimensions.map((name) => (
+          <Meter key={name} name={name} score={statement.features[name]} />
+        ))}
+      </div>
+
+      <footer className="review">
+        <span>REVIEW CONTROL / {review}</span>
         <div>
-          <div className="eyebrow">THE BASELINE</div>
-          <h2>Every claim counts once.</h2>
-          <p>
-            Section weights sum to one. Within each section, relevance × role
-            coefficients normalize to one. Their product gives a claim’s global
-            weight. A repeated claim belongs to its earliest valid occurrence’s
-            section; every occurrence remains available for repetition and
-            highlights.
-          </p>
-          <div className="formula mono">
-            wᵢ = vⱼ × aᵢ|ⱼ
-            <br />
-            Aₖ = Σ(wᵢ × xᵢ,ₖ) / coverageₖ
-            <br />
-            Cᵢ,ₖ = wᵢ × xᵢ,ₖ / coverageₖ
+          <button onClick={() => setReview("CONFIRMED")}>Confirm</button>
+          <button onClick={() => setReview("FALSE POSITIVE")}>
+            Dismiss / false positive
+          </button>
+          <button onClick={() => setReview("NEEDS REVIEW")}>
+            Needs review
+          </button>
+        </div>
+      </footer>
+    </article>
+  );
+}
+
+function Analysis() {
+  const [input, setInput] = useState(article);
+  const [analyzed, setAnalyzed] = useState(true);
+  const [selectedStatementId, setSelectedStatementId] = useState(
+    contentAnalysis.statements[0].id,
+  );
+  const resultElements = useRef<Record<string, HTMLElement | null>>({});
+
+  function updateInput(value: string) {
+    setInput(value);
+    setAnalyzed(false);
+  }
+
+  function selectStatement(statementId: string) {
+    setSelectedStatementId(statementId);
+    requestAnimationFrame(() => {
+      resultElements.current[statementId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+  }
+
+  const canHighlightInput = analyzed && input === article;
+
+  return (
+    <section className="screen analysis-screen" id="analysis">
+      <div className="input-column">
+        <header className="section-title">
+          <span>02 / NAME THE TECHNIQUE</span>
+          <span>CONTENT ANALYSIS</span>
+        </header>
+
+        <div className="input-meta">
+          <span>CONTENT_ID / {contentAnalysis.content_id}</span>
+          <span>{input.length} CHARS</span>
+          {analyzed && (
+            <button className="edit-input" onClick={() => setAnalyzed(false)}>
+              EDIT INPUT
+            </button>
+          )}
+        </div>
+
+        {canHighlightInput ? (
+          <div className="input-highlighter" aria-label="Analyzed article text">
+            {contentAnalysis.statements.map((statement, index) => (
+              <span key={statement.id}>
+                <button
+                  className={`sentence-highlight highlight-${index + 1} ${selectedStatementId === statement.id ? "is-selected" : ""
+                    }`}
+                  onClick={() => selectStatement(statement.id)}
+                  aria-pressed={selectedStatementId === statement.id}
+                  title={`View ${statement.id} analysis`}
+                >
+                  {statement.text}
+                </button>{" "}
+              </span>
+            ))}
           </div>
-        </div>
-        <div>
-          <div className="eyebrow">EVIDENCE BOUNDARIES</div>
-          <h2>Missing means unassessed.</h2>
+        ) : (
+          <textarea
+            value={input}
+            onChange={(event) => updateInput(event.target.value)}
+            aria-label="Article text to analyze"
+          />
+        )}
+
+        <div className="input-bottom">
           <p>
-            Text alone cannot verify facts or establish what was omitted. Those
-            features remain null. Authority scores concern misleading appeals;
-            fabricated sources need verification. Rejected or neutrally reported
-            quotations do not become the author’s manipulation.
+            Paste a document, statement, or post for statement-level feature
+            analysis.
           </p>
-          <p>
-            The screen requires emotional, logical and strategic assessment.
-            Indicators are flagged when at least two assessed dimensions reach
-            0.50 and one reaches 0.75. Overall risk stays null. Top-three
-            pooling is an optional diagnostic, disabled by default.
-          </p>
+          <button className="analyze-button" onClick={() => setAnalyzed(true)}>
+            ANALYZE <span>→</span>
+          </button>
         </div>
-      </section>
-      <div className="worked-heading">
-        <div className="eyebrow">SYNTHETIC WORKED EXAMPLE</div>
-        <h2>A town hall under pressure</h2>
-        <p className="muted">
-          The same offline pipeline used by Analyze. Fixture scores illustrate
-          behavior; they are not a validated model assessment.
+      </div>
+
+      <div className="results-column">
+        <header className="section-title">
+          <span>RESULTS / {analyzed ? "COMPLETE" : "PENDING"}</span>
+          <span>MODEL: DEMO-01</span>
+        </header>
+
+        {analyzed ? (
+          <>
+            <div className="idea">
+              <label>MAIN IDEA</label>
+              <p>{contentAnalysis.main_idea}</p>
+            </div>
+            <div className="results-list">
+              {contentAnalysis.statements.map((statement) => (
+                <StatementView
+                  key={statement.id}
+                  statement={statement}
+                  selected={selectedStatementId === statement.id}
+                  registerElement={(element) => {
+                    resultElements.current[statement.id] = element;
+                  }}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="empty result-empty">
+            <div className="crosshair">+</div>
+            <p>
+              Press ANALYZE to generate
+              <br />
+              statement-level findings
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Briefing() {
+  function moveToInvestigation() {
+    document.getElementById("swarm")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  return (
+    <section className="screen briefing-screen" id="briefing">
+      <div className="briefing-identity">VERITASCOPE / FIELD BRIEFING</div>
+
+      <div className="briefing-copy">
+        <p className="briefing-index">01 / INVESTIGATION INITIALIZATION</p>
+        <h1>Explainable Propaganda &amp; Coordinated Manipulation Detection.</h1>
+        <p className="briefing-description">
+          An investigation platform analyzing what content says and how networks
+          spread it. These are investigation signals, not definitive verdicts.
         </p>
       </div>
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      {!result && !error && <p role="status">Loading worked example…</p>}
-      {result && (
-        <>
-          <section className="panel calculation">
-            <div className="panel-heading">
-              <h2>Canonical claims & exact contributions</h2>
-              <span className="mono">EMOTIONAL DIMENSION</span>
-            </div>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Claim / stance</th>
-                    <th>Section</th>
-                    <th>Occurrences</th>
-                    <th>rᵢ</th>
-                    <th>qᵢ</th>
-                    <th>wᵢ</th>
-                    <th>xᵢ</th>
-                    <th>Cᵢ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.statements.map((claim) => (
-                    <tr key={claim.id}>
-                      <td>
-                        {claim.text}
-                        <small>
-                          {claim.stance.replaceAll("_", " ")} ·{" "}
-                          {claim.role.replaceAll("_", " ")}
-                        </small>
-                      </td>
-                      <td>{claim.section_id}</td>
-                      <td>{claim.occurrence_count}</td>
-                      <td>{scoreLabel(claim.relevance)}</td>
-                      <td>{scoreLabel(claim.role_coefficient)}</td>
-                      <td>{scoreLabel(claim.weight)}</td>
-                      <td>
-                        {scoreLabel(
-                          claim.features.emotional_manipulation ?? null,
-                        )}
-                      </td>
-                      <td>
-                        {scoreLabel(
-                          claim.contributions.emotional_manipulation ?? null,
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="small muted">
-              Σ wᵢ ={" "}
-              {result.statements
-                .reduce((sum, c) => sum + (c.weight ?? 0), 0)
-                .toFixed(8)}{" "}
-              · Coverage ={" "}
-              {percent(result.feature_details.emotional_manipulation.coverage)}{" "}
-              · Σ Cᵢ ={" "}
-              {result.statements
-                .reduce(
-                  (sum, c) =>
-                    sum + (c.contributions.emotional_manipulation ?? 0),
-                  0,
-                )
-                .toFixed(8)}
-            </p>
-            <p className="small muted">
-              Section weights:{" "}
-              {result.sections
-                .filter((s) => s.weight !== undefined)
-                .map((s) => `${s.id} = ${s.weight!.toFixed(4)}`)
-                .join(" · ")}
-              . Repetition retains both endorsed occurrences; the reported
-              accusation is rejected and receives no author highlight.
-            </p>
-          </section>
-          <Results result={result} />
-        </>
-      )}
-    </>
+
+      <button className="briefing-scroll-cue" onClick={moveToInvestigation}>
+        [ ↓ ]
+      </button>
+    </section>
   );
 }
 
 function App() {
-  const [page, setPage] = useState(
-    window.location.hash === "#architecture" ? "architecture" : "analyze",
-  );
-  useEffect(() => {
-    const change = () =>
-      setPage(
-        window.location.hash === "#architecture" ? "architecture" : "analyze",
-      );
-    window.addEventListener("hashchange", change);
-    return () => window.removeEventListener("hashchange", change);
-  }, []);
   return (
-    <>
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
-      <header className="site-header">
-        <a className="brand" href="#analyze">
-          <span className="brand-icon">V</span>
-          <span>
-            VERITAS<span className="cyan">SCOPE</span>
-            <small>CONTENT ANALYTICS</small>
-          </span>
-        </a>
-        <nav aria-label="Main navigation">
-          <a
-            href="#analyze"
-            aria-current={page === "analyze" ? "page" : undefined}
-          >
-            Analyze
-          </a>
-          <a
-            href="#architecture"
-            aria-current={page === "architecture" ? "page" : undefined}
-          >
-            Architecture & Example
-          </a>
-        </nav>
-        <span className="experimental mono">EXPERIMENTAL / v0.1</span>
-      </header>
-      <main id="main-content" className="max-w-[1440px] mx-auto px-5 md:px-10">
-        {page === "analyze" ? <Analyze /> : <Architecture />}
-      </main>
-      <footer>
-        <span className="mono">VERITAS//ANALYTICS</span>
-        <span>
-          Evidence before conclusions. Human review remains essential.
-        </span>
-        <span className="mono cyan">TEXT-ONLY MVP</span>
-      </footer>
-    </>
+    <main className="app-shell">
+      <Briefing />
+      <Analysis />
+      <Network />
+    </main>
   );
 }
 
