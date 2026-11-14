@@ -20,6 +20,7 @@ class ReviewInput(BaseModel):
     target_id: str
     decision: Literal["confirm", "dismiss", "needs_review"]
     reason: str = Field(default="", max_length=4000)
+    analysis_id: str | None = None
 
 
 @router.post("/datasets", status_code=201)
@@ -137,8 +138,21 @@ async def dataset_graph(
 @router.post("/feedback", status_code=201)
 async def review_entity(body: ReviewInput, request: Request):
     with request.app.state.database.begin() as connection:
-        if not connection.execute(select(entities.c.id).where(entities.c.id == body.target_id)).first():
+        entity = (
+            connection.execute(select(entities).where(entities.c.id == body.target_id)).mappings().first()
+        )
+        if not entity:
             raise HTTPException(404, "Unknown review target")
+        if body.analysis_id:
+            analysis = (
+                connection.execute(select(analyses).where(analyses.c.id == body.analysis_id))
+                .mappings()
+                .first()
+            )
+            if not analysis or analysis["target_id"] not in (body.target_id, entity["dataset_id"]):
+                raise HTTPException(
+                    422, "Analysis revision does not belong to the reviewed entity or dataset"
+                )
         record = {"id": str(uuid4()), **body.model_dump(), "created_at": utc_now()}
         connection.execute(feedback.insert(), record)
     return record

@@ -22,6 +22,7 @@ export function Investigations() {
   );
   const [graph, setGraph] = useState<Graph | null>(null);
   const [node, setNode] = useState<Node | null>(null);
+  const [revision, setRevision] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [name, setName] = useState("");
   const [format, setFormat] = useState("text");
@@ -66,6 +67,7 @@ export function Investigations() {
   }, [selected, search, focus, cluster, since, until, refresh]);
   useEffect(() => {
     setReviews([]);
+    setRevision(null);
     setJobId("");
     setReason("");
     if (!node) return;
@@ -74,12 +76,15 @@ export function Investigations() {
       const pending = localStorage.getItem(`content-job-${node.id}`);
       if (pending) setJobId(pending);
       else
-        api<{ job_id: string }>(
+        api<{ job_id: string; id: string }>(
           `/api/v1/content/${node.id}/analysis`,
           undefined,
           abort.signal,
         )
-          .then((r) => setJobId(r.job_id))
+          .then((r) => {
+            setJobId(r.job_id);
+            setRevision(r.id);
+          })
           .catch(() => {});
     }
     api<Review[]>(
@@ -116,7 +121,12 @@ export function Investigations() {
     setBusy(true);
     setError("");
     try {
-      await api("/api/v1/feedback", { target_id: target, decision, reason });
+      await api("/api/v1/feedback", {
+        target_id: target,
+        decision,
+        reason,
+        analysis_id: revision,
+      });
       setReviews(await api<Review[]>(`/api/v1/feedback?target_id=${target}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Review failed");
@@ -381,7 +391,9 @@ export function Investigations() {
                   </button>
                 )}
                 <label className="field-label" htmlFor="review-reason">
-                  Review reason
+                  {revision
+                    ? "Review this analysis revision"
+                    : "Review source observation"}
                 </label>
                 <textarea
                   id="review-reason"
@@ -419,6 +431,7 @@ export function Investigations() {
       {jobId && (
         <JobPanel
           id={jobId}
+          onComplete={(job) => setRevision(job.result?.analysis_id || null)}
           onChange={(id) => {
             setJobId(id);
             if (node) localStorage.setItem(`content-job-${node.id}`, id);

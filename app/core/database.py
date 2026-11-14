@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import JSON, Column, ForeignKey, Integer, MetaData, String, Table, create_engine, event
+from sqlalchemy import JSON, Column, ForeignKey, Integer, MetaData, String, Table, create_engine, event, text
 
 metadata = MetaData()
 revisions = Table("schema_revisions", metadata, Column("version", Integer, primary_key=True))
@@ -42,6 +42,7 @@ feedback = Table(
     Column("decision", String, nullable=False),
     Column("reason", String, nullable=False),
     Column("created_at", String, nullable=False),
+    Column("analysis_id", ForeignKey("analyses.id")),
 )
 jobs = Table(
     "jobs",
@@ -86,10 +87,14 @@ def open_database(path: str):
     with engine.begin() as connection:
         revisions.create(connection, checkfirst=True)
         version = connection.execute(revisions.select()).scalar()
-        if version not in (None, 1, 2):
+        if version not in (None, 1, 2, 3):
             raise RuntimeError(f"Unsupported database schema revision {version}; migration required.")
         # Revision 2 is additive: existing observations and reviews remain immutable.
         metadata.create_all(connection)
+        if version in (1, 2):
+            connection.execute(
+                text("ALTER TABLE feedback ADD COLUMN analysis_id VARCHAR REFERENCES analyses(id)")
+            )
         connection.execute(revisions.delete())
-        connection.execute(revisions.insert().values(version=2))
+        connection.execute(revisions.insert().values(version=3))
     return engine
