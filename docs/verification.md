@@ -18,3 +18,7 @@ npm run build --prefix frontend
 Future records must include commit, machine, dataset hash/split, commands, observed outcomes,
 provider/model versions, timings, API usage, failures, and unresolved limitations. Live checks
 must remain separate from deterministic fixtures. Never mark planned tests as passing.
+
+## Investigation foundation verification
+
+Passed: 14 existing backend tests and four internal regression tests; Ruff; frontend production build; real Chromium import/entity-selection/review/reload flow. Atomic rejection covers conflicting content IDs, unknown interaction targets, timezone-less timestamps, blank text and invalid CSV. Duplicate imports preserve dataset IDs; duplicate actions are deduplicated. Database reopen preserves datasets and review history. No verification or swarm capability is claimed by these checks.

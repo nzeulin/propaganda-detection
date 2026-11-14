@@ -7,16 +7,19 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 
+from app.api.datasets import router as datasets_router
 from app.content.config import Configuration
 from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
 from app.content.schemas import AnalysisResponse, AnalyzeRequest
+from app.core.database import open_database
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_dotenv()
+    app.state.database = open_database(os.getenv("DATABASE_PATH", ".local-data/investigations.db"))
     app.state.config = Configuration()
     app.state.slots = asyncio.Semaphore(2)
     app.state.live = None
@@ -25,11 +28,15 @@ async def lifespan(app: FastAPI):
 
         app.state.live = LiveProvider(app.state.config)
     yield
+    app.state.database.dispose()
     if app.state.live:
         await app.state.live.close()
 
 
 app = FastAPI(title="VeritasScope · experimental content screening", version="0.1.0", lifespan=lifespan)
+
+
+app.include_router(datasets_router)
 
 
 @app.get("/health")

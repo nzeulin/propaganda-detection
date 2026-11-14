@@ -48,3 +48,12 @@ app/content owns normalization, anchoring, attribution, aggregation and policy. 
 See the authoritative [implementation plan](implementation_plan.md). Add app/api, core, evidence, swarm, evaluation; split frontend into pages, components and generated API contracts; add migrations, scripts, data manifests, Dockerfile and compose.yaml as functionality is implemented.
 
 Runtime artifacts: .local-data (planned SQLite/cache); .copilot-cache (ignored checks/browser tools); .venv and frontend/node_modules (dependencies); frontend/dist (generated build). Never commit .env or private runtime data.
+
+## Implemented investigation foundation
+
+- `app/core/database.py`: SQLAlchemy tables, SQLite WAL/foreign keys, schema revision 1.
+- `app/core/ingestion.py`: atomic prevalidation and dataset-scoped canonical IDs.
+- `app/api/datasets.py`: saved datasets, bounded observed graph, append-only entity reviews.
+- `frontend/src/Investigations.tsx`: import, entity selection, review and reload.
+
+Database path defaults to `.local-data/investigations.db` and can be set with `DATABASE_PATH`. Revision 1 creates tables transactionally; unsupported revisions fail explicitly. Future schema changes require a migration before incrementing the supported revision. Entity reviews currently target observations; analysis-revision review will be added with saved analyses.

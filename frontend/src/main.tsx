@@ -1,3 +1,4 @@
+import { Investigations } from "./Investigations";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -708,12 +709,20 @@ function Architecture() {
 
 function App() {
   const [page, setPage] = useState(
-    window.location.hash === "#architecture" ? "architecture" : "analyze",
+    window.location.hash === "#investigations"
+      ? "investigations"
+      : window.location.hash === "#architecture"
+        ? "architecture"
+        : "analyze",
   );
   useEffect(() => {
     const change = () =>
       setPage(
-        window.location.hash === "#architecture" ? "architecture" : "analyze",
+        window.location.hash === "#investigations"
+          ? "investigations"
+          : window.location.hash === "#architecture"
+            ? "architecture"
+            : "analyze",
       );
     window.addEventListener("hashchange", change);
     return () => window.removeEventListener("hashchange", change);
@@ -733,6 +742,12 @@ function App() {
         </a>
         <nav aria-label="Main navigation">
           <a
+            href="#investigations"
+            aria-current={page === "investigations" ? "page" : undefined}
+          >
+            Investigations
+          </a>
+          <a
             href="#analyze"
             aria-current={page === "analyze" ? "page" : undefined}
           >
@@ -748,7 +763,13 @@ function App() {
         <span className="experimental mono">EXPERIMENTAL / v0.1</span>
       </header>
       <main id="main-content" className="max-w-[1440px] mx-auto px-5 md:px-10">
-        {page === "analyze" ? <Analyze /> : <Architecture />}
+        {page === "investigations" ? (
+          <Investigations />
+        ) : page === "analyze" ? (
+          <Analyze />
+        ) : (
+          <Architecture />
+        )}
       </main>
       <footer>
         <span className="mono">VERITAS//ANALYTICS</span>

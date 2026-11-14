@@ -1,6 +1,6 @@
 # Complete local investigation release
 
-Status: specification recorded; implementation beyond the existing text pipeline pending.
+Status: persistent dataset import, observed-graph API, and entity review implemented; jobs and later milestones remain pending.
 This document governs the release. A checked requirement requires recorded verification.
 
 ## Scope and constraints
@@ -131,7 +131,7 @@ Link each error to its text, reference annotation, evidence, and prediction.
 | Milestone | Required deliverable | Exit gate | Status |
 |---|---|---|---|
 | 1 | Documentation and contracts | Scope, API inventory, dataset protocol, outdated labels | Documentation recorded; contracts pending |
-| 2 | Persistence/imports/jobs | IDs, atomic import, restart, cancellation, feedback persistence | Pending |
+| 2 | Persistence/imports/jobs | IDs, atomic import, restart, cancellation, feedback persistence | Imports, IDs, SQLite persistence and entity reviews verified; jobs/cancellation and analysis-revision reviews pending |
 | 3 | Canonical content integration | Existing regressions plus explanations and traces | Pending |
 | 4 | Sol verification cascade | Positive/negative uncertainty, evidence, budget termination | Pending |
 | 5 | Swarm engine | Seeded positives, organic negatives, timed evidence, weak bridges | Pending |
