@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Analysis } from "./types";
 import { Results } from "./Results";
+import type { components } from "./contracts";
 
 export type Trace = {
   module: string;
@@ -64,7 +65,7 @@ export type Swarm = {
   formula: string;
   limitations: string[];
 };
-export type Job = {
+export type Job = Omit<components["schemas"]["JobRecord"], "trace" | "result" | "error"> & {
   id: string;
   kind: string;
   target_id: string;

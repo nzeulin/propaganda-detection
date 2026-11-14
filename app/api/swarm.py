@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
+from app.api.contracts import JobRecord
 from app.core.database import analyses, datasets, entities, observations
 from app.swarm.engine import analyze_coordination
 
@@ -41,7 +42,7 @@ def swarm_handler(state):
     return handle
 
 
-@router.post("/swarm/analyze", status_code=202)
+@router.post("/swarm/analyze", status_code=202, response_model=JobRecord)
 async def submit_swarm(body: SwarmInput, request: Request):
     with request.app.state.database.connect() as connection:
         found = connection.execute(select(datasets.c.id).where(datasets.c.id == body.dataset_id)).first()

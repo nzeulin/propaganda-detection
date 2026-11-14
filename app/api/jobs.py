@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
+from app.api.contracts import JobRecord
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
 from app.content.verification import verify_content
@@ -39,7 +40,7 @@ def content_handler(state):
     return handle
 
 
-@router.post("/content/analyze", status_code=202)
+@router.post("/content/analyze", status_code=202, response_model=JobRecord)
 async def submit_content(body: ContentJobInput, request: Request):
     state = request.app.state
     if state.live is None:
@@ -53,17 +54,17 @@ async def submit_content(body: ContentJobInput, request: Request):
     return state.jobs.submit("content", body.content_id, body.model_dump(), state.config.versions)
 
 
-@router.get("/jobs/{job_id}")
+@router.get("/jobs/{job_id}", response_model=JobRecord)
 async def get_job(job_id: str, request: Request):
     return request.app.state.jobs.get(job_id)
 
 
-@router.post("/jobs/{job_id}/cancel")
+@router.post("/jobs/{job_id}/cancel", response_model=JobRecord)
 async def cancel_job(job_id: str, request: Request):
     return await request.app.state.jobs.cancel(job_id)
 
 
-@router.post("/jobs/{job_id}/retry", status_code=202)
+@router.post("/jobs/{job_id}/retry", status_code=202, response_model=JobRecord)
 async def retry_job(job_id: str, request: Request):
     state = request.app.state
     old = state.jobs.get(job_id)

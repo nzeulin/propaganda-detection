@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "check": "tsc --noEmit",
-    "build": "tsc --noEmit && vite build"
+    "build": "tsc --noEmit && vite build",
+    "contracts": "PYTHONPATH=.. ../.venv/bin/python ../scripts/export_contracts.py && openapi-typescript ../.copilot-cache/openapi.json -o src/contracts.d.ts"
   },
   "dependencies": {
     "@xyflow/react": "^12.12.1",
