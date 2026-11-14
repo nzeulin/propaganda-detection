@@ -21,9 +21,26 @@ def load_records(kind="synthetic"):
     ]
     if not records:
         packaged = Path("data/synthetic_corpus.jsonl" if kind == "synthetic" else "data/web_corpus.jsonl")
+        if kind == "synthetic" and not packaged.exists():
+            packaged = Path("data/synthetic_pilot.jsonl")
         if packaged.exists():
             records = [json.loads(line) for line in packaged.read_text().splitlines() if line.strip()]
     return records
+
+
+def load_predictions(config=None):
+    packaged = Path("data/demo_predictions.jsonl")
+    candidates = (
+        [json.loads(line) for line in packaged.read_text().splitlines() if line.strip()]
+        if packaged.exists()
+        else []
+    )
+    candidates.extend(json.loads(path.read_text()) for path in Path(".local-data/predictions").glob("*.json"))
+    predictions = {}
+    for prediction in sorted(candidates, key=lambda record: record["created_at"]):
+        if config is None or prediction["result"]["versions"] == config.versions:
+            predictions[prediction["id"]] = prediction
+    return predictions
 
 
 async def evaluate_record(record, provider, config, output):

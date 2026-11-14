@@ -1,7 +1,5 @@
 """Small resumable evaluation jobs and separate corpus/provenance inspection."""
 
-import json
-from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
@@ -9,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.contracts import JobRecord
 from app.evaluation.metrics import audit_corpus, evaluate_predictions
-from app.evaluation.runner import load_records
+from app.evaluation.runner import load_predictions, load_records
 
 router = APIRouter(prefix="/api/v1")
 
@@ -49,11 +47,7 @@ async def corpus_summary(
 ):
     records = load_records(kind)
     selected = [r for r in records if split == "all" or r["split"] == split]
-    predictions = {}
-    for path in Path(".local-data/predictions").glob("*.json"):
-        prediction = json.loads(path.read_text())
-        if prediction["result"]["versions"] == request.app.state.config.versions:
-            predictions[prediction["id"]] = prediction
+    predictions = load_predictions(request.app.state.config)
     return {
         "corpus": kind,
         "audit": audit_corpus(records),
@@ -76,6 +70,5 @@ async def evaluation_record(kind: Literal["synthetic", "web"], record_id: str):
     record = next((r for r in load_records(kind) if r["id"] == record_id), None)
     if not record:
         raise HTTPException(404, "Unknown corpus record")
-    predictions = [json.loads(p.read_text()) for p in Path(".local-data/predictions").glob("*.json")]
-    prediction = next((p for p in reversed(predictions) if p["id"] == record_id), None)
+    prediction = load_predictions().get(record_id)
     return {"record": record, "prediction": prediction}
