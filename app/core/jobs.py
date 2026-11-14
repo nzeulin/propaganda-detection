@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.core.database import analyses, jobs, utc_now
 from app.core.ingestion import canonical_id
+from app.providers.usage import usage_context
 
 
 class JobRunner:
@@ -105,11 +106,13 @@ class JobRunner:
                 entry["elapsed_seconds"] = round(time.monotonic() - started, 3)
                 self.update(job_id, trace=trace)
 
+        usage_token = usage_context.set([])
         try:
             async with self.slots:
                 self.update(job_id, status="running")
                 async with asyncio.timeout(600):
                     result = await self.handlers[job["kind"]](job, stage)
+                result["provider_usage"] = usage_context.get()
                 analysis_id = str(uuid4())
                 with self.database.begin() as connection:
                     connection.execute(
@@ -151,6 +154,9 @@ class JobRunner:
                 else "Analysis failed; completed stage artifacts are retained. Retry explicitly."
             )
             self.update(job_id, status="failed", error={"category": category, "message": message})
+
+        finally:
+            usage_context.reset(usage_token)
 
     async def cancel(self, job_id):
         record = self.get(job_id)

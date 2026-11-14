@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.content.ingestion import fetch_article
 from app.core.database import utc_now
+from app.providers.usage import record_usage
 
 
 class EvidenceQuote(BaseModel):
@@ -73,6 +74,7 @@ class SolVerifier:
                         ),
                         input=json.dumps(payload, ensure_ascii=False),
                     )
+                record_usage(response.model, response.usage, "research")
                 urls, calls = [], 0
                 for item in response.output:
                     record = item.model_dump()
@@ -138,6 +140,7 @@ class SolVerifier:
                     ),
                     input=json.dumps({**payload, "documents": list(documents.values())}, ensure_ascii=False),
                 )
+            record_usage(grounded.model, grounded.usage, "evidence_grounding")
             if grounded.output_parsed is None:
                 raise ValueError("Sol returned no evidence report")
             checks = []

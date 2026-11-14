@@ -458,6 +458,10 @@ export interface components {
             } | null;
             /** Investigation Status */
             investigation_status?: string | null;
+            /** Provider Usage */
+            provider_usage?: {
+                [key: string]: unknown;
+            }[];
         };
         /** AnalyzeRequest */
         AnalyzeRequest: {

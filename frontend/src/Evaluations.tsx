@@ -3,6 +3,7 @@ import { api, labels, type Feature } from "./types";
 import { JobPanel, type Job } from "./JobPanel";
 
 type Metrics = {
+  provider_usage: {records_with_usage:number; input_tokens:number;output_tokens:number; complete:boolean};
   evaluated: number;
   confusion: Record<string, number>;
   families: Record<

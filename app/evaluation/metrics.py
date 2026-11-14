@@ -58,6 +58,7 @@ def evaluate_predictions(records, predictions, features):
     family_metrics = {f: Counter() for f in features}
     confusion = Counter()
     errors, latency, coverage, escalation = [], [], [], []
+    usage_records, input_tokens, output_tokens = 0, 0, 0
     for record_id, prediction in predictions.items():
         if record_id not in by_id:
             continue
@@ -65,6 +66,11 @@ def evaluate_predictions(records, predictions, features):
         if reference["dominant_family"] == "uncertain":
             continue
         result = prediction["result"]
+        usage = prediction.get("provider_usage")
+        if usage is not None:
+            usage_records += 1
+            input_tokens += sum(item.get("usage", {}).get("input_tokens", 0) or 0 for item in usage)
+            output_tokens += sum(item.get("usage", {}).get("output_tokens", 0) or 0 for item in usage)
         truth = reference["dominant_family"] != "none"
         label = result["classification"]["label"]
         verdict = None if label == "inconclusive" else label == "indicators_detected"
@@ -121,6 +127,12 @@ def evaluate_predictions(records, predictions, features):
     total = sum(confusion.values())
     return {
         "evaluated": total,
+        "provider_usage": {
+            "records_with_usage": usage_records,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "complete": usage_records == total and total > 0,
+        },
         "confusion": {k: confusion[k] for k in ("tp", "fp", "tn", "fn", "abstained")},
         "families": families,
         "negative_false_positive_rate": confusion["fp"] / (confusion["fp"] + confusion["tn"])

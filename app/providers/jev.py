@@ -6,6 +6,7 @@ import os
 from typesafe_sdk import AsyncTypeSafeClient, Choice, RetryPolicy, Score
 
 from app.content.schemas import Assessment
+from app.providers.usage import record_usage
 
 
 class JevScorer:
@@ -31,6 +32,7 @@ class JevScorer:
                     for key in questions
                 },
             )
+            record_usage(response.model, getattr(response, "usage", None), "rubric_scoring")
             records = {}
             for key in questions:
                 answer = response.scores.get(key)
@@ -77,6 +79,7 @@ class JevScorer:
                     )
                 },
             )
+            record_usage(response.model, getattr(response, "usage", None), "evidence_relation")
             answer = response.choices["relation"]
             return answer.model_dump(), response.model
 

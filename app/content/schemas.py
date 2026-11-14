@@ -177,3 +177,4 @@ class AnalysisResponse(Entity):
     highlight_thresholds: dict[str, float]
     verification: dict | None = None
     investigation_status: str | None = None
+    provider_usage: list[dict] = Field(default_factory=list)

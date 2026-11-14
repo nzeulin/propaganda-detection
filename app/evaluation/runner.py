@@ -11,6 +11,7 @@ from app.content.verification import verify_content
 from app.core.database import utc_now
 from app.core.ingestion import canonical_id
 from app.evaluation.metrics import evaluate_predictions
+from app.providers.usage import usage_context
 
 
 def load_records(kind="synthetic"):
@@ -35,8 +36,9 @@ async def evaluate_record(record, provider, config, output):
     )
     path = output / f"{fingerprint}.json"
     if path.exists():
-        return json.loads(path.read_text())
+        return {**json.loads(path.read_text()), "id": record["id"]}
     trace = []
+    usage_token = usage_context.set([])
 
     async def stage(name, operation, inputs=None, provider="local"):
         started = time.monotonic()
@@ -45,31 +47,38 @@ async def evaluate_record(record, provider, config, output):
         return value
 
     started = time.monotonic()
-    async with asyncio.timeout(600):
-        result = await analyze_content(record["text"], None, provider, config)
-        packet = None
-        if record["provenance"]["kind"] == "synthetic":
-            packet = []
-            for name in ("reference_facts", "comparison_corpus"):
-                text = record.get(name, "")
-                if not text:
-                    continue
-                digest = hashlib.sha256(text.encode()).hexdigest()
-                packet.append(
-                    {
-                        "id": digest,
-                        "text": text,
-                        "content_sha256": digest,
-                        "url": f"fixture:{record['scenario_id']}/{name}",
-                        "requested_url": f"fixture:{record['scenario_id']}/{name}",
-                        "status": "fetched",
-                        "retrieved_at": utc_now(),
-                        "title": "Packaged fictional scenario: " + name,
-                        "source_kind": "synthetic_fixture",
-                    }
-                )
-        result = await verify_content(result, provider, config, stage, evidence_packet=packet)
+    try:
+        async with asyncio.timeout(600):
+            result = await analyze_content(record["text"], None, provider, config)
+            packet = None
+            if record["provenance"]["kind"] == "synthetic":
+                packet = []
+                for name in ("reference_facts", "comparison_corpus"):
+                    text = record.get(name, "")
+                    if not text:
+                        continue
+                    digest = hashlib.sha256(text.encode()).hexdigest()
+                    packet.append(
+                        {
+                            "id": digest,
+                            "text": text,
+                            "content_sha256": digest,
+                            "url": f"fixture:{record['scenario_id']}/{name}",
+                            "requested_url": f"fixture:{record['scenario_id']}/{name}",
+                            "status": "fetched",
+                            "retrieved_at": utc_now(),
+                            "title": "Packaged fictional scenario: " + name,
+                            "source_kind": "synthetic_fixture",
+                        }
+                    )
+            result = await verify_content(result, provider, config, stage, evidence_packet=packet)
+    finally:
+        usage = usage_context.get()
+        usage_context.reset(usage_token)
+        if usage_context.get() is not None:
+            usage_context.get().extend(usage)
     prediction = {
+        "provider_usage": usage,
         "id": record["id"],
         "fingerprint": fingerprint,
         "result": result,

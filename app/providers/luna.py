@@ -7,6 +7,7 @@ from openai import AsyncOpenAI
 
 from app.content.schemas import Extraction, SourceExcerpt, StatementContent
 from app.content.validation import anchor_extraction
+from app.providers.usage import record_usage
 
 
 class QuotedStatement(StatementContent):
@@ -37,6 +38,7 @@ class LunaExtractor:
                 max_output_tokens=24000,
                 store=False,
             )
+            record_usage(response.model, getattr(response, "usage", None), "extraction")
             if response.output_parsed is None:
                 raise ValueError("Extractor refused or returned incomplete structured data.")
             extraction = anchor_extraction(response.output_parsed.model_dump(), text, paragraphs)
