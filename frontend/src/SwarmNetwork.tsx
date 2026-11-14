@@ -292,24 +292,6 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
   return <div><dt>{label}</dt><dd>{value}<small>{hint}</small></dd></div>;
 }
 
-function ReadingGuide() {
-  const terms = [
-    ["Account", "Who acted. A person, organization or automated account—we do not determine which."],
-    ["Post / content", "The material an account published or interacted with. Identical text can appear in separate posts."],
-    ["Recorded action / observation", "One stored relationship: an account published or reposted a post, or a post linked to a URL."],
-    ["Usable activity / eligible event", "An action with a usable time and enough text or a valid URL. Usable does not mean suspicious. Likes and derived URL links are excluded."],
-    ["Matching occasion / episode", "One burst of matching activity between two accounts. Another occasion begins after more than the matching window without a match."],
-    ["Group / cluster", "At least three accounts, with a flagged connection between every pair. These are two names for the same thing."],
-    ["Shuffled comparison / baseline", "The detector scrambles posting times and counts matches again. This is a rough comparison, not a significance test."],
-    ["Coordination score", "A 0–1 heuristic combining recurrence, match strength and excess over shuffled timing. It is not a bot probability."],
-  ];
-  return <details className="swarm-reading-guide">
-    <summary>How this investigation works</summary>
-    <div className="swarm-glossary">{terms.map(([term, meaning]) => <div key={term}><h4>{term}</h4><p>{meaning}</p></div>)}</div>
-    <p className="swarm-guide-note">We look for repeated similar wording or shared URLs close together in time. Scheduled campaigns, news sharing and legitimate organizations can also match. No AI provider or bot classifier is used here.</p>
-  </details>;
-}
-
 function InputPreview({ input, format, collected }: { input: string; format: InputFormat; collected?: CollectedPosts | null }) {
   const preview = useMemo(() => {
     if (!input.trim() || new Blob([input]).size > MAX_BYTES) return null;
@@ -328,10 +310,11 @@ function InputPreview({ input, format, collected }: { input: string; format: Inp
     {preview.rows.slice(0, 3).map((row, index) => {
       const source = collected?.posts[String(row.content_id)];
       return <div className="swarm-preview-row" key={index}>
-      <strong>{source?.author_handle_at_collection ? `@${source.author_handle_at_collection}` : String(row.account_id || "Account not supplied")}</strong><span>{row.timestamp ? timestamp(String(row.timestamp)) : "Time not supplied"}</span>
-      <p>{String(row.text || row.url || "No post text supplied").slice(0, 150)}</p>
-      {source && <a className="swarm-source-post" href={source.source_post_url} target="_blank" rel="noopener noreferrer">Open original on Bluesky ↗</a>}
-    </div>; })}
+        <strong>{source?.author_handle_at_collection ? `@${source.author_handle_at_collection}` : String(row.account_id || "Account not supplied")}</strong><span>{row.timestamp ? timestamp(String(row.timestamp)) : "Time not supplied"}</span>
+        <p>{String(row.text || row.url || "No post text supplied").slice(0, 150)}</p>
+        {source && <a className="swarm-source-post" href={source.source_post_url} target="_blank" rel="noopener noreferrer">Open original on Bluesky ↗</a>}
+      </div>;
+    })}
   </div>;
 }
 
@@ -676,9 +659,9 @@ function ResultSummary({ snapshot, exportResult }: { snapshot: Snapshot; exportR
   const { result } = snapshot;
   const takeaway = result.status === "insufficient_data" ? "There isn’t enough usable activity to draw a conclusion."
     : result.status === "needs_review" ? "Read this result with caution. Some evidence has limits."
-    : result.clusters.length > 0 ? `${result.clusters.length} account ${result.clusters.length === 1 ? "group is" : "groups are"} worth a closer look.`
-    : result.counts.strong_pairs > 0 ? "Repeated matches found between account pairs."
-    : "No strong repeating pattern found in this sample.";
+      : result.clusters.length > 0 ? `${result.clusters.length} account ${result.clusters.length === 1 ? "group is" : "groups are"} worth a closer look.`
+        : result.counts.strong_pairs > 0 ? "Repeated matches found between account pairs."
+          : "No strong repeating pattern found in this sample.";
   const statusText = result.status === "insufficient_data"
     ? "Insufficient data — the detector cannot draw a coordination conclusion from this input."
     : result.status === "needs_review"
@@ -915,12 +898,7 @@ export default function SwarmNetwork() {
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>03 / FOLLOW THE NETWORK</span><a href="#analysis">↑ CONTENT ANALYSIS</a></header>
       <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Follow the pattern.</h2></div><p>Find repeated posting patterns. A pattern is a lead to investigate—not proof of bots.</p></div>
-      <ol className="swarm-steps" aria-label="Investigation steps">
-        <li aria-current={!snapshot && !busy ? "step" : undefined}><span>1</span><div><strong>Add activity</strong></div></li>
-        <li aria-current={busy ? "step" : undefined}><span>2</span><div><strong>Find patterns</strong></div></li>
-        <li aria-current={snapshot && !busy ? "step" : undefined}><span>3</span><div><strong>Inspect evidence</strong></div></li>
-      </ol>
-      <ReadingGuide />
+      {!snapshot && <p className="swarm-first-run">Try a fictional example, or upload activity you already have. We’ll show the evidence behind any pattern we find.</p>}
       <div className="swarm-layout">
         <div className="swarm-input-column">
           <form className="swarm-panel" onSubmit={(event) => { event.preventDefault(); if (!disabled && !pending) start(); }} aria-label="Swarm investigation input">
@@ -932,34 +910,28 @@ export default function SwarmNetwork() {
                 setRevision((value) => value + 1); setError("");
                 setActivity("Real Bluesky posts loaded. Verify the source previews, then click Analyze activity.");
               }} />
-              <label className="swarm-field" htmlFor="swarm-example">START WITH A DEMO</label>
-              <select id="swarm-example" disabled={disabled || loadingExamples || !examples.length} value={exampleId} onChange={(event) => loadExample(event.target.value)}>
-                <option value="">{loadingExamples ? "Loading examples…" : "Choose an example…"}</option>{examples.map((example) => <option key={example.id} value={example.id}>{example.name}</option>)}
-              </select>
-              {examplesError && <div className="swarm-notice"><p>{examplesError}</p><button type="button" disabled={loadingExamples} onClick={() => setExamplesAttempt((value) => value + 1)}>Retry examples</button></div>}
-              {!loadingExamples && !examplesError && !examples.length && <p className="swarm-muted">No examples are available. Upload or paste observations below.</p>}
               {exampleSource && <div className="swarm-example-description"><span className="swarm-evidence-badge">Fictional demo{exampleEdited ? " · edited" : ""}</span><p>{exampleSource.description}</p></div>}
-              <p className="swarm-muted">Demo accounts are fictional; the analysis is real. Examples do not measure real-world accuracy.</p>
-              <label className="swarm-field" htmlFor="swarm-name">NAME YOUR INVESTIGATION</label>
-              <input id="swarm-name" value={name} maxLength={200} disabled={disabled} onChange={(event) => { setName(event.target.value); setRevision((value) => value + 1); }} />
-              <label className="swarm-field" htmlFor="swarm-file">OR UPLOAD YOUR OWN CSV / JSON</label>
+              <label className="swarm-field" htmlFor="swarm-file">UPLOAD ACTIVITY FILE</label>
               <input id="swarm-file" type="file" accept=".json,.csv,application/json,text/csv" disabled={disabled} onChange={(event) => { upload(event.target.files?.[0]); event.target.value = ""; }} />
-              <details className="swarm-raw-editor" open={editorOpen} onToggle={(event) => setEditorOpen(event.currentTarget.open)}>
-              <summary>{input ? "View or edit the raw data" : "Or paste JSON / CSV"}</summary>
-              <div className="swarm-editor-heading"><label htmlFor="swarm-input">ACTIVITY DATA</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setFormat(event.target.value as InputFormat); if (exampleSource) setExampleEdited(true); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
-              <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-describedby="swarm-fields" placeholder={format === "json" ? "Paste a JSON array of event objects, or load an example above." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setInput(event.target.value); if (exampleSource) setExampleEdited(true); setRevision((value) => value + 1); }} />
-              <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setInput(""); setExampleSource(null); setExampleId(""); setExampleEdited(false); setRevision((value) => value + 1); }}>Clear input</button></div>
-              <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform. JSON must be an array of objects; CSV needs a header row. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Missing timestamps and likes are excluded by the detector and may lead to insufficient data.</p><p>Created content needs text or a URL. Source validation on the server is authoritative.</p></details>
+              {!input.trim() && <p className="swarm-muted swarm-file-hint">Choose a CSV or JSON file, or pick a sample from the panel beside this one.</p>}
+              <details className="swarm-advanced-input" open={editorOpen} onToggle={(event) => setEditorOpen(event.currentTarget.open)}>
+                <summary>{input ? "Review or edit activity data" : "Paste data or edit advanced options"}</summary>
+                <label className="swarm-field" htmlFor="swarm-name">INVESTIGATION NAME</label>
+                <input id="swarm-name" value={name} maxLength={200} disabled={disabled} onChange={(event) => { setName(event.target.value); setRevision((value) => value + 1); }} />
+                <div className="swarm-editor-heading"><label htmlFor="swarm-input">ACTIVITY DATA</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setFormat(event.target.value as InputFormat); if (exampleSource) setExampleEdited(true); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
+                <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-describedby="swarm-fields" placeholder={format === "json" ? "Paste a JSON array of event objects, or load an example above." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setInput(event.target.value); if (exampleSource) setExampleEdited(true); setRevision((value) => value + 1); }} />
+                <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setInput(""); setExampleSource(null); setExampleId(""); setExampleEdited(false); setRevision((value) => value + 1); }}>Clear input</button></div>
+                <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform. JSON must be an array of objects; CSV needs a header row. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Missing timestamps and likes are excluded by the detector and may lead to insufficient data.</p><p>Created content needs text or a URL. Source validation on the server is authoritative.</p></details>
               </details>
               <p className="swarm-muted swarm-privacy-note">Stored on this server · no LLM calls. Only upload data you have permission to use.</p>
-              <button type="submit" className="swarm-run" disabled={disabled || !!pending || !input.trim()}>{reading ? "Reading file…" : busy ? "Analyzing…" : "Analyze activity →"}</button>
-              {!input.trim() && <p className="swarm-run-hint">Choose a demo or add a file to get started.</p>}
+              <button type="submit" className="swarm-run" disabled={disabled || !!pending || !input.trim()}>{reading ? "Reading file…" : busy ? "Analyzing…" : "Analyze activity"}</button>
+              {!input.trim() && <p className="swarm-run-hint">Choose a sample or add a file to get started.</p>}
               {collected && !activeCollection && <p className="swarm-notice">The name or raw data was edited. This will be saved as user-provided input, without claiming server-verified Bluesky provenance.</p>}
               <InputPreview input={input} format={format} collected={activeCollection} />
               {activeCollection && <CollectionCoverage collection={activeCollection.collection} datasetId={activeCollection.dataset_id} />}
             </div>
           </form>
-          <div className="swarm-panel swarm-job-panel" aria-busy={busy}>
+          {(busy || pending || error || snapshot) && <div className="swarm-panel swarm-job-panel" aria-busy={busy}>
             <header className="swarm-panel-heading">ANALYSIS PROGRESS / {busy ? "WORKING" : pending ? "CHECK STATUS" : "READY"}</header>
             <div className="swarm-panel-body">
               {busy && <ol className="swarm-run-progress" aria-label="Analysis progress">{(["importing", "analyzing", "loading"] as const).map((step, index) => <li key={step} aria-current={phase === step ? "step" : undefined}><span>{index + 1}</span>{step === "importing" ? "Check & save activity" : step === "analyzing" ? "Compare repeated patterns" : "Prepare evidence & map"}</li>)}</ol>}
@@ -970,14 +942,14 @@ export default function SwarmNetwork() {
               {error && <div className="swarm-error" role="alert"><strong>Unable to publish a new result</strong><p>{error}</p></div>}
               {snapshot && <p className="swarm-notice">{busy || error || snapshot.revision !== revision ? "Previous completed result remains visible: " : "Showing completed result: "}{snapshot.name}. {snapshot.revision !== revision && "The editor differs from this result; import and run to update it."}</p>}
             </div>
-          </div>
+          </div>}
         </div>
         <div className="swarm-results-column">
-          {!snapshot ? <div className="swarm-panel swarm-welcome"><span className="swarm-crosshair">↗</span><p className="swarm-kicker">YOUR FIRST INVESTIGATION</p><h3>Start with a story, not a spreadsheet.</h3><p>Load a demo to see what repeated coordination looks like, then click <strong>Analyze activity</strong>. You’ll get an explanation, account groups, and the actual posts behind each match.</p>
-            <div className="swarm-demo-cards">{examples.map((example, index) => <button type="button" key={example.id} disabled={disabled} aria-pressed={exampleId === example.id} onClick={() => loadExample(example.id)}><span className="swarm-demo-number">0{index + 1}</span><strong>{example.name.replace(/^Synthetic /, "")}</strong><span>{example.id === "coordinated-network" ? "Repeated matching posts · learn to read the evidence" : example.id === "benign-announcement" ? "A one-off shared announcement · compare the contrast" : "Missing timing evidence · see when we cannot conclude"}</span><span className="swarm-demo-cta">{exampleId === example.id ? "Loaded · analyze when ready" : "Load this demo →"}</span></button>)}</div>
-            {exampleId && <button type="button" className="swarm-quick-run" disabled={disabled || !!pending || !input.trim()} onClick={start}>Analyze loaded demo →</button>}
-            {!examples.length && <p className="swarm-muted">{loadingExamples ? "Loading demos…" : "Demos aren’t available right now. You can still upload a file or paste activity."}</p>}
-            <p className="swarm-muted">All demos are fictional inputs run through the real detector. No precomputed verdicts.</p></div> : <>
+          {!snapshot ? <div className="swarm-panel swarm-welcome"><p className="swarm-kicker">START WITH A SAMPLE</p><h3>See how it works</h3><p>Pick one example, then analyze it. The examples are fictional and help explain what the results mean.</p>
+            {examplesError && <div className="swarm-notice"><p>{examplesError}</p><button type="button" disabled={loadingExamples} onClick={() => setExamplesAttempt((value) => value + 1)}>Try again</button></div>}
+            <div className="swarm-demo-cards">{examples.map((example) => <button type="button" key={example.id} disabled={disabled} aria-pressed={exampleId === example.id} onClick={() => loadExample(example.id)}><strong>{example.name.replace(/^Synthetic /, "")}</strong><span>{example.id === "coordinated-network" ? "Repeated similar posts" : example.id === "benign-announcement" ? "One shared announcement" : "Not enough timing information"}</span><span className="swarm-demo-cta">{exampleId === example.id ? "Selected" : "Choose sample"}</span></button>)}</div>
+            {!examples.length && <p className="swarm-muted">{loadingExamples ? "Loading samples…" : "Samples are unavailable. Upload a file or paste activity."}</p>}
+            <details className="swarm-reading-guide"><summary>What does this check?</summary><p className="swarm-guide-note">It looks for repeated similar wording or shared links posted close together in time. A match is a reason to investigate, not proof that accounts are bots. Legitimate groups can show similar patterns too.</p></details></div> : <>
             <ResultSummary snapshot={snapshot} exportResult={exportResult} />
             <div className="swarm-evidence-grid" id="swarm-evidence">
               <section className="swarm-panel swarm-selection" aria-label="Select investigation evidence">
@@ -989,7 +961,7 @@ export default function SwarmNetwork() {
                   <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => inspect({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
                   {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)}</option>)}</select></details>}
                   <details><summary>Browse individual accounts, posts &amp; links</summary><label className="swarm-field" htmlFor="swarm-entity">ITEMS IN THE MAP / {snapshot.graph.nodes.length}</label>
-                  <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
+                    <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
                   <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
                 </div>
               </section>
