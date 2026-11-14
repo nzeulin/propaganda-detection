@@ -53,7 +53,8 @@ export function AttributionReview({ result }: { result: Analysis }) {
     <>
       <p className="small muted">
         Checks explicit English quote and reporting context. Decisions apply to
-        the reviewed highlights. The article scores still show the first pass.
+        each highlighted passage. The author's own response can still contain an
+        indicator. The article scores still show the first pass.
       </p>
       {!report.passages.length && <p>No highlights to check.</p>}
       {report.passages.map(({ passage, decision, reason, evidence = [] }) => (

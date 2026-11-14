@@ -151,10 +151,15 @@ def _review_passage(text, passage, quotes, quote_ends, paragraph_breaks):
     quote = quotes[index] if index < len(quotes) and quotes[index].start() < end else None
     if quote:
         if not _punctuation_only(text[start : max(start, quote.start())] + text[min(end, quote.end()) : end]):
+            boundaries = [(start, quote.start()), (quote.start(), quote.end()), (quote.end(), end)]
             return ContextReview(
                 decision="needs_review",
-                reason="The highlight includes a quotation and other wording. Check each speaker separately.",
-                evidence=[_span(text, quote.start(), quote.end())],
+                reason="The highlight includes a quotation and other wording. Check each passage separately.",
+                evidence=[
+                    _span(text, left, right)
+                    for left, right in boundaries
+                    if left < right and not _punctuation_only(text[left:right])
+                ],
             )
         start, end = quote.span()
 
@@ -218,7 +223,7 @@ def _review_passage(text, passage, quotes, quote_ends, paragraph_breaks):
             )
         return ContextReview(
             decision="keep",
-            reason="No local quotation or reporting frame was found for this highlight.",
+            reason="No local quotation or reporting frame was found. Keep the first-pass highlight for inspection.",
         )
 
     stances = defaultdict(list)

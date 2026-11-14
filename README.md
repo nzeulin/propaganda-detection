@@ -53,11 +53,21 @@ The screen returns `indicators_detected`. Scores are illustrative fixtures, not 
 
 ### Recheck the context of a highlight
 
-In **Analyze**, run one of the **Quote context** demos and open **Check quote context** above
-the annotated article. The three labeled synthetic demos deliberately give the same quote a
+In **Analyze**, run a **Quote context** demo and open **Check quote context** above the
+annotated article. The endorsement, rebuttal and ambiguous demos give the same quote a
 first-pass highlight. The second pass keeps it when the author explicitly endorses it, excludes
 it when the author rejects it, or asks for review when the reaction is ambiguous. The panel
 shows the exact cue and a separate preview with only the kept highlights.
+
+In **Quote context · rebuttal with an attack**, there are two simulated first-pass highlights.
+The review removes the disputed quote from the preview and keeps the author's own attack.
+Attribution review makes a decision per passage. A rejection cue alone cannot clear a whole
+article or settle the truth of a quoted claim.
+
+For a real-world comparison, see the [2015 Police Federation speech](https://www.gov.uk/government/speeches/home-secretarys-police-federation-2015-speech).
+When given candidate spans for the quoted description and the speaker's characterization
+of it as scaremongering, the review asks for context on the former and keeps the latter
+for inspection. This exercises the second pass on real wording with supplied highlights.
 
 `POST /api/v1/attribution-review` accepts an analysis's `normalized_text` and `annotations`.
 It validates Unicode offsets, groups identical spans, and returns the decisions,

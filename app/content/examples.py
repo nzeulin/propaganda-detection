@@ -2,6 +2,8 @@
 
 from app.content.schemas import Assessment, Extraction
 
+_MIXED_REBUTTAL = "The people spreading it are vultures who have no place at the table."
+
 ATTRIBUTION_DEMOS = {
     "quote-endorsed": (
         "Quote context · endorsement",
@@ -17,6 +19,12 @@ ATTRIBUTION_DEMOS = {
         "Quote context · ambiguous",
         "The chair wrote, “Only traitors would ask for more time.” Interesting.",
         "The author repeats the chair's claim and gives a brief ambiguous reaction.",
+    ),
+    "quote-mixed": (
+        "Quote context · rebuttal with an attack",
+        "The chair called anyone asking for more time a “traitor”. That accusation is baseless.\n\n"
+        + _MIXED_REBUTTAL,
+        "The author rejects the chair's accusation and then attacks the people spreading it.",
     ),
 }
 
@@ -68,38 +76,49 @@ class DemoProvider:
     async def extract(self, text, paragraphs, title, feedback=None):
         example = EXAMPLES[self.example_id]
         if self.example_id in ATTRIBUTION_DEMOS:
-            paragraph = paragraphs[0]
-            start = text.index("“") + 1
-            end = text.index("”", start)
-            phrase = text[start:end]
+            quote_start = text.index("“") + 1
+            candidates = [(text[quote_start : text.index("”", quote_start)], "The chair")]
+            if self.example_id == "quote-mixed":
+                candidates.append((_MIXED_REBUTTAL, None))
+            statements = []
+            for index, (phrase, speaker_name) in enumerate(candidates, 1):
+                start = text.index(phrase, quote_start)
+                paragraph = next(p for p in paragraphs if p["start"] <= start < p["end"])
+                statements.append(
+                    {
+                        "id": f"s{index}",
+                        "canonical_claim_id": f"s{index}",
+                        "text": phrase,
+                        "section_id": "sec1",
+                        "narrative_id": "n1",
+                        "source_spans": [
+                            {
+                                "start": start,
+                                "end": start + len(phrase),
+                                "paragraph_id": paragraph["id"],
+                                "excerpt": phrase,
+                            }
+                        ],
+                        "context_excerpt": paragraph["text"],
+                        "role": "main_conclusion",
+                        "speaker": "named_source" if speaker_name else "author",
+                        "speaker_name": speaker_name,
+                        "stance": "endorsed",
+                        "is_direct_quote": speaker_name is not None,
+                        "author_attributable": True,
+                    }
+                )
             return Extraction.model_validate(
                 {
                     "narratives": [{"id": "n1", "summary": example["narrative"], "kind": "argumentative"}],
-                    "sections": [{"id": "sec1", "title": "Quoted claim", "paragraph_ids": [paragraph["id"]]}],
-                    "statements": [
+                    "sections": [
                         {
-                            "id": "s1",
-                            "canonical_claim_id": "quote",
-                            "text": phrase,
-                            "section_id": "sec1",
-                            "narrative_id": "n1",
-                            "source_spans": [
-                                {
-                                    "start": start,
-                                    "end": end,
-                                    "paragraph_id": paragraph["id"],
-                                    "excerpt": phrase,
-                                }
-                            ],
-                            "context_excerpt": paragraph["text"],
-                            "role": "main_conclusion",
-                            "speaker": "named_source",
-                            "speaker_name": "The chair",
-                            "stance": "endorsed",
-                            "is_direct_quote": True,
-                            "author_attributable": True,
+                            "id": "sec1",
+                            "title": "Quotation and response",
+                            "paragraph_ids": [p["id"] for p in paragraphs],
                         }
                     ],
+                    "statements": statements,
                     "patterns": [],
                 }
             )
