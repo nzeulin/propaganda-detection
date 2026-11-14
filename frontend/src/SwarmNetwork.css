@@ -82,6 +82,13 @@
 .swarm-legend i { width: 7px; height: 7px; display: inline-block; flex-shrink: 0; }
 .swarm-account-key { background: #a2927f; border-radius: 50%; }
 .swarm-content-key { background: #f4efe6; border-radius: 50%; }
+.swarm-validation-key { background: #c2a46f; border-radius: 50%; }
+.swarm-workbench .swarm-needs-validation { background: #28231b; border-color: #8b7652; }
+.swarm-content-scoring { margin-top: 12px; font-size: 11px; }
+.swarm-content-scoring > p { margin: 6px 0; }
+.swarm-content-scoring details { margin-top: 8px; }
+.swarm-content-scoring dl > div { display: flex; justify-content: space-between; gap: 12px; }
+.swarm-content-scoring dd { margin: 0; white-space: nowrap; }
 .swarm-legend .swarm-observed-key { width: 16px; height: 0; border-top: 1px solid #807568; }
 .swarm-workbench .swarm-graph-hint { color: var(--swarm-muted); font-size: 9px; padding: 0 12px 10px; margin: 0; }
 .swarm-evidence-grid { display: grid; grid-template-columns: minmax(210px, .65fr) minmax(0, 1.35fr); gap: 16px; align-items: start; scroll-margin-top: 20px; }

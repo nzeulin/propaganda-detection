@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { parseBlueskyProfiles } from "./blueskyProfiles";
+import { PostScoring, PostScoringProvider, usePostScoring, type ContentScore } from "./PostScoring";
 import "./SwarmNetwork.css";
 
 type InputFormat = "json" | "csv";
@@ -28,7 +29,7 @@ type Edge = {
   timestamp?: string | null;
 };
 type Cluster = { id: string; account_ids: string[]; density: number };
-type Graph = { nodes: Entity[]; edges: Edge[]; hidden_nodes: number; clusters: Cluster[] };
+type Graph = { nodes: Entity[]; edges: Edge[]; hidden_nodes: number; clusters: Cluster[]; content_screenings?: Record<string, ContentScore> };
 type MatchedEvent = {
   event_id: string;
   account_id: string;
@@ -446,6 +447,7 @@ function defaultSelection(snapshot: Snapshot): Selection | null {
 }
 
 function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Snapshot }) {
+  const { scores } = usePostScoring();
   const { result } = snapshot;
   const strength = finding.contributions?.mean_signal_strength;
   const recurrence = finding.contributions?.recurrence_factor ?? Math.min(1, finding.episode_count / result.parameters.minimum_episodes);
@@ -491,7 +493,7 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
               const preview = (event.text || "").slice(0, 1200);
               const truncated = event.text_truncated || (event.text?.length || 0) > preview.length;
               return (
-                <div className="swarm-matched-event" key={`${event.event_id}-${eventIndex}`}>
+                <div className={`swarm-matched-event ${scores[event.content_id]?.screening?.label === "requires_further_analysis" ? "swarm-needs-validation" : ""}`} key={`${event.event_id}-${eventIndex}`}>
                   <span className="swarm-post-action">{activityLabel(event.action)}</span>
                   <strong>{event.account_label || entityLabel(event.account_id, snapshot)}</strong>
                   <time>{timestamp(event.timestamp)}</time>
@@ -500,6 +502,7 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
                   {truncated && <p className="swarm-notice">Text preview truncated.</p>}
                   {event.source_post_url && <p className="swarm-original-link">Original Bluesky post: <SourceLink url={event.source_post_url} /></p>}
                   {event.url && <SourceLink url={event.url} />}
+                  <PostScoring contentId={event.content_id} />
                   <details><summary>Post &amp; source identifiers</summary><p>Post: {event.content_label || event.content_id}</p><p>Internal content ID: {event.content_id}</p><p>Action ID: {event.event_id}</p></details>
                 </div>
               );
@@ -522,6 +525,7 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
 }
 
 function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void }) {
+  const { scores } = usePostScoring();
   const [pairId, setPairId] = useState("");
   const node = selection?.kind === "entity" ? snapshot.graph.nodes.find((entry) => entry.id === selection.id) : undefined;
   const cluster = selection?.kind === "cluster" ? snapshot.result.clusters.find((entry) => entry.id === selection.id) : undefined;
@@ -538,7 +542,7 @@ function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot
   const pair = related.find((finding) => finding.id === pairId) || related[0];
   const heading = cluster ? groupLabel(cluster.id, snapshot) : selection?.kind === "entity" ? entityLabel(selection.id, snapshot) : "Two-account comparison";
   return (
-    <aside className="swarm-panel swarm-inspection" aria-label="Swarm evidence inspector">
+    <aside className={`swarm-panel swarm-inspection ${node && scores[node.id]?.screening?.label === "requires_further_analysis" ? "swarm-needs-validation" : ""}`} aria-label="Swarm evidence inspector">
       <header className="swarm-panel-heading">THE EVIDENCE / {cluster ? "ACCOUNT GROUP" : selection?.kind === "entity" ? "SELECTED ITEM" : "ACCOUNT PAIR"}</header>
       <div className="swarm-panel-body">
         {!selection ? <p className="swarm-muted">Select an entity, group, or pair to inspect evidence.</p> : <>
@@ -555,6 +559,7 @@ function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot
             {node?.data.text && <div className="swarm-entity-text"><p>{node.data.text.slice(0, 1200)}</p>{node.data.text.length > 1200 && <p className="swarm-notice">Text preview truncated.</p>}</div>}
             {node?.data.url && <p><SourceLink url={node.data.url} /></p>}
             {node?.data.source_post_url && <p className="swarm-original-link">Open original on Bluesky: <SourceLink url={node.data.source_post_url} /></p>}
+            {node?.kind === "content" && <PostScoring contentId={node.id} />}
           </>}
           {related.length > 1 && <label className="swarm-field">COMPARE TWO ACCOUNTS / {related.length} PAIRS
             <select value={pair?.id || ""} onChange={(event) => setPairId(event.target.value)}>{related.map((finding) => <option key={finding.id} value={finding.id}>{entityLabel(finding.source_id, snapshot)} ↔ {entityLabel(finding.target_id, snapshot)}{finding.strong ? " · strong" : " · candidate"}</option>)}</select>
@@ -567,6 +572,7 @@ function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot
 }
 
 function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void }) {
+  const { scores } = usePostScoring();
   const graphRef = useRef<ForceGraphMethods<Entity, DisplayLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -608,7 +614,8 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   function drawNode(node: Entity, context: CanvasRenderingContext2D, scale: number) {
     const x = node.x ?? 0, y = node.y ?? 0;
     const radius = node.kind === "account" ? 4.5 : 3.5;
-    context.fillStyle = node.kind === "account" ? "#a2927f" : "#f4efe6";
+    context.fillStyle = node.kind === "account" ? "#a2927f"
+      : scores[node.id]?.screening?.label === "requires_further_analysis" ? "#c2a46f" : "#f4efe6";
     context.beginPath();
     context.arc(x, y, radius, 0, Math.PI * 2);
     context.fill();
@@ -659,7 +666,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           <button type="button" onClick={() => zoom(1 / 1.3)} aria-label="Zoom out">−</button>
           <button type="button" onClick={() => graphRef.current?.zoomToFit(200, 36)}>Fit</button>
         </div>
-        <div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />agent</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-observed-key" />observed action</span></div>
+        <div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />agent</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-validation-key" />requires further analysis</span><span><i className="swarm-observed-key" />observed action</span></div>
       </div>
       <p className="swarm-graph-hint">Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom · select an entity below without using the canvas.</p>
     </section>
@@ -940,7 +947,7 @@ export default function SwarmNetwork() {
               <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setInput(""); setExampleSource(null); setExampleId(""); setExampleEdited(false); setRevision((value) => value + 1); }}>Clear input</button></div>
               <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform. JSON must be an array of objects; CSV needs a header row. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Missing timestamps and likes are excluded by the detector and may lead to insufficient data.</p><p>Created content needs text or a URL. Source validation on the server is authoritative.</p></details>
               </details>
-              <p className="swarm-muted swarm-privacy-note">Stored on this server · no LLM calls. Only upload data you have permission to use.</p>
+              <p className="swarm-muted swarm-privacy-note">Stored on this server · activity analysis runs locally. Score post uses configured AI models on request. Only upload data you have permission to use.</p>
               <button type="submit" className="swarm-run" disabled={disabled || !!pending || !input.trim()}>{reading ? "Reading file…" : busy ? "Analyzing…" : "Analyze activity →"}</button>
               {!input.trim() && <p className="swarm-run-hint">Choose a demo or add a file to get started.</p>}
               {collected && !activeCollection && <p className="swarm-notice">The name or raw data was edited. This will be saved as user-provided input, without claiming server-verified Bluesky provenance.</p>}
@@ -968,6 +975,7 @@ export default function SwarmNetwork() {
             {!examples.length && <p className="swarm-muted">{loadingExamples ? "Loading demos…" : "Demos aren’t available right now. You can still upload a file or paste activity."}</p>}
             <p className="swarm-muted">All demos are fictional inputs run through the real detector. No precomputed verdicts.</p></div> : <>
             <ResultSummary snapshot={snapshot} exportResult={exportResult} />
+            <PostScoringProvider key={`${snapshot.datasetId}:${snapshot.jobId}`} initial={snapshot.graph.content_screenings}>
             <div className="swarm-evidence-grid" id="swarm-evidence">
               <section className="swarm-panel swarm-selection" aria-label="Select investigation evidence">
                 <header className="swarm-panel-heading">3 / FOLLOW THE EVIDENCE</header>
@@ -988,6 +996,7 @@ export default function SwarmNetwork() {
               <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={setSelection} />
             </div>
             <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={setSelection} />
+            </PostScoringProvider>
           </>}
         </div>
       </div>

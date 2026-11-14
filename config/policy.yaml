@@ -1,4 +1,4 @@
-version: experimental-v0.1
+version: experimental-v0.2-swarm-screening
 minimum_coverage: 0.80
 required_features: [emotional_manipulation, logical_manipulation, strategic_persuasion]
 indicator_threshold: 0.50
@@ -7,3 +7,10 @@ minimum_dimensions: 2
 highlight_yellow: 0.50
 highlight_red: 0.75
 top_three_diagnostic: false
+scoring_batch_questions: 32
+propaganda_screening:
+  version: swarm-screening-v1
+  review_threshold: 0.50
+  propaganda_threshold: 0.75
+  minimum_strong_features: 2
+  required_features: [emotional_manipulation, logical_manipulation, authority_manipulation, repetition_amplification, strategic_persuasion]
