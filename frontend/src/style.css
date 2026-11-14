@@ -402,6 +402,12 @@ textarea:focus {
   white-space: nowrap;
   color: #b1dbe3;
 }
+.diagnostic-label {
+  display: block;
+  color: #f1ce90;
+  font-size: 0.65rem;
+  margin-bottom: 3px;
+}
 .meter-track {
   height: 5px;
   background: #223247;

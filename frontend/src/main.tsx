@@ -149,6 +149,11 @@ function Article({ result }: { result: Analysis }) {
 
 function Results({ result }: { result: Analysis }) {
   const label = result.classification.label;
+  const failure = result.warnings.find(
+    (warning) =>
+      warning.startsWith("Scoring unavailable") ||
+      warning.startsWith("extraction_failed:"),
+  );
   return (
     <div className="results" key={result.material_id}>
       <section className="result-banner panel" aria-live="polite">
@@ -174,13 +179,30 @@ function Results({ result }: { result: Analysis }) {
           {label === "inconclusive" ? "?" : "◎"}
         </span>
       </section>
+      {failure && (
+        <p className="error" role="alert">
+          Some assessments could not be completed. {failure}
+        </p>
+      )}
       <section className="narrative">
-        <div className="eyebrow">CENTRAL NARRATIVE</div>
-        <p>{result.primary_narrative || "No valid narrative extracted."}</p>
+        <div className="eyebrow">
+          {result.narratives.length > 1
+            ? "CENTRAL NARRATIVES"
+            : "CENTRAL NARRATIVE"}
+        </div>
+        {result.narratives.length > 1 ? (
+          <ul>
+            {result.narratives.map((narrative) => (
+              <li key={narrative.id}>{narrative.summary}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>{result.primary_narrative || "No valid narrative extracted."}</p>
+        )}
         {result.review_required && (
           <p className="notice">
-            Independent narratives require human review. Combined profile
-            withheld; local findings remain diagnostic.
+            Narrative review is required. The combined profile is withheld;
+            available scores below are diagnostic, not a final assessment.
           </p>
         )}
       </section>
@@ -191,21 +213,31 @@ function Results({ result }: { result: Analysis }) {
         </div>
         <div className="meters">
           {features.map((feature, index) => {
-            const value = result.features[feature];
+            const published = result.features[feature];
             const detail = result.feature_details[feature];
+            const diagnostic = result.diagnostics?.[feature];
+            // Diagnostic estimates remain separate from the published classification.
+            const value = published ?? diagnostic?.partial_estimate ?? null;
+            const isDiagnostic = published === null && value !== null;
+            const coverage = isDiagnostic
+              ? diagnostic!.coverage
+              : detail.coverage;
             return (
               <div className="meter" key={feature}>
                 <div className="meter-title">
                   <span className="mono muted">0{index + 1}</span>
                   <h3>{labels[feature]}</h3>
                   <strong>
+                    {isDiagnostic && (
+                      <span className="diagnostic-label">Diagnostic</span>
+                    )}
                     {value === null ? "Not assessed" : value.toFixed(3)}
                   </strong>
                 </div>
                 <div
                   className="meter-track"
                   role={value === null ? "img" : "meter"}
-                  aria-label={`${labels[feature]}${value === null ? ": Not assessed" : ""}`}
+                  aria-label={`${labels[feature]}${isDiagnostic ? ": Diagnostic" : value === null ? ": Not assessed" : ""}`}
                   {...(value === null
                     ? {}
                     : {
@@ -221,7 +253,7 @@ function Results({ result }: { result: Analysis }) {
                 <p>
                   {value === null
                     ? detail.reason
-                    : `${percent(detail.coverage)} coverage · ${detail.scope.replaceAll("_", " ")}`}
+                    : `${percent(coverage)} coverage · ${detail.scope.replaceAll("_", " ")}${isDiagnostic ? ` · ${detail.reason}` : ""}`}
                 </p>
               </div>
             );
@@ -260,9 +292,19 @@ function Analyze() {
   const [example, setExample] = useState<string | null>(null);
   const [result, setResult] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [live, setLive] = useState<boolean | null>(null);
   const controller = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (!loading) return;
+    const started = Date.now();
+    const timer = window.setInterval(
+      () => setElapsed(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [loading]);
   useEffect(() => {
     const abort = new AbortController();
     api<Example[]>("/examples", undefined, abort.signal)
@@ -290,6 +332,7 @@ function Analyze() {
     event.preventDefault();
     controller.current = new AbortController();
     setError("");
+    setElapsed(0);
     setLoading(true);
     setResult(null);
     try {
@@ -437,8 +480,8 @@ function Analyze() {
         </div>
         {loading && (
           <p className="small cyan" role="status">
-            Extracting, validating and scoring evidence. Live analysis may take
-            several minutes.
+            Extracting, validating and scoring evidence · {elapsed}s elapsed.
+            Live analysis may take several minutes.
           </p>
         )}
         {error && (

@@ -78,10 +78,12 @@ async def analyze_content(original: str, title: str | None, provider, config, so
             "Independent or missing narratives require review; combined material profile withheld."
         )
         for key in config.features:
-            features[key] = None
-            metadata[key].update(
-                status="not_assessed", reason="Narrative review required; combined profile withheld."
-            )
+            # Preserve evidence/coverage reasons for dimensions that were already unavailable.
+            if features[key] is not None:
+                features[key] = None
+                metadata[key].update(
+                    status="not_assessed", reason="Narrative review required; combined profile withheld."
+                )
     if not claims:
         warnings.append("extraction_failed: no valid statements were extracted.")
         features = dict.fromkeys(config.features)
