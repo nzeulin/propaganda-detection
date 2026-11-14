@@ -9,13 +9,17 @@
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
+    "@xyflow/react": "^12.12.1",
+    "cytoscape": "^3.35.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@types/cytoscape": "^3.21.9",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.10.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.9.0",
