@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 
+from app.api.bluesky import collection_handler
+from app.api.bluesky import router as bluesky_router
 from app.api.datasets import import_dataset
 from app.api.datasets import router as datasets_router
 from app.api.evaluations import router as evaluations_router
@@ -44,6 +46,7 @@ async def lifespan(app: FastAPI):
         {
             "content": content_handler(app.state),
             "swarm": swarm_handler(app.state),
+            "bluesky": collection_handler(app.state),
             "evaluation": evaluation_handler(app.state),
         },
     )
@@ -63,6 +66,7 @@ app = FastAPI(title="VeritasScope · experimental content screening", version="0
 app.include_router(datasets_router)
 app.include_router(jobs_router)
 app.include_router(swarm_router)
+app.include_router(bluesky_router)
 app.include_router(system_router)
 app.include_router(evaluations_router)
 

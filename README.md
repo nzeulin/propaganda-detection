@@ -89,6 +89,8 @@ Local HTTP and browser checks cover the frontend, API proxy, demos, diagnostic d
 
 The current frontend's third section, **Follow the pattern** (`/#swarm`), supports CSV/JSON import, real CPU-only coordination jobs, an observed network graph and inspectable source evidence. It does not require AI API keys. Choose the coordinated-network, benign-library or missing-timestamps demo and select **Analyze activity**. A guided workflow, built-in glossary, readable data preview, side-by-side supporting posts and worked score breakdown explain the findings without requiring technical terminology. Synthetic input exercises the real engine; it is not measured real-world accuracy or proof of bots.
 
+To collect real activity in the same UI, expand **Import real posts from Bluesky**, paste public profile URLs or handles, choose a post cap and select **Fetch public posts**. Review readable account handles, original-post links and collection limits, then select **Analyze activity**. This uses public selected-account feeds without AI keys; it is not topic search, account discovery or repost-chain collection. Original records and source provenance persist with the dataset. See [the Bluesky collection guide](docs/real-data.md).
+
 Use http://127.0.0.1:5173/#swarm during development. Build with `npm run build --prefix frontend` to serve the latest UI from http://127.0.0.1:8000/#swarm. Restart the backend after backend edits unless using reload. See [the swarm runbook](docs/swarm.md) for input fields, API flow, method, limitations and regression checks.
 
 ### Earlier investigation workspace

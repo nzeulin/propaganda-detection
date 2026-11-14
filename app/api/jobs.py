@@ -12,6 +12,7 @@ from app.content.pipeline import analyze_content
 from app.content.verification import verify_content
 from app.core.database import analyses, entities
 from app.core.ingestion import DatasetInput
+from app.swarm.bluesky import COLLECTION_VERSION
 from app.swarm.engine import VERSION as SWARM_VERSION
 
 router = APIRouter(prefix="/api/v1")
@@ -102,6 +103,8 @@ async def retry_job(job_id: str, request: Request):
     if old["status"] in ("queued", "running", "completed"):
         raise HTTPException(409, "Only failed, cancelled, or interrupted jobs can be retried.")
     configuration = {"coordination": SWARM_VERSION} if old["kind"] == "swarm" else state.config.versions
+    if old["kind"] == "bluesky":
+        configuration = {"bluesky": COLLECTION_VERSION}
     return state.jobs.submit(old["kind"], old["target_id"], old["payload"], configuration)
 
 

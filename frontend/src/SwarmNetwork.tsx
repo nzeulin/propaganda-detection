@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
+import { parseBlueskyProfiles } from "./blueskyProfiles";
 import "./SwarmNetwork.css";
 
 type InputFormat = "json" | "csv";
@@ -15,7 +16,7 @@ type Example = {
 type Entity = {
   id: string;
   kind: "account" | "content" | "url";
-  data: { source_id: string; text?: string; url?: string; platform?: string };
+  data: { source_id: string; text?: string; url?: string; platform?: string; handle?: string; source_post_url?: string };
   x?: number;
   y?: number;
 };
@@ -41,6 +42,7 @@ type MatchedEvent = {
   text?: string;
   text_truncated?: boolean;
   url?: string | null;
+  source_post_url?: string;
 };
 type Episode = {
   time: string | number;
@@ -66,6 +68,7 @@ type Finding = {
   contributions?: { mean_signal_strength: number; recurrence_factor: number; excess_fraction: number };
 };
 type SwarmResult = {
+  collection?: CollectionInfo;
   status: "complete" | "needs_review" | "insufficient_data";
   counts: {
     observations: number;
@@ -94,6 +97,23 @@ type Snapshot = PendingJob & { result: SwarmResult; graph: Graph };
 type Selection = { kind: "cluster" | "pair" | "entity"; id: string };
 type Operation = { controller: AbortController; deadline: number; timedOut: boolean };
 type DisplayLink = { id: string; source: string; target: string; inferred: boolean };
+type CollectionInfo = {
+  post_count: number;
+  accounts_with_posts: number;
+  started_at_utc: string;
+  oldest_post_utc: string | null;
+  newest_post_utc: string | null;
+  warnings: string[];
+  accounts: { did: string; handle?: string; posts_collected?: number; stop_reason: string; skipped_entries?: Record<string, number> }[];
+};
+type CollectedPosts = {
+  dataset_id: string;
+  name: string;
+  rows: InputRow[];
+  collection: CollectionInfo;
+  posts: Record<string, { source_post_url: string; author_handle_at_collection: string }>;
+};
+type CollectionJob = Omit<Job, "result"> & { result: CollectedPosts | null };
 
 const MAX_BYTES = 10_000_000;
 const MAX_EVENTS = 5000;
@@ -255,7 +275,8 @@ function SourceLink({ url }: { url: string }) {
 }
 
 function entityLabel(id: string, snapshot: Snapshot): string {
-  return snapshot.result.account_labels?.[id] || snapshot.graph.nodes.find((node) => node.id === id)?.data.source_id || id;
+  const node = snapshot.graph.nodes.find((node) => node.id === id);
+  return snapshot.result.account_labels?.[id] || (node?.data.handle ? `@${node.data.handle}` : node?.data.source_id) || id;
 }
 
 function groupLabel(id: string, snapshot: Snapshot): string {
@@ -289,7 +310,7 @@ function ReadingGuide() {
   </details>;
 }
 
-function InputPreview({ input, format }: { input: string; format: InputFormat }) {
+function InputPreview({ input, format, collected }: { input: string; format: InputFormat; collected?: CollectedPosts | null }) {
   const preview = useMemo(() => {
     if (!input.trim() || new Blob([input]).size > MAX_BYTES) return null;
     try {
@@ -302,13 +323,119 @@ function InputPreview({ input, format }: { input: string; format: InputFormat })
   }, [input, format]);
   if (!preview) return null;
   return <div className="swarm-input-preview">
-    <div className="swarm-preview-heading"><strong>Activity loaded</strong><span>{number(preview.rows.length)} rows · {number(preview.accounts)} accounts</span></div>
-    <p className="swarm-muted">A preview of the first {Math.min(3, preview.rows.length)} rows. Full validation happens when you analyze.</p>
-    {preview.rows.slice(0, 3).map((row, index) => <div className="swarm-preview-row" key={index}>
-      <strong>{String(row.account_id || "Account not supplied")}</strong><span>{row.timestamp ? timestamp(String(row.timestamp)) : "Time not supplied"}</span>
+    <div className="swarm-preview-heading"><strong>{collected ? "Real Bluesky posts loaded" : "Activity loaded"}</strong><span>{number(preview.rows.length)} rows · {number(preview.accounts)} accounts</span></div>
+    <p className="swarm-muted">{collected ? "Original post previews—not detected bots. Times are UTC. Open the sources to verify." : `A preview of the first ${Math.min(3, preview.rows.length)} rows. Full validation happens when you analyze.`}</p>
+    {preview.rows.slice(0, 3).map((row, index) => {
+      const source = collected?.posts[String(row.content_id)];
+      return <div className="swarm-preview-row" key={index}>
+      <strong>{source?.author_handle_at_collection ? `@${source.author_handle_at_collection}` : String(row.account_id || "Account not supplied")}</strong><span>{row.timestamp ? timestamp(String(row.timestamp)) : "Time not supplied"}</span>
       <p>{String(row.text || row.url || "No post text supplied").slice(0, 150)}</p>
-    </div>)}
+      {source && <a className="swarm-source-post" href={source.source_post_url} target="_blank" rel="noopener noreferrer">Open original on Bluesky ↗</a>}
+    </div>; })}
   </div>;
+}
+
+function CollectionCoverage({ collection, datasetId }: { collection: CollectionInfo; datasetId: string }) {
+  return <details className="swarm-collection-coverage">
+    <summary>Bluesky collection coverage · {number(collection.post_count)} posts · {number(collection.accounts_with_posts)} accounts</summary>
+    <p>These are multiple posts per selected account—not newly discovered accounts. Feed caps can omit activity; no topic search or repost chains were collected.</p>
+    <p className="swarm-muted">Collected {timestamp(collection.started_at_utc)}. Posting dates: {timestamp(collection.oldest_post_utc || undefined)} → {timestamp(collection.newest_post_utc || undefined)}.</p>
+    <ul>{collection.accounts.map((account, index) => <li key={`${account.did}-${index}`}><strong>@{account.handle || account.did}</strong>: {number(account.posts_collected || 0)} authored posts · {account.stop_reason.replaceAll("_", " ")}{account.skipped_entries?.repost_not_collected ? ` · ${account.skipped_entries.repost_not_collected} repost wrappers skipped` : ""}</li>)}</ul>
+    <ul>{collection.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+    <a href={`${API}/datasets/${encodeURIComponent(datasetId)}/provenance`} target="_blank" rel="noopener noreferrer">View saved original records &amp; source provenance ↗</a>
+  </details>;
+}
+
+function BlueskyImport({ disabled, onLoad, onBusyChange }: { disabled: boolean; onLoad: (value: CollectedPosts) => void; onBusyChange: (value: boolean) => void }) {
+  const [profiles, setProfiles] = useState("");
+  const [limit, setLimit] = useState(50);
+  const [busy, setBusy] = useState(false);
+  const [jobId, setJobId] = useState("");
+  const [message, setMessage] = useState("Paste profiles you want to compare. Nothing is fetched until you click below.");
+  const [error, setError] = useState("");
+  const controllerRef = useRef<AbortController | null>(null);
+  const jobRef = useRef("");
+
+  useEffect(() => () => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    if (jobRef.current) void request(`/jobs/${encodeURIComponent(jobRef.current)}/cancel`, { method: "POST", keepalive: true }).catch(() => undefined);
+  }, []);
+
+  async function track(job: CollectionJob, signal: AbortSignal) {
+    while (job.status === "queued" || job.status === "running") {
+      setMessage(job.status === "queued" ? "Collection queued. Waiting for a worker…" : "Fetching selected public author feeds from Bluesky. Reposts are skipped…");
+      await pause(1500, signal);
+      job = await request<CollectionJob>(`/jobs/${encodeURIComponent(job.id)}`, {}, signal);
+    }
+    if (signal.aborted) return;
+    jobRef.current = ""; setJobId("");
+    if (job.status === "cancelled") { setMessage("Collection cancelled. Your previous input and result are unchanged."); return; }
+    if (job.status !== "completed") throw new Error(`Collection ${job.status}: ${errorText(job.error)}`);
+    const value = job.result;
+    if (!value?.dataset_id || !value.name || !Array.isArray(value.rows) || !value.rows.length || !value.collection || !value.posts) throw new Error("Collection returned an incomplete snapshot. Previous input and result are unchanged.");
+    if (signal.aborted) return;
+    onLoad(value);
+    setMessage(`Fetched ${number(value.rows.length)} real authored posts from ${number(value.collection.accounts_with_posts)} accounts. Review the post previews, then click Analyze activity.`);
+  }
+
+  async function run(resume = false) {
+    let actors: string[] = [];
+    if (!resume) {
+      try { actors = parseBlueskyProfiles(profiles); }
+      catch (failure) { setError(failure instanceof Error ? failure.message : errorText(failure)); return; }
+      if (!actors.length) { setError("Enter between 1 and 10 public Bluesky profiles or handles, separated by newlines."); return; }
+    }
+    const controller = new AbortController(); controllerRef.current = controller;
+    setBusy(true); onBusyChange(true); setError("");
+    const deadline = window.setTimeout(() => controller.abort(), OVERALL_TIMEOUT);
+    try {
+      setMessage(resume ? "Checking the saved collection job…" : "Requesting a bounded public collection…");
+      const job = resume
+        ? await request<CollectionJob>(`/jobs/${encodeURIComponent(jobRef.current)}`, {}, controller.signal)
+        : await request<CollectionJob>("/bluesky/collect", { method: "POST", body: JSON.stringify({ actors, per_actor: limit }) }, controller.signal);
+      if (!job?.id) throw new Error("Collection returned no job reference. No automatic retry was made.");
+      jobRef.current = job.id; setJobId(job.id);
+      await track(job, controller.signal);
+    } catch (failure) {
+      if (controllerRef.current !== controller) return;
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : errorText(failure));
+      else setError("Tracking stopped. If a job reference is shown, resume tracking or cancel it; no automatic retry was made.");
+    } finally {
+      window.clearTimeout(deadline);
+      if (controllerRef.current === controller) { controllerRef.current = null; setBusy(false); onBusyChange(false); }
+    }
+  }
+
+  async function cancelCollection() {
+    if (!jobRef.current) return;
+    const id = jobRef.current;
+    controllerRef.current?.abort();
+    // Keep parent inputs locked until server-side cancellation is confirmed.
+    const controller = new AbortController(); controllerRef.current = controller;
+    setBusy(true); onBusyChange(true); setError("");
+    setMessage("Stopping collection. A public request already in flight may take up to 25 seconds to stop…");
+    try {
+      const job = await request<CollectionJob>(`/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }, controller.signal);
+      await track(job, controller.signal);
+    } catch (failure) { setError(failure instanceof Error ? failure.message : errorText(failure)); }
+    finally { if (controllerRef.current === controller) { controllerRef.current = null; setBusy(false); onBusyChange(false); } }
+  }
+
+  return <details className="swarm-bluesky-import">
+    <summary>Import real posts from Bluesky ↗</summary>
+    <p>Choose public profiles, fetch their latest authored posts, then use the same analysis and evidence view below. No separate experiment page.</p>
+    <label className="swarm-field" htmlFor="swarm-bluesky-profiles">BLUESKY PROFILE URLS OR HANDLES</label>
+    <textarea id="swarm-bluesky-profiles" value={profiles} disabled={disabled || busy || !!jobId} rows={3} maxLength={4000} spellCheck={false} placeholder={"https://bsky.app/profile/bsky.app\natproto.com"} onChange={(event) => setProfiles(event.target.value)} aria-describedby="swarm-bluesky-help" />
+    <p id="swarm-bluesky-help" className="swarm-muted">One per line, up to 10. Use profile URLs or @handles—not post links, article URLs or keywords. Choose at least two accounts for comparison.</p>
+    <label className="swarm-field" htmlFor="swarm-bluesky-limit">MAXIMUM POSTS PER ACCOUNT</label>
+    <select id="swarm-bluesky-limit" value={limit} disabled={disabled || busy || !!jobId} onChange={(event) => setLimit(Number(event.target.value))}>{[10, 50, 100, 200].map((value) => <option key={value} value={value}>{value} posts per account</option>)}</select>
+    <p className="swarm-muted">At most three feed pages per account. Public posts only; no login or LLM calls. This does not discover accounts, search topics or collect repost chains. Original records are stored on this server.</p>
+    <button type="button" className="swarm-fetch" disabled={disabled || busy || !!jobId || !profiles.trim()} onClick={() => void run()}>{busy ? "Fetching public posts…" : "Fetch public posts →"}</button>
+    <p className="swarm-collection-status" role="status" aria-live="polite">{message}</p>
+    {jobId && <div className="swarm-actions"><button type="button" onClick={() => void cancelCollection()}>Cancel collection</button>{!busy && <button type="button" disabled={disabled} onClick={() => void run(true)}>Resume collection tracking</button>}</div>}
+    {error && <div className="swarm-error" role="alert"><strong>Bluesky collection did not finish</strong><p>{error}</p></div>}
+  </details>;
 }
 
 function defaultSelection(snapshot: Snapshot): Selection | null {
@@ -373,6 +500,7 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
                   <p>{preview || "No text supplied for this event."}</p>
                   {event.action === "replied_to" && <p className="swarm-muted">This is the referenced post, not the reply’s own text.</p>}
                   {truncated && <p className="swarm-notice">Text preview truncated.</p>}
+                  {event.source_post_url && <p className="swarm-original-link">Original Bluesky post: <SourceLink url={event.source_post_url} /></p>}
                   {event.url && <SourceLink url={event.url} />}
                   <details><summary>Post &amp; source identifiers</summary><p>Post: {event.content_label || event.content_id}</p><p>Internal content ID: {event.content_id}</p><p>Action ID: {event.event_id}</p></details>
                 </div>
@@ -429,6 +557,7 @@ function EvidenceInspector({ snapshot, selection, select }: { snapshot: Snapshot
             {!node && <p className="swarm-notice">This account is outside the displayed graph subset.</p>}
             {node?.data.text && <div className="swarm-entity-text"><p>{node.data.text.slice(0, 1200)}</p>{node.data.text.length > 1200 && <p className="swarm-notice">Text preview truncated.</p>}</div>}
             {node?.data.url && <p><SourceLink url={node.data.url} /></p>}
+            {node?.data.source_post_url && <p className="swarm-original-link">Open original on Bluesky: <SourceLink url={node.data.source_post_url} /></p>}
           </>}
           {related.length > 1 && <label className="swarm-field">COMPARE TWO ACCOUNTS / {related.length} PAIRS
             <select value={pair?.id || ""} onChange={(event) => setPairId(event.target.value)}>{related.map((finding) => <option key={finding.id} value={finding.id}>{entityLabel(finding.source_id, snapshot)} ↔ {entityLabel(finding.target_id, snapshot)}{finding.strong ? " · strong" : " · candidate"}</option>)}</select>
@@ -574,6 +703,7 @@ function ResultSummary({ snapshot, exportResult }: { snapshot: Snapshot; exportR
           <Metric label="Groups to review" value={number(result.clusters.length)} hint="3+ mutually connected accounts per group" />
         </dl>
         <p className="swarm-trust-note">Coordination is not proof of bots or malicious intent. {!result.clusters.length && "No strong groups does not prove safety or independence. A strong pair need not form a group."}</p>
+        {result.collection && <CollectionCoverage collection={result.collection} datasetId={snapshot.datasetId} />}
         {!!result.warnings?.length && <div className="swarm-notice"><h4>Detector warnings</h4><ul>{result.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
         {result.status === "insufficient_data" ? <div className="swarm-next-step"><strong>What to do next</strong><p>Add timezone-aware timestamps and repeated activity from at least two accounts. The default settings need three usable events per account and an observation span longer than two minutes.</p></div>
           : <div className="swarm-next-step"><strong>What to do next</strong><p>{result.findings.length ? "Choose a group or account pair below. Compare the actual posts and times before interpreting the score." : "Try a wider sample or a longer time period. This only tests the imported activity under the current matching rules."}</p><div className="swarm-result-links">{result.findings.length > 0 && <a href="#swarm-evidence">Review the matching activity ↓</a>}<a href="#swarm-map">Explore the network map ↓</a></div></div>}
@@ -610,6 +740,8 @@ export default function SwarmNetwork() {
   const [format, setFormat] = useState<InputFormat>("json");
   const [revision, setRevision] = useState(0);
   const [reading, setReading] = useState(false);
+  const [collecting, setCollecting] = useState(false);
+  const [collected, setCollected] = useState<CollectedPosts | null>(null);
   const [busy, setBusy] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [phase, setPhase] = useState<"idle" | "importing" | "analyzing" | "loading">("idle");
@@ -699,15 +831,16 @@ export default function SwarmNetwork() {
     catch (failure) { setError(failure instanceof Error ? failure.message : errorText(failure)); return; }
     void operate(async (operation) => {
       const signal = operation.controller.signal;
+      const useCollected = collected && name === collected.name && format === "json" && input === JSON.stringify(collected.rows, null, 2);
       setPhase("importing");
       setActivity("Checking and saving your activity…");
-      const dataset = await request<{ id: string }>("/datasets", { method: "POST", body: payload }, signal);
+      const dataset = useCollected ? { id: collected.dataset_id } : await request<{ id: string }>("/datasets", { method: "POST", body: payload }, signal);
       if (!dataset?.id) throw new Error("Import returned no dataset ID. No analysis was submitted.");
       setPhase("analyzing");
       setActivity("Activity saved. Starting the account comparison…");
       const job = await request<Job>("/swarm/analyze", { method: "POST", body: JSON.stringify({ dataset_id: dataset.id }) }, signal);
       if (!job?.id) throw new Error("The detector returned no job ID. No result has been published.");
-      const context: PendingJob = { datasetId: dataset.id, jobId: job.id, name: name.trim(), revision, provenance: exampleSource ? `SYNTHETIC INPUT${exampleEdited ? " / EDITED" : ""}` : "USER-PROVIDED INPUT" };
+      const context: PendingJob = { datasetId: dataset.id, jobId: job.id, name: name.trim(), revision, provenance: useCollected ? "REAL BLUESKY PUBLIC FEEDS" : exampleSource ? `SYNTHETIC INPUT${exampleEdited ? " / EDITED" : ""}` : "USER-PROVIDED INPUT" };
       updatePending(context);
       await track(job, context, operation);
     });
@@ -737,6 +870,7 @@ export default function SwarmNetwork() {
   }
 
   function loadExample(id: string) {
+    setCollected(null);
     setExampleId(id);
     const example = examples.find((item) => item.id === id);
     if (!example) return;
@@ -752,6 +886,7 @@ export default function SwarmNetwork() {
     fileReaderRef.current?.abort();
     const reader = new FileReader(); fileReaderRef.current = reader; setReading(true);
     reader.onload = () => {
+      setCollected(null);
       setInput(String(reader.result || "").replace(/^\uFEFF/, ""));
       setEditorOpen(false);
       setFormat(/\.csv$/i.test(file.name) ? "csv" : "json");
@@ -771,13 +906,14 @@ export default function SwarmNetwork() {
   }
 
   const pairs = useMemo(() => snapshot ? [...snapshot.result.findings].sort((a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score) : [], [snapshot]);
-  const disabled = busy || reading;
+  const disabled = busy || reading || collecting;
+  const activeCollection = collected && name === collected.name && format === "json" && input === JSON.stringify(collected.rows, null, 2) ? collected : null;
   return (
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>03 / FOLLOW THE NETWORK</span><a href="#analysis">↑ CONTENT ANALYSIS</a></header>
-      <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Follow the pattern.</h2></div><p>Do the same accounts keep sharing similar posts at nearly the same time? Start with a demo or your own activity, then see the posts behind each connection. A pattern is a reason to investigate—not proof of bots.</p></div>
+      <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Follow the pattern.</h2></div><p>Do the same accounts keep sharing similar posts at nearly the same time? Import public Bluesky profiles, try a demo or add your own activity, then inspect the original posts. A pattern is a reason to investigate—not proof of bots.</p></div>
       <ol className="swarm-steps" aria-label="Investigation steps">
-        <li aria-current={!snapshot && !busy ? "step" : undefined}><span>1</span><div><strong>Add activity</strong><small>Try a demo or upload your data</small></div></li>
+        <li aria-current={!snapshot && !busy ? "step" : undefined}><span>1</span><div><strong>Add activity</strong><small>Fetch Bluesky posts, try a demo or upload</small></div></li>
         <li aria-current={busy ? "step" : undefined}><span>2</span><div><strong>Find repeated patterns</strong><small>Compare wording, links and timing</small></div></li>
         <li aria-current={snapshot && !busy ? "step" : undefined}><span>3</span><div><strong>Read the evidence</strong><small>Compare actual posts, not just scores</small></div></li>
       </ol>
@@ -787,6 +923,12 @@ export default function SwarmNetwork() {
           <form className="swarm-panel" onSubmit={(event) => { event.preventDefault(); if (!disabled && !pending) start(); }} aria-label="Swarm investigation input">
             <header className="swarm-panel-heading">1 / ADD ACTIVITY <span>UP TO 5,000 ROWS · 10 MB</span></header>
             <div className="swarm-panel-body">
+              <BlueskyImport disabled={busy || reading || !!pending} onBusyChange={setCollecting} onLoad={(value) => {
+                setCollected(value); setInput(JSON.stringify(value.rows, null, 2)); setFormat("json"); setName(value.name);
+                setExampleId(""); setExampleSource(null); setExampleEdited(false); setEditorOpen(false);
+                setRevision((value) => value + 1); setError("");
+                setActivity("Real Bluesky posts loaded. Verify the source previews, then click Analyze activity.");
+              }} />
               <label className="swarm-field" htmlFor="swarm-example">START WITH A DEMO</label>
               <select id="swarm-example" disabled={disabled || loadingExamples || !examples.length} value={exampleId} onChange={(event) => loadExample(event.target.value)}>
                 <option value="">{loadingExamples ? "Loading examples…" : "Choose an example…"}</option>{examples.map((example) => <option key={example.id} value={example.id}>{example.name}</option>)}
@@ -809,7 +951,9 @@ export default function SwarmNetwork() {
               <p className="swarm-muted swarm-privacy-note">Stored on this server · no LLM calls. Only upload data you have permission to use.</p>
               <button type="submit" className="swarm-run" disabled={disabled || !!pending || !input.trim()}>{reading ? "Reading file…" : busy ? "Analyzing…" : "Analyze activity →"}</button>
               {!input.trim() && <p className="swarm-run-hint">Choose a demo or add a file to get started.</p>}
-              <InputPreview input={input} format={format} />
+              {collected && !activeCollection && <p className="swarm-notice">The name or raw data was edited. This will be saved as user-provided input, without claiming server-verified Bluesky provenance.</p>}
+              <InputPreview input={input} format={format} collected={activeCollection} />
+              {activeCollection && <CollectionCoverage collection={activeCollection.collection} datasetId={activeCollection.dataset_id} />}
             </div>
           </form>
           <div className="swarm-panel swarm-job-panel" aria-busy={busy}>

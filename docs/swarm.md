@@ -1,6 +1,6 @@
 # Spot the Swarm: local minimum working detector
 
-The third section of the current single-page UI (`/#swarm`), **Follow the pattern**, runs a real CPU-only coordination detector. It does not classify accounts as proven bots or infer malicious intent. No AI provider credentials, scraping, or external requests are needed.
+The third section of the current single-page UI (`/#swarm`), **Follow the pattern**, runs a real CPU-only coordination detector. It does not classify accounts as proven bots or infer malicious intent. Analysis needs no AI provider credentials, scraping or external requests; the optional explicit Bluesky import contacts its public API to collect selected accounts' posts.
 
 ## Try it
 
@@ -18,6 +18,8 @@ Results lead with a plain-language takeaway and explain each count. Choose a gro
 
 Alternatively upload CSV/JSON or paste event rows. JSON is an array, not a graph. Required fields are `account_id`, `content_id`, `action` and readable `text` or an absolute HTTP(S) `url` for created content. Use ISO 8601 timestamps with `Z` or an explicit UTC offset. `platform` is optional. Reposts, replies and likes must reference content with a corresponding created observation. Imports are atomic, dataset-scoped, deduplicated and limited to 5,000 rows / 10 MB. Source input and results persist in local SQLite; only import data you are permitted to store.
 
+To fetch real posts without exporting files, expand **Import real posts from Bluesky**, enter public profile URLs or handles, choose a per-account cap and select **Fetch public posts**. Review the readable handles, original-post links and collection coverage, then use **Analyze activity**. Everything stays in this UI. This collects selected authored feeds—not keyword search, discovered accounts or repost chains. See [the integrated Bluesky guide and earlier experiments](real-data.md) for limitations and API details.
+
 ## API flow
 
 1. `GET /api/v1/swarm/examples`: synthetic input rows with descriptions, never precomputed verdicts.
@@ -27,6 +29,8 @@ Alternatively upload CSV/JSON or paste event rows. JSON is an array, not a graph
 5. A completed job's `result` contains status, warnings, parameters, counts, account labels, pair findings and groups. Episodes include the strongest supporting event IDs, account labels, source text previews, timestamps, lexical similarity and shared URLs.
 6. `GET /api/v1/datasets/{dataset_id}/graph` includes observed relationships and strong inferred links. At most 300 entities are displayed; hidden entities are counted. The detector itself uses the full imported dataset.
 7. `GET /api/v1/swarm/{dataset_id}/analysis` returns the latest saved analysis. `POST /api/v1/jobs/{job_id}/cancel` cooperatively stops a queued/running job. Failed or interrupted jobs may be explicitly retried through the existing jobs API.
+
+For real Bluesky input, use `POST /api/v1/bluesky/collect` with `actors` and `per_actor` before step 3. It returns a collection job; on completion its `dataset_id` is already persisted, so no separate manual import is needed. The saved source records are available through `GET /api/v1/datasets/{dataset_id}/provenance`. Collected analyses carry collection coverage and readable handles; graph content and matched evidence include original-post URLs.
 
 ## Method and boundaries
 
@@ -40,7 +44,7 @@ Alternatively upload CSV/JSON or paste event rows. JSON is an array, not a graph
 - The shuffle preserves global activity times and account event counts, not each account's rhythms. Eight trials are diagnostic, not statistical significance or calibrated confidence. Fixed seeds and sorted processing make the same dataset reproducible.
 - Legitimate scheduling, news sharing, syndication and campaigns can produce coordination signals. Paraphrases and less tightly connected groups may be missed. Precision, recall and false-positive rate have **not** been measured on a real-world benchmark.
 
-This is a local investigation tool. Authentication, public-endpoint abuse protection, data-retention controls, live collectors and deployment hardening remain separate work before exposing sensitive data publicly.
+This is a local investigation tool. Authentication, per-user abuse protection, data-retention controls, continuous collection, account discovery and deployment hardening remain separate work before public exposure. The integrated Bluesky collector is explicitly initiated and bounded, not a platform-wide crawler.
 
 ## Local regression checks
 

@@ -203,6 +203,15 @@
 .swarm-matched-event details p { font-size: 10px; }
 .swarm-occasion-technical { padding: 6px 0; }
 .swarm-workbench .swarm-map-explainer { padding: 14px; color: var(--swarm-muted); margin: 0; border-bottom: 1px solid #39342e; }
+.swarm-workbench .swarm-bluesky-import { border: 1px solid #916449; background: #211b17; padding: 12px; margin: 0 0 20px; }
+.swarm-bluesky-import > summary { color: #f2d4b8; font-size: 13px; font-weight: 600; }
+.swarm-workbench .swarm-bluesky-import textarea { height: 110px; min-height: 100px; max-height: 230px; }
+.swarm-workbench .swarm-bluesky-import p { font-size: 12px; }
+.swarm-workbench .swarm-fetch { width: 100%; background: #573827; border-color: #b58258; min-height: 46px; }
+.swarm-workbench .swarm-collection-status { margin-top: 12px; color: #ddc5ad; }
+.swarm-workbench .swarm-collection-coverage { padding: 12px; border: 1px solid #6a533e; background: #211d18; }
+.swarm-collection-coverage li, .swarm-collection-coverage a, .swarm-source-post { font: 11px/1.7 ui-sans-serif, system-ui, sans-serif; }
+.swarm-original-link { border-left: 2px solid #997a55; padding-left: 10px; }
 @media (min-width: 1600px) {
   .swarm-layout { grid-template-columns: 380px minmax(0, 1fr); }
 }

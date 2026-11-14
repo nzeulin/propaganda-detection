@@ -23,13 +23,22 @@ class ReviewInput(BaseModel):
     analysis_id: str | None = None
 
 
-@router.post("/datasets", status_code=201)
-async def import_dataset(body: DatasetInput, request: Request):
+def persist_dataset(database, body: DatasetInput, *, bluesky=None):
+    """Atomically persist an import; optional source metadata is server-collected only."""
     try:
         dataset_id, source, nodes, events = prepare_dataset(body)
     except ValueError as exc:
         raise HTTPException(422, detail=exc.args[0]) from exc
-    with request.app.state.database.begin() as connection:
+    if bluesky is not None:
+        source["bluesky"] = bluesky
+        accounts = {a["did"]: a["handle"] for a in bluesky["collection"]["accounts"] if "handle" in a}
+        for node in nodes:
+            if node["kind"] == "account":
+                node["data"]["handle"] = accounts.get(node["data"]["source_id"])
+            elif node["kind"] == "content":
+                original = bluesky["posts"].get(node["data"]["source_id"], {})
+                node["data"]["source_post_url"] = original.get("source_post_url")
+    with database.begin() as connection:
         existing = connection.execute(select(datasets).where(datasets.c.id == dataset_id)).mappings().first()
         if existing:
             return dict(existing)
@@ -38,6 +47,23 @@ async def import_dataset(body: DatasetInput, request: Request):
         connection.execute(entities.insert(), nodes)
         connection.execute(observations.insert(), events)
     return record
+
+
+@router.post("/datasets", status_code=201)
+async def import_dataset(body: DatasetInput, request: Request):
+    return persist_dataset(request.app.state.database, body)
+
+
+@router.get("/datasets/{dataset_id}/provenance")
+async def dataset_provenance(dataset_id: str, request: Request):
+    with request.app.state.database.connect() as connection:
+        record = connection.execute(select(datasets.c.source).where(datasets.c.id == dataset_id)).first()
+    if not record:
+        raise HTTPException(404, "Unknown dataset")
+    provenance = record[0].get("bluesky")
+    if not provenance:
+        raise HTTPException(404, "This dataset has no server-collected Bluesky provenance")
+    return provenance
 
 
 @router.get("/datasets")

@@ -29,6 +29,7 @@ async def examples():
 def swarm_handler(state):
     async def handle(job, stage):
         with state.database.connect() as connection:
+            source = connection.execute(select(datasets.c.source).where(datasets.c.id == job["target_id"])).scalar_one()
             nodes = [
                 dict(r)
                 for r in connection.execute(
@@ -43,11 +44,22 @@ def swarm_handler(state):
             ]
         cancellation = Event()
         try:
-            return await stage(
+            result = await stage(
                 "coordination",
                 lambda: asyncio.to_thread(analyze_coordination, nodes, events, cancellation=cancellation),
                 {"dataset_id": job["target_id"], "event_count": len(events)},
             )
+            provenance = source.get("bluesky")
+            if provenance:
+                result["collection"] = provenance["collection"]
+                handles = {a["did"]: "@" + a["handle"] for a in provenance["collection"]["accounts"] if "handle" in a}
+                result["account_labels"] = {key: handles.get(label, label) for key, label in result["account_labels"].items()}
+                for finding in result["findings"]:
+                    for episode in finding["episodes"]:
+                        for event in episode["matched_events"]:
+                            event["account_label"] = result["account_labels"].get(event["account_id"], event["account_label"])
+                            event["source_post_url"] = provenance["posts"].get(event["content_label"], {}).get("source_post_url")
+            return result
         finally:
             cancellation.set()
 
