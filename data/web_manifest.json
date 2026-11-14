@@ -1,0 +1,20 @@
+{
+  "accepted": 300,
+  "target": 300,
+  "source_counts": {
+    "RT": 87,
+    "BBC": 87,
+    "The Guardian": 86,
+    "NASA": 10,
+    "UN News": 30
+  },
+  "feed_failures": [],
+  "scope": "Short headline/lede excerpts, not full-article judgments",
+  "labels": {
+    "uncertain": 22,
+    "none": 264,
+    "logical_manipulation": 4,
+    "emotional_manipulation": 9,
+    "authority_manipulation": 1
+  }
+}
