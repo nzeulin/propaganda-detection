@@ -59,7 +59,7 @@ class ProviderRuntime:
                     ) from exc
                 raise HTTPException(
                     502,
-                    "Provider request failed or timed out. Check credentials, model access and provider availability.",
+                    f"{provider} request failed or timed out. Check credentials, model access and provider availability.",
                 ) from exc
             except TypeSafeError as exc:
                 raise HTTPException(

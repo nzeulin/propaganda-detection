@@ -1,8 +1,32 @@
-"""Validate frozen source coordinates, then group equivalent claims without losing occurrences."""
+"""Anchor exact excerpts, validate frozen coordinates, and group equivalent claims."""
 
 from collections import defaultdict
 
 from app.content.schemas import Extraction
+
+
+def anchor_extraction(extraction: dict, text: str, paragraphs: list[dict]):
+    """Resolve only unique verbatim matches within each declared source paragraph."""
+    paragraph_map = {p["id"]: p for p in paragraphs}
+    for statement in extraction["statements"]:
+        spans, context = [], []
+        for source in statement["source_spans"]:
+            paragraph = paragraph_map.get(source["paragraph_id"])
+            excerpt = source["excerpt"]
+            if paragraph is None or not excerpt.strip():
+                continue
+            offset = paragraph["text"].find(excerpt)
+            if offset < 0 or paragraph["text"].find(excerpt, offset + 1) >= 0:
+                continue
+            start = paragraph["start"] + offset
+            spans.append({**source, "start": start, "end": start + len(excerpt)})
+            context.append(paragraph)
+        # An unresolved excerpt invalidates the occurrence, rather than silently losing evidence.
+        statement["source_spans"] = spans if len(spans) == len(statement["source_spans"]) else []
+        statement["context_excerpt"] = (
+            text[min(p["start"] for p in context) : max(p["end"] for p in context)] if context else ""
+        )
+    return Extraction.model_validate(extraction)
 
 
 def validate_and_group(extraction: Extraction, text: str, paragraphs: list[dict]):

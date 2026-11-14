@@ -5,7 +5,18 @@ import os
 
 from openai import AsyncOpenAI
 
-from app.content.schemas import Extraction
+from app.content.schemas import Extraction, SourceExcerpt, StatementContent
+from app.content.validation import anchor_extraction
+
+
+class QuotedStatement(StatementContent):
+    source_spans: list[SourceExcerpt]
+
+
+class QuotedExtraction(Extraction):
+    """Provider output omits coordinates and context that the application can derive exactly."""
+
+    statements: list[QuotedStatement]
 
 
 class LunaExtractor:
@@ -22,13 +33,14 @@ class LunaExtractor:
                 model=self.model,
                 instructions=self.config.prompts["extraction"],
                 input=json.dumps(payload, ensure_ascii=False),
-                text_format=Extraction,
+                text_format=QuotedExtraction,
                 max_output_tokens=24000,
                 store=False,
             )
             if response.output_parsed is None:
                 raise ValueError("Extractor refused or returned incomplete structured data.")
-            return response.output_parsed, response.model
+            extraction = anchor_extraction(response.output_parsed.model_dump(), text, paragraphs)
+            return extraction, response.model
 
         result, self.model = await self.runtime.invoke(self.model, payload, request, provider="OpenAI")
         return result

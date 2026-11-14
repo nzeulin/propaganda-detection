@@ -26,11 +26,14 @@ class AnalyzeRequest(Entity):
         return self
 
 
-class Span(Entity):
-    start: int = Field(ge=0)
-    end: int = Field(gt=0)
+class SourceExcerpt(Entity):
     paragraph_id: str
     excerpt: str
+
+
+class Span(SourceExcerpt):
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
 
 
 class Narrative(Entity):
@@ -45,20 +48,23 @@ class Section(Entity):
     paragraph_ids: list[str]
 
 
-class Statement(Entity):
+class StatementContent(Entity):
     id: str
     canonical_claim_id: str
     text: str
     section_id: str
     narrative_id: str
-    source_spans: list[Span]
-    context_excerpt: str
     role: Literal["main_conclusion", "supporting_claim", "counterargument", "background", "other"]
     speaker: Literal["author", "named_source", "unnamed_source", "other"]
     speaker_name: str | None
     stance: Literal["endorsed", "rejected", "neutrally_reported", "unclear"]
     is_direct_quote: bool
     author_attributable: bool
+
+
+class Statement(StatementContent):
+    source_spans: list[Span]
+    context_excerpt: str
 
 
 class Pattern(Entity):
