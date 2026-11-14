@@ -2,6 +2,24 @@
 
 from app.content.schemas import Assessment, Extraction
 
+ATTRIBUTION_DEMOS = {
+    "quote-endorsed": (
+        "Quote context · endorsement",
+        "The chair wrote, “Only traitors would ask for more time.” I agree with that claim.",
+        "The author adopts the chair's claim that asking for more time is disloyal.",
+    ),
+    "quote-rejected": (
+        "Quote context · rebuttal",
+        "The chair wrote, “Only traitors would ask for more time.” I reject that claim.",
+        "The author rejects the chair's claim that asking for more time is disloyal.",
+    ),
+    "quote-unclear": (
+        "Quote context · ambiguous",
+        "The chair wrote, “Only traitors would ask for more time.” Interesting.",
+        "The author repeats the chair's claim and gives a brief ambiguous reaction.",
+    ),
+}
+
 EXAMPLES = {
     "town-hall": {
         "id": "town-hall",
@@ -29,6 +47,16 @@ EXAMPLES = {
         ),
         "narrative": "Residents can participate in the council transport-plan discussion.",
     },
+    **{
+        key: {
+            "id": key,
+            "title": title,
+            "label": "Synthetic · simulated first-pass highlight",
+            "text": text,
+            "narrative": narrative,
+        }
+        for key, (title, text, narrative) in ATTRIBUTION_DEMOS.items()
+    },
 }
 
 
@@ -39,6 +67,42 @@ class DemoProvider:
 
     async def extract(self, text, paragraphs, title, feedback=None):
         example = EXAMPLES[self.example_id]
+        if self.example_id in ATTRIBUTION_DEMOS:
+            paragraph = paragraphs[0]
+            start = text.index("“") + 1
+            end = text.index("”", start)
+            phrase = text[start:end]
+            return Extraction.model_validate(
+                {
+                    "narratives": [{"id": "n1", "summary": example["narrative"], "kind": "argumentative"}],
+                    "sections": [{"id": "sec1", "title": "Quoted claim", "paragraph_ids": [paragraph["id"]]}],
+                    "statements": [
+                        {
+                            "id": "s1",
+                            "canonical_claim_id": "quote",
+                            "text": phrase,
+                            "section_id": "sec1",
+                            "narrative_id": "n1",
+                            "source_spans": [
+                                {
+                                    "start": start,
+                                    "end": end,
+                                    "paragraph_id": paragraph["id"],
+                                    "excerpt": phrase,
+                                }
+                            ],
+                            "context_excerpt": paragraph["text"],
+                            "role": "main_conclusion",
+                            "speaker": "named_source",
+                            "speaker_name": "The chair",
+                            "stance": "endorsed",
+                            "is_direct_quote": True,
+                            "author_attributable": True,
+                        }
+                    ],
+                    "patterns": [],
+                }
+            )
         sections = [
             {"id": "sec1", "title": "Central message", "paragraph_ids": [p["id"] for p in paragraphs[:2]]},
             {

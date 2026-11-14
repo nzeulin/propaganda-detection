@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AttributionReview } from "./AttributionReview";
 import { features, labels, type Analysis, type Annotation } from "./types";
 import { segmentText } from "./highlights";
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
@@ -6,6 +7,7 @@ const scoreLabel = (value: number | null) =>
   value === null ? "—" : value.toFixed(3);
 function Article({ result }: { result: Analysis }) {
   const [selected, setSelected] = useState<Annotation[]>([]);
+  const [checkingAttribution, setCheckingAttribution] = useState(false);
   const segments = segmentText(
     result.normalized_text,
     result.annotations,
@@ -18,6 +20,16 @@ function Article({ result }: { result: Analysis }) {
           <h2 id="article-title">Annotated article</h2>
           <span className="mono">UNICODE SOURCE SPANS</span>
         </div>
+        {result.annotations.length > 0 && (
+          <details
+            onToggle={(event) =>
+              setCheckingAttribution(event.currentTarget.open)
+            }
+          >
+            <summary>Check quote context</summary>
+            {checkingAttribution && <AttributionReview result={result} />}
+          </details>
+        )}
         <div className="legend">
           <span>
             <i className="yellow-dot" />

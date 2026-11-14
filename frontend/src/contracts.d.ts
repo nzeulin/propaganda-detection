@@ -312,6 +312,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/attribution-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attribution Review */
+        post: operations["attribution_review_api_v1_attribution_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -496,6 +513,31 @@ export interface components {
             /** Model */
             model: string;
         };
+        /** AttributionReviewInput */
+        AttributionReviewInput: {
+            /** Normalized Text */
+            normalized_text: string;
+            /** Annotations */
+            annotations: components["schemas"]["CandidateHighlight"][];
+        };
+        /** AttributionReviewReport */
+        AttributionReviewReport: {
+            /** Passages */
+            passages: components["schemas"]["PassageReview"][];
+            /** Kept Annotation Ids */
+            kept_annotation_ids: string[];
+        };
+        /** CandidateHighlight */
+        CandidateHighlight: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Excerpt */
+            excerpt: string;
+            /** Id */
+            id: string;
+        };
         /** Classification */
         Classification: {
             /**
@@ -555,6 +597,15 @@ export interface components {
             corpus: "synthetic" | "web";
             /** Record Ids */
             record_ids: string[];
+        };
+        /** Excerpt */
+        Excerpt: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Excerpt */
+            excerpt: string;
         };
         /** FeatureDetail */
         FeatureDetail: {
@@ -641,6 +692,21 @@ export interface components {
              * @enum {string}
              */
             kind: "argumentative" | "informational";
+        };
+        /** PassageReview */
+        PassageReview: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "keep" | "exclude" | "needs_review";
+            /** Reason */
+            reason: string;
+            /** Evidence */
+            evidence?: components["schemas"]["Excerpt"][];
+            /** Annotation Ids */
+            annotation_ids: string[];
+            passage: components["schemas"]["Excerpt"];
         };
         /** ReviewInput */
         ReviewInput: {
@@ -1329,6 +1395,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attribution_review_api_v1_attribution_review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttributionReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttributionReviewReport"];
                 };
             };
             /** @description Validation Error */

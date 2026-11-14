@@ -51,6 +51,22 @@ The synthetic town-hall example includes an emoji, repeated endorsed threats, mo
 
 The screen returns `indicators_detected`. Scores are illustrative fixtures, not model predictions. The architecture page shows the actual article, canonical claims, occurrences, section weights, coverage and exact contributions from this same offline pipeline. `public-notice` illustrates informational writing. Arbitrary text is always live input, even if it matches a sample; missing/failed providers never activate fixture scoring.
 
+### Recheck the context of a highlight
+
+In **Analyze**, run one of the **Quote context** demos and open **Check quote context** above
+the annotated article. The three labeled synthetic demos deliberately give the same quote a
+first-pass highlight. The second pass keeps it when the author explicitly endorses it, excludes
+it when the author rejects it, or asks for review when the reaction is ambiguous. The panel
+shows the exact cue and a separate preview with only the kept highlights.
+
+`POST /api/v1/attribution-review` accepts an analysis's `normalized_text` and `annotations`.
+It validates Unicode offsets, groups identical spans, and returns the decisions,
+evidence excerpts and `kept_annotation_ids`. It runs on local English context rules without
+provider keys. The report is advisory and applies to highlights; original analyses, scores,
+and stored results retain their first-pass values. Irony, indirect attribution, and stance
+expressed farther away can require human review. The demos test the second pass against
+simulated first-pass results.
+
 ## Method and boundaries
 
 - `app/content/` owns ingestion, schemas, span validation/grouping, orchestration, aggregation and policy. `app/providers/` contains reusable Luna/Jev adapters and bounded transport/cache behavior. Creator analysis remains separate future work.

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 
+from app.api.attribution import router as attribution_router
 from app.api.datasets import import_dataset
 from app.api.datasets import router as datasets_router
 from app.api.evaluations import router as evaluations_router
@@ -65,6 +66,7 @@ app.include_router(jobs_router)
 app.include_router(swarm_router)
 app.include_router(system_router)
 app.include_router(evaluations_router)
+app.include_router(attribution_router)
 
 
 @app.get("/health")
