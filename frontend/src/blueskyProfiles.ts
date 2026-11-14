@@ -25,6 +25,6 @@ export function parseBlueskyProfiles(input: string): string[] {
     return post ? `https://bsky.app/profile/${actor}/post/${post[2]}` : actor;
   });
   const unique = [...new Set(actors)];
-  if (unique.length > 10) throw new Error("Choose at most 10 public Bluesky profiles or post URLs per collection.");
+  if (unique.length > 10) throw new Error(`Too many sources: ${unique.length} unique inputs. Maximum 10 Bluesky profiles or post URLs per run.`);
   return unique;
 }
