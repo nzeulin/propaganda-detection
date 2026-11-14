@@ -1,23 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "./types";
+import {
+  InvestigationGraph,
+  type Graph,
+  type GraphNode as Node,
+} from "./InvestigationGraph";
+import { JobPanel, type Job } from "./JobPanel";
 
 type Dataset = { id: string; name: string; created_at: string };
-type Node = {
-  id: string;
-  kind: string;
-  data: { text?: string; source_id: string; platform?: string };
-};
-type Graph = {
-  nodes: Node[];
-  edges: {
-    id: string;
-    source_id: string;
-    target_id: string;
-    action: string;
-    timestamp: string | null;
-  }[];
-  hidden_nodes: number;
-};
 type Review = {
   id: string;
   decision: string;
@@ -27,7 +17,9 @@ type Review = {
 
 export function Investigations() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(
+    () => localStorage.getItem("selected-investigation") || "",
+  );
   const [graph, setGraph] = useState<Graph | null>(null);
   const [node, setNode] = useState<Node | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -37,6 +29,14 @@ export function Investigations() {
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [focus, setFocus] = useState("");
+  const [cluster, setCluster] = useState("");
+  const [since, setSince] = useState("");
+  const [until, setUntil] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  const [jobId, setJobId] = useState("");
+  const [swarmJob, setSwarmJob] = useState("");
   useEffect(() => {
     const abort = new AbortController();
     api<Dataset[]>("/api/v1/datasets", undefined, abort.signal)
@@ -47,23 +47,41 @@ export function Investigations() {
     return () => abort.abort();
   }, []);
   useEffect(() => {
-    setGraph(null);
     setNode(null);
+    localStorage.setItem("selected-investigation", selected);
+    setSwarmJob(localStorage.getItem(`swarm-job-${selected}`) || "");
     setError("");
     if (!selected) return;
     const abort = new AbortController();
-    api<Graph>(`/api/v1/datasets/${selected}/graph`, undefined, abort.signal)
+    api<Graph>(
+      `/api/v1/datasets/${selected}/graph?${new URLSearchParams({ search, focus, cluster, ...(since ? { since: new Date(since).toISOString() } : {}), ...(until ? { until: new Date(until).toISOString() } : {}) })}`,
+      undefined,
+      abort.signal,
+    )
       .then(setGraph)
       .catch((e) => {
         if (!abort.signal.aborted) setError(e.message);
       });
     return () => abort.abort();
-  }, [selected]);
+  }, [selected, search, focus, cluster, since, until, refresh]);
   useEffect(() => {
     setReviews([]);
+    setJobId("");
     setReason("");
     if (!node) return;
     const abort = new AbortController();
+    if (node.kind === "content") {
+      const pending = localStorage.getItem(`content-job-${node.id}`);
+      if (pending) setJobId(pending);
+      else
+        api<{ job_id: string }>(
+          `/api/v1/content/${node.id}/analysis`,
+          undefined,
+          abort.signal,
+        )
+          .then((r) => setJobId(r.job_id))
+          .catch(() => {});
+    }
     api<Review[]>(
       `/api/v1/feedback?target_id=${node.id}`,
       undefined,
@@ -106,6 +124,29 @@ export function Investigations() {
       setBusy(false);
     }
   }
+  async function analyze(kind: "content" | "swarm") {
+    setBusy(true);
+    setError("");
+    try {
+      const job = await api<Job>(
+        `/api/v1/${kind}/analyze`,
+        kind === "content"
+          ? { content_id: node!.id }
+          : { dataset_id: selected },
+      );
+      if (kind === "content") {
+        setJobId(job.id);
+        localStorage.setItem(`content-job-${node!.id}`, job.id);
+      } else {
+        setSwarmJob(job.id);
+        localStorage.setItem(`swarm-job-${selected}`, job.id);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <div className="page-intro">
@@ -116,49 +157,77 @@ export function Investigations() {
           Importing does not run model analysis.
         </p>
       </div>
-      <form className="panel input-panel" onSubmit={save}>
-        <label className="field-label" htmlFor="dataset-name">
-          Investigation name
-        </label>
-        <input
-          id="dataset-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={200}
-          disabled={busy}
-        />
-        <label className="field-label" htmlFor="import-format">
-          Input format
-        </label>
-        <select
-          id="import-format"
-          value={format}
-          onChange={(e) => setFormat(e.target.value)}
-          disabled={busy}
-        >
-          <option value="text">Plain text</option>
-          <option value="csv">CSV events</option>
-          <option value="rows">JSON event array</option>
-        </select>
-        <p className="small muted">
-          Event fields: account_id, content_id, action, timestamp, text, url,
-          reply_to_content_id. Actions: created, reposted, replied_to, liked.
-          Timestamps must include a UTC offset. Maximum 5,000 events / 10 MB.
-        </p>
-        <label className="field-label" htmlFor="dataset-input">
-          Source observations
-        </label>
-        <textarea
-          id="dataset-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          required
-          disabled={busy}
-        />
-        <button className="primary" disabled={busy || !input.trim()}>
-          {busy ? "Saving…" : "Save investigation"}
-        </button>
-      </form>
+      <details className="import-drawer" open={!selected}>
+        <summary>Import a new investigation</summary>
+        <form className="panel input-panel" onSubmit={save}>
+          <label className="field-label" htmlFor="dataset-name">
+            Investigation name
+          </label>
+          <input
+            id="dataset-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={200}
+            disabled={busy}
+          />
+          <label className="field-label" htmlFor="import-format">
+            Input format
+          </label>
+          <select
+            id="import-format"
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+            disabled={busy}
+          >
+            <option value="text">Plain text</option>
+            <option value="url">Public article URL</option>
+            <option value="csv">CSV events</option>
+            <option value="rows">JSON event array</option>
+          </select>
+          <p className="small muted">
+            Event fields: account_id, content_id, action, timestamp, text, url,
+            reply_to_content_id. Actions: created, reposted, replied_to, liked.
+            Timestamps must include a UTC offset. Maximum 5,000 events / 10 MB.
+          </p>
+          <label className="field-label" htmlFor="dataset-input">
+            Source observations
+          </label>
+          <textarea
+            id="dataset-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            required
+            disabled={busy}
+          />
+          <button className="primary" disabled={busy || !input.trim()}>
+            {busy ? "Saving…" : "Save investigation"}
+          </button>
+          <label className="field-label" htmlFor="import-file">
+            Or load a local text / CSV / JSON file
+          </label>
+          <input
+            id="import-file"
+            type="file"
+            accept=".txt,.csv,.json"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              if (file.size > 10000000) {
+                setError("Import exceeds 10 MB");
+                return;
+              }
+              setInput(await file.text());
+              setFormat(
+                file.name.endsWith(".csv")
+                  ? "csv"
+                  : file.name.endsWith(".json")
+                    ? "rows"
+                    : "text",
+              );
+            }}
+          />
+        </form>
+      </details>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -170,7 +239,14 @@ export function Investigations() {
       <select
         id="saved-dataset"
         value={selected}
-        onChange={(e) => setSelected(e.target.value)}
+        onChange={(e) => {
+          setSelected(e.target.value);
+          setSearch("");
+          setFocus("");
+          setCluster("");
+          setSince("");
+          setUntil("");
+        }}
         disabled={busy}
       >
         <option value="">Select an investigation</option>
@@ -188,40 +264,122 @@ export function Investigations() {
               {graph.nodes.length} visible entities · {graph.edges.length}{" "}
               visible actions · {graph.hidden_nodes} hidden entities
             </p>
-            {graph.nodes.map((n) => (
+            <div className="graph-filters">
+              <label>
+                Search observations
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Account, phrase, URL…"
+                />
+              </label>
+              <label>
+                From (local time)
+                <input
+                  type="datetime-local"
+                  value={since}
+                  onChange={(e) => setSince(e.target.value)}
+                />
+              </label>
+              <label>
+                Until (local time)
+                <input
+                  type="datetime-local"
+                  value={until}
+                  onChange={(e) => setUntil(e.target.value)}
+                />
+              </label>
+              <label>
+                Coordination group
+                <select
+                  value={cluster}
+                  onChange={(e) => setCluster(e.target.value)}
+                >
+                  <option value="">All groups</option>
+                  {graph.clusters.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.id} · {c.account_ids.length} accounts
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="toolbar">
               <button
-                key={n.id}
                 className="sample"
-                disabled={busy}
-                aria-pressed={node?.id === n.id}
-                onClick={() => setNode(n)}
+                onClick={() => {
+                  setSearch("");
+                  setFocus("");
+                  setCluster("");
+                  setSince("");
+                  setUntil("");
+                }}
               >
-                {n.kind}: {n.data.source_id}
+                Reset filters
               </button>
-            ))}
-            <h3>Observed relationships</h3>
-            <ul>
-              {graph.edges.map((e) => (
-                <li key={e.id}>
-                  {
-                    graph.nodes.find((n) => n.id === e.source_id)?.data
-                      .source_id
-                  }{" "}
-                  → {e.action} →{" "}
-                  {
-                    graph.nodes.find((n) => n.id === e.target_id)?.data
-                      .source_id
-                  }{" "}
-                  · {e.timestamp || "Time unknown"}
-                </li>
-              ))}
-            </ul>
+              <button
+                className="sample"
+                disabled={!node}
+                onClick={() => {
+                  setFocus(node!.id);
+                  setSearch("");
+                  setCluster("");
+                }}
+              >
+                Explore selected neighborhood
+              </button>
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() => analyze("swarm")}
+              >
+                Analyze coordination
+              </button>
+            </div>
+            <InvestigationGraph
+              graph={graph}
+              selected={node?.id || null}
+              onSelect={setNode}
+            />
+            <details>
+              <summary>
+                Observed action timeline / inferred relationships
+              </summary>
+              <h3>Observed relationships</h3>
+              <ul>
+                {graph.edges.map((e) => (
+                  <li key={e.id}>
+                    {
+                      graph.nodes.find((n) => n.id === e.source_id)?.data
+                        .source_id
+                    }{" "}
+                    → {e.action} →{" "}
+                    {
+                      graph.nodes.find((n) => n.id === e.target_id)?.data
+                        .source_id
+                    }{" "}
+                    · {e.timestamp || "Time unknown"}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </section>
           <aside className="panel evidence-panel">
             <h2>Entity review</h2>
             {node ? (
               <>
-                <p>{node.data.text || node.data.source_id}</p>
+                <p className="source-row">
+                  {node.data.text || node.data.source_id}
+                </p>
+                {node.kind === "content" && (
+                  <button
+                    className="primary"
+                    disabled={busy}
+                    onClick={() => analyze("content")}
+                  >
+                    Analyze selected content
+                  </button>
+                )}
                 <label className="field-label" htmlFor="review-reason">
                   Review reason
                 </label>
@@ -257,6 +415,27 @@ export function Investigations() {
             )}
           </aside>
         </div>
+      )}
+      {jobId && (
+        <JobPanel
+          id={jobId}
+          onChange={(id) => {
+            setJobId(id);
+            if (node) localStorage.setItem(`content-job-${node.id}`, id);
+          }}
+        />
+      )}
+      {swarmJob && (
+        <JobPanel
+          id={swarmJob}
+          onChange={(id) => {
+            setSwarmJob(id);
+            localStorage.setItem(`swarm-job-${selected}`, id);
+          }}
+          onComplete={(job) => {
+            if (job.status === "completed") setRefresh((r) => r + 1);
+          }}
+        />
       )}
     </>
   );
