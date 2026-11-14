@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 
+from app.api.datasets import import_dataset
 from app.api.datasets import router as datasets_router
 from app.api.jobs import content_handler
 from app.api.jobs import router as jobs_router
@@ -18,7 +19,8 @@ from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
 from app.content.schemas import AnalysisResponse, AnalyzeRequest
-from app.core.database import open_database
+from app.core.database import entities, open_database
+from app.core.ingestion import DatasetInput
 from app.core.jobs import JobRunner
 
 
@@ -36,6 +38,7 @@ async def lifespan(app: FastAPI):
     app.state.jobs = JobRunner(
         app.state.database, {"content": content_handler(app.state), "swarm": swarm_handler(app.state)}
     )
+    app.state.slots = app.state.jobs.slots
     try:
         yield
     finally:
@@ -85,8 +88,32 @@ async def analyze(body: AnalyzeRequest, request: Request):
                 503,
                 "Live analysis requires OPENAI_API_KEY and TYPESAFE_API_KEY. Choose a labeled demo or configure both keys.",
             )
-        provider = state.live
-        original, title, source_url = body.text, body.title, None
+        dataset = await import_dataset(
+            DatasetInput(name=(body.title or "Content investigation")[:200], text=body.text, url=body.url),
+            request,
+        )
+        with state.database.connect() as connection:
+            content_id = (
+                connection.execute(
+                    entities.select().where(
+                        entities.c.dataset_id == dataset["id"], entities.c.kind == "content"
+                    )
+                )
+                .mappings()
+                .one()["id"]
+            )
+        job = state.jobs.submit("content", content_id, {"content_id": content_id}, state.config.versions)
+        await asyncio.shield(state.jobs.tasks[job["id"]])
+        saved = state.jobs.get(job["id"])
+        if saved["status"] != "completed":
+            raise HTTPException(
+                502, f"{(saved.get('error') or {}).get('message', saved['status'])} Saved job: {job['id']}"
+            )
+        result = {key: value for key, value in saved["result"].items() if key != "analysis_id"}
+        if not body.include_details:
+            for key in ("statements", "sections", "contextual_findings", "diagnostics", "annotations"):
+                result.pop(key)
+        return result
     try:
         async with asyncio.timeout(240):
             async with state.slots:

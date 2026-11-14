@@ -111,7 +111,7 @@ class FeatureDetail(Entity):
     status: Literal["assessed", "not_assessed"]
     coverage: float = Field(ge=0, le=1 + 1e-8)
     reason: str
-    scope: Literal["text_only", "within_material"]
+    scope: Literal["text_only", "within_material", "external_evidence"]
     assessment: Assessment | None
 
 
@@ -154,3 +154,5 @@ class AnalysisResponse(Entity):
     versions: dict[str, str]
     provenance: dict
     highlight_thresholds: dict[str, float]
+    verification: dict | None = None
+    investigation_status: str | None = None
