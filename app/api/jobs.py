@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
+from app.content.verification import verify_content
 from app.core.database import analyses, entities
 
 router = APIRouter(prefix="/api/v1")
@@ -28,12 +29,12 @@ def content_handler(state):
             text, title, url = await stage("ingestion", lambda: fetch_article(url), {"url": url})
         result = await stage(
             "content",
-            lambda: analyze_content(text, title, state.live, state.config, url),
+            lambda: analyze_content(text, title, state.live, state.config, url, stage=stage),
             {"content_id": node["id"]},
             "Luna / Jev",
         )
         result["original_url"] = data.get("url")
-        return result
+        return await verify_content(result, state.live, state.config, stage)
 
     return handle
 

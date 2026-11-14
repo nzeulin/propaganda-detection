@@ -6,6 +6,7 @@ import json
 from app.providers.jev import JevScorer
 from app.providers.luna import LunaExtractor
 from app.providers.runtime import ProviderRuntime
+from app.providers.sol import SolVerifier
 
 
 class LiveProvider:
@@ -21,10 +22,15 @@ class LiveProvider:
         ).hexdigest()
         runtime = ProviderRuntime({**config.versions, "configuration_sha256": fingerprint})
         self.extractor, self.scorer = LunaExtractor(config, runtime), JevScorer(config, runtime)
+        self.verifier = SolVerifier(runtime)
 
     @property
     def models(self):
-        return {"extractor": self.extractor.model, "scorer": self.scorer.model}
+        return {
+            "extractor": self.extractor.model,
+            "scorer": self.scorer.model,
+            "verifier": self.verifier.model,
+        }
 
     async def extract(self, text, paragraphs, title, feedback=None):
         return await self.extractor.extract(text, paragraphs, title, feedback)
@@ -35,3 +41,4 @@ class LiveProvider:
     async def close(self):
         await self.extractor.client.close()
         await self.scorer.client.aclose()
+        await self.verifier.client.close()
