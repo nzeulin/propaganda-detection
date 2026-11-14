@@ -16,9 +16,10 @@ Open **Follow the pattern** at [the main application](http://127.0.0.1:8000/#swa
 
 1. Expand **Import real posts from Bluesky** in **Add activity**.
 2. Paste public profile URLs, handles or exact post URLs, one per line (copied lists and Markdown links also work). Profiles such as https://bsky.app/profile/bsky.app or `@atproto.com` fetch recent authored posts. A link shaped like `https://bsky.app/profile/HANDLE/post/POST_ID` imports only that exact post, not the author's feed, replies or reposts. Profile and post inputs may be mixed, up to ten inputs in total.
-3. Choose a cap of 10, 50, 100 or 200 authored posts per **profile** and select **Fetch public posts**. This cap does not expand post URLs: each imports at most one exact post. Duplicate stable post URIs are imported once, including overlap between feeds and explicit links.
-4. Review the real-post previews, readable handles, **Open original on Bluesky** links and collection-coverage disclosure.
-5. Select the existing **Analyze activity** button. It reuses the saved collected dataset, preserving its original records and source links. Results, source inspection and the map stay in the same page.
+3. Choose a cap of 10, 50, 100 or 200 authored posts per **profile** and select **Analyze activity** once. That single action fetches the sources and automatically analyzes the saved dataset; there is no separate fetch button. This cap does not expand post URLs: each imports at most one exact post. Duplicate stable post URIs are imported once, including overlap between feeds and explicit links.
+4. Review the results, real-post previews, readable handles, **Open original on Bluesky** links and collection-coverage disclosure. Analysis reuses the saved collected dataset, preserving its original records and source links. Everything stays on the same page.
+
+The same **Analyze activity** button handles samples, uploaded files and raw activity data. Loading a sample/file or editing the raw data clears the Bluesky source selection, so old links cannot silently override the chosen input. Cancellation and explicit resume remain available; a cancelled or failed collection never starts analysis automatically.
 
 Inputs accept up to ten explicit public handles, `did:plc` identities, or exact HTTPS profile/post URLs on `bsky.app`. Post record keys retain their original case. Article URLs, keywords, arbitrary websites, URL credentials, alternate ports, query strings and fragments are rejected. Only the fixed public API is contacted; submitted URLs, links and media are not fetched directly. Post authors resolve through `getProfile`; the exact DID-based AT URI is retrieved with `getPosts` and checked against the returned URI and author. Missing/deleted/unavailable or malformed explicitly requested posts fail the entire collection without a partial import or synthetic fallback.
 
@@ -142,5 +143,11 @@ The built and Vite frontends each passed 12 copied post-link formats and 11 inva
 | The NYT post link alone | 1 | Exact selected post | `insufficient_data` |
 
 All runs preserved source text, author IDs and posting timestamps, showed original-post links, reused the persisted dataset and made no AI-provider calls. Invalid input and a controlled unavailable-post failure preserved the previous input/result; mobile checks and frontend type/build checks passed. The two real post inputs were https://bsky.app/profile/nytimes.com/post/3mzv6k5dmjx2a and https://bsky.app/profile/apnews.com/post/3mzv6kmmyqf2v. Raw records and browser artifacts remain ignored under `.local-data/bluesky/post-url-ui-20261114/`. These are integration results, not accuracy measurements.
+
+### Single-action UI verification
+
+The UI now has one **Analyze activity** submit button and no separate fetch button. Browser checks on both the built and Vite frontends verified 12 accepted paste formats and 11 invalid inputs. Separate real-network profile, post, mixed and single-post runs each used one click to collect and analyze the same saved dataset, without a duplicate manual import. Source text, times, author IDs and links remained unchanged.
+
+Additional browser checks passed for sample/manual/CSV source switching, rapid duplicate clicks, cancellation, a collection completing during cancellation, failed collection/analysis, explicit tracking resume into one analysis, saved-dataset reuse and mobile layout. An outstanding collection locks other input until explicitly resumed or cancelled. Entered Bluesky links remain selected for a fresh collection on the next explicit run; choosing other input clears them. Type checking, strict side-effect-import checking and the production build passed. Detector rules are unchanged.
 
 Official API reference: [Bluesky HTTP endpoints](https://endpoints.bsky.app/). The collection and analysis checks use no API keys or AI-provider credentials.

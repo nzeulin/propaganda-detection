@@ -1299,13 +1299,6 @@
   font-size: 12px;
 }
 
-.swarm-workbench .swarm-fetch {
-  width: 100%;
-  background: #573827;
-  border-color: #b58258;
-  min-height: 46px;
-}
-
 .swarm-workbench .swarm-collection-status {
   margin-top: 12px;
   color: #ddc5ad;
