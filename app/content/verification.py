@@ -133,6 +133,27 @@ async def verify_content(result, provider, config, stage, evidence_packet=None):
         coverage = fsum(c["weight"] for c, _ in eligible)
         for claim, score in eligible:
             claim["contributions"][feature] = claim["weight"] * score / coverage if coverage else 0
+        for claim, local_score in eligible:
+            if local_score < config.policy["highlight_yellow"]:
+                continue
+            for occurrence in claim["occurrences"]:
+                for span in occurrence["source_spans"]:
+                    result["annotations"].append(
+                        {
+                            "id": f"evidence-{len(result['annotations']) + 1}",
+                            **span,
+                            "feature": feature,
+                            "score": local_score,
+                            "claim_id": claim["id"],
+                            "attribution": claim["stance"],
+                            "speaker": occurrence["speaker"],
+                            "speaker_name": occurrence["speaker_name"],
+                            "contribution": claim["contributions"][feature],
+                            "contribution_scope": "canonical_claim",
+                            "rubric": config.rubrics[feature],
+                            "assessment": claim["assessments"][feature],
+                        }
+                    )
         estimate = fsum(c["contributions"][feature] for c, _ in eligible) if coverage else None
         score = (
             estimate
