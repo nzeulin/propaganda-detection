@@ -1,156 +1,52 @@
 /// <reference types="vite/client" />
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 import SwarmNetwork from "./SwarmNetwork";
-
-type Dimension =
-  | "Factual"
-  | "Selective"
-  | "Emotional"
-  | "Logical"
-  | "Authority"
-  | "Repetition"
-  | "Strategic";
-
-type Scores = Record<Dimension, number>;
-
-type Statement = {
-  id: string;
-  text: string;
-  start: number;
-  end: number;
-  attribution: string;
-  stance: string;
-  features: Scores;
-  technique_spans: TechniqueSpan[];
-};
-
-type TechniqueSpan = {
-  technique: string;
-  confidence: number;
-  justification: string;
-};
+import {
+  api,
+  features,
+  labels,
+  type Analysis as AnalysisResult,
+  type Claim,
+  type Feature,
+} from "./types";
+import { segmentText } from "./highlights";
 
 const article =
   "Officials insist the proposal is the only responsible path, despite independent reporting that documents unresolved costs. Anyone questioning the plan is accused of putting public safety at risk. The same warning appeared repeatedly across coordinated accounts before the committee vote.";
 
-const contentAnalysis: {
-  content_id: string;
-  main_idea: string;
-  statements: Statement[];
-} = {
-  content_id: "CT-441",
-  main_idea:
-    "A coordinated message frames dissent as a risk to public safety while narrowing the evidence considered.",
-  statements: [
-    {
-      id: "ST-01",
-      text: "Officials insist the proposal is the only responsible path, despite independent reporting that documents unresolved costs.",
-      start: 0,
-      end: 119,
-      attribution: "Narrator",
-      stance: "asserted",
-      features: {
-        Factual: 0.38,
-        Selective: 0.84,
-        Emotional: 0.21,
-        Logical: 0.67,
-        Authority: 0.73,
-        Repetition: 0.18,
-        Strategic: 0.76,
-      },
-      technique_spans: [
-        {
-          technique: "False dilemma",
-          confidence: 0.88,
-          justification: "Positions one option as the only responsible path.",
-        },
-        {
-          technique: "Selective presentation",
-          confidence: 0.84,
-          justification: "Acknowledges but does not engage documented costs.",
-        },
-      ],
-    },
-    {
-      id: "ST-02",
-      text: "Anyone questioning the plan is accused of putting public safety at risk.",
-      start: 120,
-      end: 193,
-      attribution: "Narrator",
-      stance: "asserted",
-      features: {
-        Factual: 0.19,
-        Selective: 0.32,
-        Emotional: 0.89,
-        Logical: 0.72,
-        Authority: 0.12,
-        Repetition: 0.24,
-        Strategic: 0.91,
-      },
-      technique_spans: [
-        {
-          technique: "Appeal to fear",
-          confidence: 0.93,
-          justification: "Links questioning the plan to a threat to safety.",
-        },
-      ],
-    },
-    {
-      id: "ST-03",
-      text: "The same warning appeared repeatedly across coordinated accounts before the committee vote.",
-      start: 194,
-      end: 286,
-      attribution: "Network trace",
-      stance: "observed",
-      features: {
-        Factual: 0.61,
-        Selective: 0.18,
-        Emotional: 0.23,
-        Logical: 0.12,
-        Authority: 0.08,
-        Repetition: 0.96,
-        Strategic: 0.82,
-      },
-      technique_spans: [
-        {
-          technique: "Coordinated repetition",
-          confidence: 0.96,
-          justification:
-            "Identical warning amplified across a timed account network.",
-        },
-      ],
-    },
-  ],
-};
-
-const dimensions = Object.keys(
-  contentAnalysis.statements[0].features,
-) as Dimension[];
-
-function Meter({ name, score }: { name: Dimension; score: number }) {
+function Meter({
+  name,
+  score,
+  reason,
+}: {
+  name: Feature;
+  score: number | null | undefined;
+  reason?: string;
+}) {
   return (
     <div className="meter">
       <div>
-        <span>{name}</span>
+        <span>{labels[name]}</span>
         <button
           className="info"
-          title={`${name} score: observed strength from 0.00 to 1.00.`}
+          title={reason || "Observed strength from 0.00 to 1.00."}
+          aria-label={`About ${labels[name]}`}
         >
           [i]
         </button>
-        <b>{score.toFixed(2)}</b>
+        <b>{score == null ? "Unavailable" : score.toFixed(2)}</b>
       </div>
       <div className="track">
-        <i style={{ width: `${score * 100}%` }} />
+        <i style={{ width: `${(score ?? 0) * 100}%` }} />
       </div>
     </div>
   );
 }
 
 type StatementViewProps = {
-  statement: Statement;
+  statement: Claim;
   selected: boolean;
   registerElement: (element: HTMLElement | null) => void;
 };
@@ -169,26 +65,32 @@ function StatementView({
     >
       <header>
         <span>
-          {statement.id} · {statement.attribution.toUpperCase()}
+          {statement.id} ·{" "}
+          {(statement.speaker_name || statement.speaker)
+            .replaceAll("_", " ")
+            .toUpperCase()}{" "}
+          · {statement.stance.replaceAll("_", " ").toUpperCase()}
         </span>
         <span>
-          {statement.start}—{statement.end}
+          {statement.source_spans
+            .map((span) => `${span.start}—${span.end}`)
+            .join(", ")}
         </span>
       </header>
 
       <p className="statement-text">{statement.text}</p>
 
       <div className="tags">
-        {statement.technique_spans.map((span) => (
-          <span key={span.technique}>
-            {span.technique} <b>{span.confidence.toFixed(2)}</b>
-            <em title={span.justification}>[i]</em>
+        {statement.techniques.map((technique, index) => (
+          <span key={index} title={technique.explanation}>
+            {technique.technique.replaceAll("_", " ")}
+            <em title={technique.explanation}>[i]</em>
           </span>
         ))}
       </div>
 
       <div className="feature-grid">
-        {dimensions.map((name) => (
+        {features.map((name) => (
           <Meter key={name} name={name} score={statement.features[name]} />
         ))}
       </div>
@@ -211,15 +113,53 @@ function StatementView({
 
 function Analysis() {
   const [input, setInput] = useState(article);
-  const [analyzed, setAnalyzed] = useState(true);
-  const [selectedStatementId, setSelectedStatementId] = useState(
-    contentAnalysis.statements[0].id,
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedStatementId, setSelectedStatementId] = useState<string | null>(
+    null,
   );
+  const controller = useRef<AbortController | null>(null);
   const resultElements = useRef<Record<string, HTMLElement | null>>({});
+  const characterCount = Array.from(input).length;
+
+  useEffect(() => () => controller.current?.abort(), []);
 
   function updateInput(value: string) {
     setInput(value);
-    setAnalyzed(false);
+    setResult(null);
+    setError("");
+    setSelectedStatementId(null);
+  }
+
+  async function analyze() {
+    if (controller.current || !input.trim() || characterCount > 40000) return;
+    const request = new AbortController();
+    controller.current = request;
+    setLoading(true);
+    setResult(null);
+    setError("");
+    setSelectedStatementId(null);
+    try {
+      const response = await api<AnalysisResult>(
+        "/analyze",
+        { text: input, include_details: true },
+        request.signal,
+      );
+      if (!request.signal.aborted) {
+        setResult(response);
+        setSelectedStatementId(response.statements[0]?.id ?? null);
+      }
+    } catch (err) {
+      if (!request.signal.aborted) {
+        setError(
+          err instanceof Error ? err.message : "Analysis failed. Try again.",
+        );
+      }
+    } finally {
+      controller.current = null;
+      if (!request.signal.aborted) setLoading(false);
+    }
   }
 
   function selectStatement(statementId: string) {
@@ -232,10 +172,20 @@ function Analysis() {
     });
   }
 
-  const canHighlightInput = analyzed && input === article;
+  const segments = result
+    ? segmentText(
+        result.normalized_text,
+        result.annotations,
+        result.highlight_thresholds,
+      )
+    : [];
 
   return (
-    <section className="screen analysis-screen" id="analysis">
+    <section
+      className="screen analysis-screen"
+      id="analysis"
+      aria-busy={loading}
+    >
       <div className="input-column">
         <header className="section-title">
           <span>02 / NAME THE TECHNIQUE</span>
@@ -243,82 +193,154 @@ function Analysis() {
         </header>
 
         <div className="input-meta">
-          <span>CONTENT_ID / {contentAnalysis.content_id}</span>
-          <span>{input.length} CHARS</span>
-          {analyzed && (
-            <button className="edit-input" onClick={() => setAnalyzed(false)}>
+          <span>CONTENT_ID / {result?.material_id ?? "PENDING"}</span>
+          <span>{characterCount.toLocaleString()} / 40,000 CHARS</span>
+          {result && (
+            <button className="edit-input" onClick={() => updateInput(input)}>
               EDIT INPUT
             </button>
           )}
         </div>
 
-        {canHighlightInput ? (
+        {result ? (
           <div className="input-highlighter" aria-label="Analyzed article text">
-            {contentAnalysis.statements.map((statement, index) => (
-              <span key={statement.id}>
+            {segments.map((segment) => {
+              const statementId = segment.findings.find((finding) =>
+                result.statements.some(
+                  (statement) => statement.id === finding.claim_id,
+                ),
+              )?.claim_id;
+              const title = segment.findings
+                .map((finding) => labels[finding.feature])
+                .join(", ");
+              const className = `sentence-highlight highlight-${segment.severity} ${statementId && selectedStatementId === statementId ? "is-selected" : ""}`;
+              return statementId ? (
                 <button
-                  className={`sentence-highlight highlight-${index + 1} ${selectedStatementId === statement.id ? "is-selected" : ""
-                    }`}
-                  onClick={() => selectStatement(statement.id)}
-                  aria-pressed={selectedStatementId === statement.id}
-                  title={`View ${statement.id} analysis`}
+                  key={segment.start}
+                  className={className}
+                  onClick={() => selectStatement(statementId)}
+                  aria-pressed={selectedStatementId === statementId}
+                  title={`View ${statementId}: ${title}`}
                 >
-                  {statement.text}
-                </button>{" "}
-              </span>
-            ))}
+                  {segment.text}
+                </button>
+              ) : (
+                <span
+                  key={segment.start}
+                  className={segment.severity ? className : undefined}
+                  title={title || undefined}
+                >
+                  {segment.text}
+                </span>
+              );
+            })}
           </div>
         ) : (
           <textarea
             value={input}
             onChange={(event) => updateInput(event.target.value)}
+            disabled={loading}
             aria-label="Article text to analyze"
+            aria-describedby="analysis-input-help"
+            aria-invalid={characterCount > 40000}
           />
         )}
 
         <div className="input-bottom">
-          <p>
-            Paste a document, statement, or post for statement-level feature
-            analysis.
+          <p id="analysis-input-help">
+            {characterCount > 40000
+              ? "Text exceeds 40,000 characters. Shorten it to analyze."
+              : "Paste a document, statement, or post for statement-level feature analysis."}
           </p>
-          <button className="analyze-button" onClick={() => setAnalyzed(true)}>
-            ANALYZE <span>→</span>
+          <button
+            className="analyze-button"
+            onClick={() => void analyze()}
+            disabled={loading || !input.trim() || characterCount > 40000}
+          >
+            {loading ? "ANALYZING…" : "ANALYZE"} <span>→</span>
           </button>
         </div>
       </div>
 
       <div className="results-column">
         <header className="section-title">
-          <span>RESULTS / {analyzed ? "COMPLETE" : "PENDING"}</span>
-          <span>MODEL: DEMO-01</span>
+          <span>
+            RESULTS /{" "}
+            {loading
+              ? "ANALYZING"
+              : error
+                ? "FAILED"
+                : result
+                  ? "COMPLETE"
+                  : "PENDING"}
+          </span>
+          <span>
+            {result
+              ? `MODELS: ${Object.values(result.model_versions).join(" / ")}`
+              : "AWAITING ANALYSIS"}
+          </span>
         </header>
 
-        {analyzed ? (
+        {result ? (
           <>
             <div className="idea">
               <label>MAIN IDEA</label>
-              <p>{contentAnalysis.main_idea}</p>
+              <p>
+                {result.primary_narrative ?? "No main idea was identified."}
+              </p>
             </div>
+            <div className="idea">
+              <label>MATERIAL-LEVEL FEATURES</label>
+              <p>{result.classification.label.replaceAll("_", " ")}</p>
+            </div>
+            <div className="feature-grid">
+              {features.map((name) => (
+                <Meter
+                  key={name}
+                  name={name}
+                  score={result.features[name]}
+                  reason={result.feature_details[name].reason}
+                />
+              ))}
+            </div>
+            {result.warnings.length > 0 && (
+              <details className="analysis-notice">
+                <summary>Analysis notes ({result.warnings.length})</summary>
+                <ul>
+                  {result.warnings.map((warning, index) => (
+                    <li key={index}>{warning}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
             <div className="results-list">
-              {contentAnalysis.statements.map((statement) => (
+              {result.statements.map((statement) => (
                 <StatementView
                   key={statement.id}
                   statement={statement}
                   selected={selectedStatementId === statement.id}
                   registerElement={(element) => {
-                    resultElements.current[statement.id] = element;
+                    if (element) resultElements.current[statement.id] = element;
+                    else delete resultElements.current[statement.id];
                   }}
                 />
               ))}
+              {result.statements.length === 0 && (
+                <div className="empty">
+                  No statement-level findings were returned. Review the analysis
+                  notes.
+                </div>
+              )}
             </div>
           </>
         ) : (
-          <div className="empty result-empty">
+          <div className="empty result-empty" role={error ? "alert" : "status"}>
             <div className="crosshair">+</div>
             <p>
-              Press ANALYZE to generate
-              <br />
-              statement-level findings
+              {error ||
+                (loading
+                  ? "Analyzing your text. This may take several minutes."
+                  : "Press ANALYZE to generate statement-level findings.")}
             </p>
           </div>
         )}
@@ -341,7 +363,9 @@ function Briefing() {
 
       <div className="briefing-copy">
         <p className="briefing-index">01 / INVESTIGATION INITIALIZATION</p>
-        <h1>Explainable Propaganda &amp; Coordinated Manipulation Detection.</h1>
+        <h1>
+          Explainable Propaganda &amp; Coordinated Manipulation Detection.
+        </h1>
         <p className="briefing-description">
           An investigation platform analyzing what content says and how networks
           spread it. These are investigation signals, not definitive verdicts.

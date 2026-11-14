@@ -252,7 +252,14 @@ select {
   flex-direction: column;
 }
 .input-column {
+  min-height: 0;
   border-right: 1px solid #59534c;
+}
+.analysis-screen .section-title,
+.analysis-screen .input-meta {
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
 }
 .section-title {
   flex: 0 0 auto;
@@ -299,6 +306,8 @@ textarea {
   overflow: auto;
   padding: 25px 18px;
   color: #f4efe6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font:
     19px/1.7 Georgia,
     "Times New Roman",
@@ -320,17 +329,13 @@ textarea {
   color: #f4efe6;
   outline: 0;
 }
-.highlight-1 {
+.highlight-red {
   background: #5e2525;
   border-bottom-color: #d32f2f;
 }
-.highlight-2 {
-  background: #7b2929;
-  border-bottom-color: #f4efe6;
-}
-.highlight-3 {
-  background: #3e2a2a;
-  border-bottom-color: #a84a4a;
+.highlight-yellow {
+  background: #493e22;
+  border-bottom-color: #c2a46f;
 }
 .sentence-highlight.is-selected {
   background: #d32f2f;
@@ -352,6 +357,7 @@ textarea {
   line-height: 1.6;
 }
 .analyze-button {
+  flex-shrink: 0;
   background: #d32f2f;
   border: 1px solid #d32f2f;
   color: #f4efe6;
@@ -359,11 +365,36 @@ textarea {
   letter-spacing: 0.08em;
   font-size: 11px;
 }
-.analyze-button:hover {
+.analyze-button:hover:not(:disabled) {
   background: #a82222;
 }
 .analyze-button span {
   margin-left: 22px;
+}
+.analysis-screen button:disabled,
+.analysis-screen textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.analysis-screen textarea {
+  min-height: 0;
+}
+.analysis-notice {
+  padding: 15px;
+  color: #a49d93;
+  border-bottom: 1px solid #59534c;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.analysis-notice summary {
+  cursor: pointer;
+}
+.result-empty p {
+  padding: 0 18px;
+  overflow-wrap: anywhere;
+}
+.statement header {
+  overflow-wrap: anywhere;
 }
 .results-column {
   overflow: auto;
