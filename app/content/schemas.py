@@ -89,3 +89,62 @@ class Assessment(Entity):
     @property
     def score(self):
         return self.raw_score / 4
+
+
+class FeatureVector(Entity):
+    factual_manipulation: float | None = Field(ge=0, le=1)
+    selective_presentation: float | None = Field(ge=0, le=1)
+    emotional_manipulation: float | None = Field(ge=0, le=1)
+    logical_manipulation: float | None = Field(ge=0, le=1)
+    authority_manipulation: float | None = Field(ge=0, le=1)
+    repetition_amplification: float | None = Field(ge=0, le=1)
+    strategic_persuasion: float | None = Field(ge=0, le=1)
+
+
+class FeatureDetail(Entity):
+    status: Literal["assessed", "not_assessed"]
+    coverage: float = Field(ge=0, le=1 + 1e-8)
+    reason: str
+    scope: Literal["text_only", "within_material"]
+    assessment: Assessment | None
+
+
+class Classification(Entity):
+    mode: Literal["text_only"]
+    label: Literal["indicators_detected", "no_strong_text_indicators", "inconclusive"]
+    risk_score: None
+    policy_version: str
+    experimental: Literal[True]
+    trigger_features: list[str]
+    strong_features: list[str]
+
+
+class AnalysisResponse(Entity):
+    material_id: str
+    title: str | None
+    original_text: str
+    normalized_text: str
+    paragraphs: list[dict]
+    source_url: str | None
+    original_url: str | None
+    mode: Literal["text_only"]
+    demo: bool
+    primary_narrative: str | None
+    narratives: list[Narrative]
+    review_required: bool
+    features: FeatureVector
+    availability: dict[str, bool]
+    availability_mask: list[bool] = Field(min_length=7, max_length=7)
+    coverage: dict[str, float]
+    feature_details: dict[str, FeatureDetail]
+    classification: Classification
+    sections: list[dict] | None = None
+    statements: list[dict] | None = None
+    contextual_findings: list[dict] | None = None
+    annotations: list[dict] | None = None
+    diagnostics: dict | None = None
+    warnings: list[str]
+    model_versions: dict[str, str]
+    versions: dict[str, str]
+    provenance: dict
+    highlight_thresholds: dict[str, float]

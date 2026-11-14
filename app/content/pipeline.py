@@ -22,7 +22,7 @@ async def analyze_content(original: str, title: str | None, provider, config, so
             warnings.extend(issues)
             if not issues:
                 break
-        except (ValueError, HTTPException) as exc:
+        except ValueError as exc:
             if attempt:
                 raise HTTPException(502, "Extraction failed after one retry; try a shorter article.") from exc
             warnings.append("Invalid structured extraction; retried once.")

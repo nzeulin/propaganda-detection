@@ -6,6 +6,15 @@ from math import fsum
 def aggregate(claims: list[dict], sections: list[dict], assessments: dict, config):
     warnings = []
     used_sections = [s for s in sections if any(c["section_id"] == s["id"] for c in claims)]
+    for target, prefix in [(s, "section") for s in sections] + [(c, "claim") for c in claims]:
+        record = assessments.get(f"{prefix}:{target['id']}", {}).get("relevance")
+        target.update(
+            relevance=record.score if record else None,
+            relevance_assessment=record.model_dump() if record else None,
+            weight=None,
+        )
+        if prefix == "claim":
+            target.update(local_weight=None, role_coefficient=config.roles["coefficients"][target["role"]])
     # Missing relevance cannot be interpreted as zero or repaired by a zero-relevance fallback.
     weights_ready = (
         bool(claims)
@@ -24,9 +33,6 @@ def aggregate(claims: list[dict], sections: list[dict], assessments: dict, confi
                 weight=section_score.score / total if total else 1 / len(used_sections),
             )
             local = [c for c in claims if c["section_id"] == section["id"]]
-            for claim in local:
-                claim["relevance"] = assessments[f"claim:{claim['id']}"]["relevance"].score
-                claim["role_coefficient"] = config.roles["coefficients"][claim["role"]]
             denominator = fsum(c["relevance"] * c["role_coefficient"] for c in local)
             if denominator == 0:
                 warnings.append(

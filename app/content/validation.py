@@ -23,6 +23,8 @@ def validate_and_group(extraction: Extraction, text: str, paragraphs: list[dict]
             issues.append("unknown section/narrative")
         if not statement.source_spans:
             issues.append("missing source spans")
+        if not statement.context_excerpt.strip() or statement.context_excerpt not in text:
+            issues.append("context excerpt is not present in frozen text")
         for span in statement.source_spans:
             paragraph = paragraph_map.get(span.paragraph_id)
             if (
@@ -57,6 +59,11 @@ def validate_and_group(extraction: Extraction, text: str, paragraphs: list[dict]
         groups[group_key].append(statement)
     canonical = []
     for index, occurrences in enumerate(groups.values()):
+        unique = {}
+        for occurrence in occurrences:
+            positions = tuple((s.start, s.end) for s in occurrence.source_spans)
+            unique.setdefault(positions, occurrence)
+        occurrences = list(unique.values())
         first = occurrences[0]
         item = first.model_dump()
         item.update(
@@ -67,6 +74,7 @@ def validate_and_group(extraction: Extraction, text: str, paragraphs: list[dict]
             relevance=None,
             role_coefficient=None,
             weight=None,
+            local_weight=None,
             features={},
             assessments={},
             contributions={},

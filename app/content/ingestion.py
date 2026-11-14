@@ -13,13 +13,29 @@ from fastapi import HTTPException
 from yarl import URL
 
 
+def public_address(address: str):
+    """Reject non-unicast and embedded private destinations, including IPv6 transition forms."""
+    ip = ipaddress.ip_address(address)
+    if not ip.is_global or ip.is_multicast or ip.is_reserved:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.is_site_local:
+            return False
+        embedded = ip.ipv4_mapped or ip.sixtofour
+        if embedded and not public_address(str(embedded)):
+            return False
+        if ip.teredo or ip in ipaddress.ip_network("64:ff9b::/96"):
+            return False
+    return True
+
+
 class PublicResolver(AbstractResolver):
     async def resolve(self, host, port=0, family=socket.AF_INET):
         records = await asyncio.wait_for(
             asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM), 5
         )
         addresses = {record[4][0] for record in records}
-        if not addresses or any(not ipaddress.ip_address(address).is_global for address in addresses):
+        if not addresses or any(not public_address(address) for address in addresses):
             raise ValueError("Only public Internet addresses are allowed.")
         # aiohttp connects directly to these validated IPs; it does not resolve them a second time.
         return [
@@ -45,8 +61,9 @@ async def fetch_article(url: str):
             async with aiohttp.ClientSession(
                 connector=connector,
                 trust_env=False,
+                auto_decompress=False,
                 timeout=aiohttp.ClientTimeout(total=12),
-                headers={"User-Agent": "VeritasScope/0.1"},
+                headers={"User-Agent": "VeritasScope/0.1", "Accept-Encoding": "identity"},
             ) as client:
                 current = URL(url)
                 for _ in range(5):
@@ -64,7 +81,7 @@ async def fetch_article(url: str):
                         literal = ipaddress.ip_address(parsed.hostname)
                     except ValueError:
                         literal = None
-                    if literal is not None and not literal.is_global:
+                    if literal is not None and not public_address(str(literal)):
                         raise ValueError("Private, loopback and reserved addresses are blocked.")
                     async with client.get(current, allow_redirects=False) as response:
                         if response.status in (301, 302, 303, 307, 308):
@@ -76,6 +93,10 @@ async def fetch_article(url: str):
                         if response.status != 200:
                             raise ValueError(
                                 f"Article server returned HTTP {response.status}; paste the text instead."
+                            )
+                        if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+                            raise ValueError(
+                                "Server ignored the uncompressed fetch request; paste the text instead."
                             )
                         media = response.headers.get("Content-Type", "").split(";")[0].lower()
                         if media not in ("text/html", "application/xhtml+xml", "text/plain"):
@@ -94,7 +115,11 @@ async def fetch_article(url: str):
                             text, title = html, None
                         else:
                             doc = trafilatura.bare_extraction(
-                                html, include_comments=False, include_tables=False, favor_precision=True
+                                html,
+                                include_comments=False,
+                                include_tables=False,
+                                favor_precision=True,
+                                with_metadata=True,
                             )
                             text, title = (doc.text, doc.title) if doc else (None, None)
                         if not text or len(text.strip()) < 80:

@@ -11,7 +11,7 @@ from app.content.config import Configuration
 from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
-from app.content.schemas import AnalyzeRequest
+from app.content.schemas import AnalysisResponse, AnalyzeRequest
 
 
 @asynccontextmanager
@@ -47,7 +47,7 @@ async def examples():
     return [{k: example[k] for k in ("id", "title", "label", "text")} for example in EXAMPLES.values()]
 
 
-@app.post("/analyze")
+@app.post("/analyze", response_model=AnalysisResponse, response_model_exclude_unset=True)
 async def analyze(body: AnalyzeRequest, request: Request):
     state = request.app.state
     demo = body.example_id is not None
@@ -72,6 +72,7 @@ async def analyze(body: AnalyzeRequest, request: Request):
                     original, fetched_title, source_url = await fetch_article(body.url)
                     title = title or fetched_title
                 result = await analyze_content(original, title, provider, state.config, source_url, demo)
+                result["original_url"] = body.url
     except TimeoutError as exc:
         raise HTTPException(504, "Analysis timed out. Try a shorter article.") from exc
     if not body.include_details:
