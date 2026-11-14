@@ -60,6 +60,8 @@ export type Finding = {
   }[];
 };
 export type Swarm = {
+  status?: string;
+  warnings?: string[];
   findings: Finding[];
   clusters: { id: string; account_ids: string[]; density: number }[];
   formula: string;
@@ -307,6 +309,7 @@ export function JobPanel({
         <section className="panel">
           <div className="eyebrow">INDEPENDENT COORDINATION ANALYSIS</div>
           <h2>{job.result.clusters.length} suspicious groups</h2>
+          {job.result.warnings?.map(w=><p className="error" key={w}>{w}</p>)}
           <p>{job.result.formula}</p>
           {job.result.findings.map((f) => (
             <details className="finding" key={f.id}>

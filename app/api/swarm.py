@@ -1,6 +1,7 @@
 """Independent CPU-only coordination jobs over immutable observations."""
 
 import asyncio
+from threading import Event
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
@@ -33,11 +34,15 @@ def swarm_handler(state):
                     select(observations).where(observations.c.dataset_id == job["target_id"])
                 ).mappings()
             ]
-        return await stage(
-            "coordination",
-            lambda: asyncio.to_thread(analyze_coordination, nodes, events),
-            {"dataset_id": job["target_id"], "event_count": len(events)},
-        )
+        cancellation = Event()
+        try:
+            return await stage(
+                "coordination",
+                lambda: asyncio.to_thread(analyze_coordination, nodes, events, cancellation=cancellation),
+                {"dataset_id": job["target_id"], "event_count": len(events)},
+            )
+        finally:
+            cancellation.set()
 
     return handle
 

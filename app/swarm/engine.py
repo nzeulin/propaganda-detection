@@ -9,11 +9,19 @@ from itertools import combinations
 from urllib.parse import urlsplit, urlunsplit
 
 
-def analyze_coordination(nodes, observations, window_seconds=60, minimum_episodes=3, baseline_trials=8):
+def analyze_coordination(
+    nodes,
+    observations,
+    window_seconds=60,
+    minimum_episodes=3,
+    baseline_trials=8,
+    cancellation=None,
+    comparison_budget=500000,
+):
     contents = {n["id"]: n["data"] for n in nodes if n["kind"] == "content"}
     events = []
     for event in observations:
-        if not event["timestamp"] or event["action"] == "liked":
+        if not event["timestamp"] or event["action"] not in ("created", "reposted", "replied_to"):
             continue
         content = contents.get(event["target_id"], {})
         text = content.get("text", "")
@@ -48,10 +56,15 @@ def analyze_coordination(nodes, observations, window_seconds=60, minimum_episode
         else {}
     )
 
+    comparisons, exhausted = 0, False
+
     def episodes(records, detailed=False):
+        nonlocal comparisons, exhausted
         ordered = sorted(records, key=lambda e: (e["time"], e["id"]))
         index, active, expiry, pairs = defaultdict(set), {}, deque(), defaultdict(list)
         for event in ordered:
+            if cancellation is not None and cancellation.is_set():
+                raise RuntimeError("Coordination cancelled")
             while expiry and expiry[0][0] < event["time"] - window_seconds:
                 _, old_id = expiry.popleft()
                 old = active.pop(old_id)
@@ -60,6 +73,10 @@ def analyze_coordination(nodes, observations, window_seconds=60, minimum_episode
             keys = {("word", token) for token in event["tokens"]} | {("url", u) for u in event["urls"]}
             candidates = set().union(*(index[k] for k in keys)) if keys else set()
             for candidate_id in candidates:
+                comparisons += 1
+                if comparisons > comparison_budget:
+                    exhausted = True
+                    return pairs
                 other = active[candidate_id]
                 if other["source_id"] == event["source_id"]:
                     continue
@@ -99,6 +116,8 @@ def analyze_coordination(nodes, observations, window_seconds=60, minimum_episode
     rng = random.Random(20261114)
     timestamps = [e["time"] for e in events]
     for _ in range(baseline_trials):
+        if exhausted:
+            break
         shuffled = timestamps.copy()
         rng.shuffle(shuffled)
         baseline = episodes([{**e, "time": t} for e, t in zip(events, shuffled, strict=True)])
@@ -108,11 +127,13 @@ def analyze_coordination(nodes, observations, window_seconds=60, minimum_episode
     adjacency = defaultdict(set)
     for pair, matches in sorted(observed.items()):
         count = len(matches)
+        if count < minimum_episodes:
+            continue
         baseline_max = max(baselines[pair], default=0)
         strength = sum(e["strength"] for e in matches) / count
         excess = max(0, count - baseline_max)
         score = min(1, count / minimum_episodes) * strength * excess / count
-        strong = count >= minimum_episodes and excess >= 2 and score >= 0.5
+        strong = not exhausted and count >= minimum_episodes and excess >= 2 and score >= 0.5
         if strong:
             adjacency[pair[0]].add(pair[1])
             adjacency[pair[1]].add(pair[0])
@@ -156,6 +177,10 @@ def analyze_coordination(nodes, observations, window_seconds=60, minimum_episode
                 }
             )
     return {
+        "status": "needs_review" if exhausted else "complete",
+        "warnings": ["Dense input exhausted the pair-comparison budget; no strong coordination is asserted."]
+        if exhausted
+        else [],
         "version": "coordination-v1",
         "findings": findings,
         "clusters": clusters,
@@ -166,12 +191,14 @@ def analyze_coordination(nodes, observations, window_seconds=60, minimum_episode
             "baseline_trials": baseline_trials,
             "seed": 20261114,
             "semantic_embeddings": False,
+            "comparison_budget": comparison_budget,
         },
         "counts": {
             "observations": len(observations),
             "eligible_events": len(events),
             "accounts": len(accounts),
             "strong_pairs": sum(f["strong"] for f in findings),
+            "pair_comparisons": min(comparisons, comparison_budget),
         },
         "formula": "min(1, episodes/3) × mean(max(lexical, URL specificity)) × max(0, episodes − baseline_max)/episodes",
         "limitations": [
