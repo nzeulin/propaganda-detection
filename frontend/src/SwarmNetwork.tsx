@@ -180,6 +180,7 @@ async function request<T>(
   try {
     const response = await fetch(`${API}${path}`, {
       ...init,
+      cache: "no-store",
       headers: { "Content-Type": "application/json", ...init.headers },
       signal: controller.signal,
     });
@@ -532,6 +533,7 @@ function CollectionCoverage({
 
 function BlueskyImport({
   disabled,
+  inputConflict,
   profiles,
   onProfilesChange,
   onLoad,
@@ -540,6 +542,7 @@ function BlueskyImport({
   ref,
 }: {
   disabled: boolean;
+  inputConflict: boolean;
   profiles: string;
   onProfilesChange: (value: string) => void;
   onLoad: (value: CollectedPosts) => Promise<void>;
@@ -558,6 +561,13 @@ function BlueskyImport({
 
   useImperativeHandle(ref, () => ({ run: () => run() }));
   useEffect(() => onPendingChange(!!jobId), [jobId, onPendingChange]);
+
+  useEffect(() => {
+    if (!controllerRef.current && !jobRef.current) {
+      setError("");
+      setMessage("Click Analyze activity to fetch these sources and check patterns in one step.");
+    }
+  }, [profiles]);
 
   useEffect(
     () => () => {
@@ -621,7 +631,7 @@ function BlueskyImport({
   }
 
   async function run(resume = false) {
-    if (controllerRef.current || disabled || (jobRef.current && !resume)) return;
+    if (controllerRef.current || disabled || inputConflict || (jobRef.current && !resume)) return;
     let actors: string[] = [];
     if (!resume) {
       try {
@@ -745,7 +755,8 @@ function BlueskyImport({
         spellCheck={false}
         placeholder={"https://bsky.app/profile/bsky.app\nhttps://bsky.app/profile/HANDLE/post/POST_ID"}
         onChange={(event) => onProfilesChange(event.target.value)}
-        aria-describedby="swarm-bluesky-help"
+        aria-invalid={inputConflict || undefined}
+        aria-describedby={`swarm-bluesky-help${inputConflict ? " swarm-input-conflict" : ""}`}
       />
       <p id="swarm-bluesky-help" className="swarm-muted">
         Up to 10 unique sources per run. Profiles import at most 50 recent posts;
@@ -1501,6 +1512,7 @@ export default function SwarmNetwork() {
   }
 
   async function start(value?: CollectedPosts) {
+    if (!value && inputConflict) return;
     const runName = value?.name ?? name;
     const runInput = value ? JSON.stringify(value.rows, null, 2) : input;
     const runFormat = value ? "json" : format;
@@ -1610,7 +1622,6 @@ export default function SwarmNetwork() {
     fileReaderRef.current = reader;
     setReading(true);
     reader.onload = () => {
-      setProfiles("");
       setCollected(null);
       setInput(String(reader.result || "").replace(/^\uFEFF/, ""));
       setEditorOpen(false);
@@ -1660,6 +1671,8 @@ export default function SwarmNetwork() {
       input === JSON.stringify(collected.rows, null, 2)
       ? collected
       : null;
+  const collectedInputMatches = !!collected && format === "json" && input === JSON.stringify(collected.rows, null, 2);
+  const inputConflict = !!(profiles.trim() && input.trim() && !collectedInputMatches);
   return (
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>Network investigation</span><a href="#analysis">Text analysis</a></header>
@@ -1674,7 +1687,7 @@ export default function SwarmNetwork() {
             className="swarm-panel"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!disabled && !pending) {
+              if (!disabled && !pending && !inputConflict) {
                 if (profiles.trim()) void blueskyRef.current?.run();
                 else void start();
               }
@@ -1685,7 +1698,11 @@ export default function SwarmNetwork() {
               Add activity <span>Up to 5,000 rows · 10 MB max</span>
             </header>
             <div className="swarm-panel-body">
-              <BlueskyImport ref={blueskyRef} profiles={profiles} onProfilesChange={(value) => {
+              <BlueskyImport ref={blueskyRef} inputConflict={inputConflict} profiles={profiles} onProfilesChange={(value) => {
+                if (value !== profiles) {
+                  if (collectedInputMatches) setInput("");
+                  setCollected(null);
+                }
                 setProfiles(value); setRevision((value) => value + 1);
               }} disabled={busy || reading || !!pending} onBusyChange={setCollecting} onPendingChange={setCollectionPending} onLoad={async (value) => {
                 setCollected(value); setInput(JSON.stringify(value.rows, null, 2)); setFormat("json"); setName(value.name);
@@ -1698,14 +1715,15 @@ export default function SwarmNetwork() {
               <details className="swarm-advanced-input" open={editorOpen} onToggle={(event) => setEditorOpen(event.currentTarget.open)}>
                 <summary>{input ? "Review or edit activity data" : "Paste data or edit advanced options"}</summary>
                 <label className="swarm-field" htmlFor="swarm-name">Investigation name</label>
-                <input id="swarm-name" value={name} maxLength={200} disabled={disabled} onChange={(event) => { setProfiles(""); setName(event.target.value); setRevision((value) => value + 1); }} />
-                <div className="swarm-editor-heading"><label htmlFor="swarm-input">Activity data</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setProfiles(""); setFormat(event.target.value as InputFormat); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
-                <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-describedby="swarm-fields" placeholder={format === "json" ? "Paste a JSON array of event objects." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setProfiles(""); setInput(event.target.value); setRevision((value) => value + 1); }} />
-                <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setProfiles(""); setInput(""); setRevision((value) => value + 1); }}>Clear input</button></div>
+                <input id="swarm-name" value={name} maxLength={200} disabled={disabled} onChange={(event) => { setName(event.target.value); setRevision((value) => value + 1); }} />
+                <div className="swarm-editor-heading"><label htmlFor="swarm-input">Activity data</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setCollected(null); setFormat(event.target.value as InputFormat); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
+                <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-invalid={inputConflict || undefined} aria-describedby={`swarm-fields${inputConflict ? " swarm-input-conflict" : ""}`} placeholder={format === "json" ? "Paste a JSON array of event objects." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setCollected(null); setInput(event.target.value); setRevision((value) => value + 1); }} />
+                <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setCollected(null); setInput(""); setRevision((value) => value + 1); }}>Clear input</button></div>
                 <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform. JSON must be an array of objects; CSV needs a header row. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Missing timestamps and likes are excluded by the detector and may lead to insufficient data.</p><p>Created content needs text or a URL. Source validation on the server is authoritative.</p></details>
               </details>
+              {inputConflict && <div id="swarm-input-conflict" className="swarm-error" role="alert"><strong>Choose one input source</strong><p>Both Bluesky links and advanced activity data are filled. Clear one input before analyzing; neither source will be used until this is resolved.</p></div>}
               <p className="swarm-muted swarm-privacy-note">Activity is stored on this server. Optional post scoring uses AI only when requested. Only upload data you have permission to use.</p>
-              <button type="submit" className="swarm-run" disabled={disabled || !!pending || (!input.trim() && !profiles.trim())}>{reading ? "Reading file…" : busy ? "Analyzing…" : collecting ? "Fetching posts…" : "Analyze activity"}</button>
+              <button type="submit" className="swarm-run" disabled={disabled || !!pending || inputConflict || (!input.trim() && !profiles.trim())}>{reading ? "Reading file…" : busy ? "Analyzing…" : collecting ? "Fetching posts…" : "Analyze activity"}</button>
               {collected && !activeCollection && <p className="swarm-notice">The name or raw data was edited. This will be saved as user-provided input, without claiming server-verified Bluesky provenance.</p>}
               <InputPreview input={input} format={format} collected={activeCollection} />
               {activeCollection && <CollectionCoverage collection={activeCollection.collection} datasetId={activeCollection.dataset_id} />}
