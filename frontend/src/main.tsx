@@ -328,29 +328,55 @@ function Analysis() {
 }
 
 function Briefing() {
-  function moveToInvestigation() {
-    document.getElementById("swarm")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }
-
   return (
     <section className="screen briefing-screen" id="briefing">
-      <div className="briefing-identity">VERITASCOPE / FIELD BRIEFING</div>
+      <header className="briefing-identity">
+        <a href="#briefing" aria-label="Veritascope home">
+          <span className="briefing-mark" aria-hidden="true">V</span>
+          <span>VERITASCOPE</span>
+        </a>
+        <span className="briefing-identity-note">MEDIA LITERACY / INVESTIGATION TOOLS</span>
+      </header>
 
-      <div className="briefing-copy">
-        <p className="briefing-index">01 / INVESTIGATION INITIALIZATION</p>
-        <h1>Explainable Propaganda &amp; Coordinated Manipulation Detection.</h1>
-        <p className="briefing-description">
-          An investigation platform analyzing what content says and how networks
-          spread it. These are investigation signals, not definitive verdicts.
-        </p>
+      <div className="briefing-content">
+        <div className="briefing-copy">
+          <p className="briefing-index"><span /> UNDERSTAND THE MESSAGE. TRACE THE SPREAD.</p>
+          <h1>See how persuasion works <em>and how it spreads.</em></h1>
+          <p className="briefing-description">
+            Veritascope helps you examine persuasive language and repeated posting patterns. Follow the evidence, explore the context, and decide what deserves a closer look.
+          </p>
+          <div className="briefing-actions">
+            <a className="briefing-primary-cta" href="#analysis">Explore a sample analysis <span aria-hidden="true">↓</span></a>
+            <a className="briefing-secondary-cta" href="#swarm">See how messages spread</a>
+          </div>
+          <p className="briefing-trust-note">Investigation signals for people—not automated verdicts.</p>
+        </div>
+
+        <div className="briefing-preview" aria-label="Preview of a fictional content analysis">
+          <div className="briefing-preview-topline">
+            <span><i /> SAMPLE ANALYSIS</span>
+            <span>FICTIONAL CONTENT</span>
+          </div>
+          <div className="briefing-preview-body">
+            <div className="briefing-preview-meta"><span>CONTENT / PUBLIC STATEMENT</span><span>03 FINDINGS</span></div>
+            <p className="briefing-preview-quote">“Anyone questioning the plan is <mark>putting public safety at risk</mark>.”</p>
+            <div className="briefing-preview-divider" />
+            <div className="briefing-preview-finding">
+              <span className="briefing-finding-index">01</span>
+              <div><strong>Appeal to fear</strong><p>Frames disagreement as a threat to safety.</p></div>
+              <span className="briefing-confidence">93%</span>
+            </div>
+            <div className="briefing-preview-finding briefing-network-finding">
+              <span className="briefing-finding-index">02</span>
+              <div><strong>Repeated across accounts</strong><p>Compare timing and matching activity.</p></div>
+              <span className="briefing-network-icon" aria-hidden="true"><i /><i /><i /><i /></span>
+            </div>
+          </div>
+          <div className="briefing-preview-footer"><span>LANGUAGE</span><b /> <span>NETWORK</span><span className="briefing-preview-open">OPEN THE EVIDENCE ↗</span></div>
+        </div>
       </div>
 
-      <button className="briefing-scroll-cue" onClick={moveToInvestigation}>
-        [ ↓ ]
-      </button>
+      <div className="briefing-bottomline"><span>CONTENT ANALYSIS <b>01</b></span><span>COORDINATION SIGNALS <b>02</b></span><span>HUMAN REVIEW <b>03</b></span></div>
     </section>
   );
 }

@@ -9,25 +9,16 @@
   --swarm-muted: #b2a99e;
   --swarm-red: #e34e48;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .section-title a {
   color: #f4efe6;
   text-decoration: none;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .section-title a:hover {
   color: var(--swarm-red);
 }
 
-=======
-.swarm-workbench .section-title a:hover {
-  color: var(--swarm-red);
-}
->>>>>>> Stashed changes
 .swarm-intro {
   display: flex;
   justify-content: space-between;
@@ -35,7 +26,6 @@
   gap: 30px;
   padding: 28px clamp(16px, 3vw, 44px);
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-kicker {
   color: var(--swarm-red);
@@ -50,31 +40,13 @@
 }
 
 .swarm-intro>p {
-=======
-.swarm-workbench .swarm-kicker {
-  color: var(--swarm-red);
-  font-size: 10px;
-  letter-spacing: 0.09em;
-}
-.swarm-intro h2 {
-  font:
-    400 clamp(38px, 4vw, 64px)/1 Georgia,
-    serif;
-  letter-spacing: -0.04em;
-  margin: 9px 0 0;
-}
-.swarm-intro > p {
->>>>>>> Stashed changes
   max-width: 520px;
   color: var(--swarm-muted);
   font-size: 14px;
   line-height: 1.8;
   margin: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-layout {
   display: grid;
   grid-template-columns: minmax(270px, 340px) minmax(0, 1fr);
@@ -82,10 +54,7 @@
   gap: 16px;
   padding: 0 clamp(16px, 3vw, 44px) 28px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-input-column,
 .swarm-results-column {
   display: grid;
@@ -93,19 +62,13 @@
   gap: 16px;
   min-width: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-panel {
   min-width: 0;
   border: 1px solid var(--swarm-border);
   background: #141414;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-panel-heading {
   display: flex;
   justify-content: space-between;
@@ -116,7 +79,6 @@
   border-bottom: 1px solid var(--swarm-border);
   color: var(--swarm-muted);
   font-size: 10px;
-<<<<<<< Updated upstream
   letter-spacing: .07em;
 }
 
@@ -127,26 +89,10 @@
 .swarm-workbench p,
 .swarm-workbench li {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-=======
-  letter-spacing: 0.07em;
-}
-.swarm-panel-body {
-  padding: 15px;
-}
-.swarm-workbench p,
-.swarm-workbench li {
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
->>>>>>> Stashed changes
   font-size: 13px;
   line-height: 1.75;
   overflow-wrap: anywhere;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench p {
   margin: 0 0 12px;
@@ -162,21 +108,6 @@
   overflow-wrap: anywhere;
 }
 
-=======
-.swarm-workbench p {
-  margin: 0 0 12px;
-}
-.swarm-workbench p:last-child {
-  margin-bottom: 0;
-}
-.swarm-workbench h3 {
-  font:
-    400 26px/1.15 Georgia,
-    serif;
-  margin: 0 0 12px;
-  overflow-wrap: anywhere;
-}
->>>>>>> Stashed changes
 .swarm-workbench h4 {
   margin: 19px 0 10px;
   font-size: 11px;
@@ -184,34 +115,22 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench ul {
   padding-left: 18px;
   margin: 10px 0;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench li+li {
   margin-top: 6px;
 }
 
-=======
-.swarm-workbench li + li {
-  margin-top: 6px;
-}
->>>>>>> Stashed changes
 .swarm-workbench a {
   color: #e6c6bd;
   overflow-wrap: anywhere;
   text-underline-offset: 3px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench button {
   color: #f4efe6;
   border: 1px solid var(--swarm-border);
@@ -222,33 +141,21 @@
   font-size: 11px;
   line-height: 1.5;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench button:hover:not(:disabled),
 .swarm-workbench button[aria-pressed="true"] {
   background: #632722;
   border-color: var(--swarm-red);
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench button:disabled,
 .swarm-workbench input:disabled,
 .swarm-workbench select:disabled,
 .swarm-workbench textarea:disabled {
-<<<<<<< Updated upstream
   opacity: .5;
   cursor: not-allowed;
 }
 
-=======
-  opacity: 0.5;
-  cursor: not-allowed;
-}
->>>>>>> Stashed changes
 .swarm-workbench button:focus-visible,
 .swarm-workbench input:focus-visible,
 .swarm-workbench textarea:focus-visible,
@@ -257,15 +164,11 @@
   outline: 2px solid #f4efe6;
   outline-offset: 3px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-field {
   display: block;
   color: var(--swarm-muted);
   font-size: 10px;
-<<<<<<< Updated upstream
   letter-spacing: .08em;
   margin: 18px 0 7px;
 }
@@ -274,14 +177,6 @@
   margin-top: 0;
 }
 
-=======
-  letter-spacing: 0.08em;
-  margin: 18px 0 7px;
-}
-.swarm-workbench .swarm-field:first-child {
-  margin-top: 0;
-}
->>>>>>> Stashed changes
 .swarm-workbench input,
 .swarm-workbench select,
 .swarm-workbench textarea {
@@ -292,34 +187,19 @@
   border: 1px solid var(--swarm-border);
   border-radius: 0;
   padding: 10px;
-<<<<<<< Updated upstream
   font: 12px/1.6 "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
 }
 
-=======
-  font:
-    12px/1.6 "IBM Plex Mono",
-    "SFMono-Regular",
-    Consolas,
-    monospace;
-}
->>>>>>> Stashed changes
 .swarm-workbench select {
   text-overflow: ellipsis;
   margin: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench input[type="file"] {
   padding: 7px;
   font-size: 10px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench input[type="file"]::file-selector-button {
   font: inherit;
   background: #302a26;
@@ -329,10 +209,7 @@
   margin-right: 8px;
   cursor: pointer;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench textarea {
   display: block;
   min-height: 280px;
@@ -342,10 +219,7 @@
   font-size: 11px;
   tab-size: 2;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-editor-heading {
   display: flex;
   align-items: center;
@@ -353,17 +227,13 @@
   gap: 8px;
   margin: 18px 0 9px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-editor-heading select {
   width: auto;
   max-width: 140px;
   font-size: 10px;
   padding: 5px;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-editor-heading label {
   color: var(--swarm-muted);
@@ -371,13 +241,6 @@
   letter-spacing: .06em;
 }
 
-=======
-.swarm-workbench .swarm-editor-heading label {
-  color: var(--swarm-muted);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-}
->>>>>>> Stashed changes
 .swarm-editor-meta {
   display: flex;
   align-items: center;
@@ -387,50 +250,34 @@
   color: var(--swarm-muted);
   font-size: 10px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-editor-meta button {
   border: 0;
   padding: 3px;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-muted {
   color: var(--swarm-muted);
 }
 
-=======
-.swarm-workbench .swarm-muted {
-  color: var(--swarm-muted);
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-notice {
   color: #efb6a8;
   font-size: 12px;
   line-height: 1.75;
   margin: 12px 0;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-notice p {
   margin: 8px 0;
 }
 
-=======
-.swarm-workbench .swarm-notice p {
-  margin: 8px 0;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-run {
   width: 100%;
   padding: 13px 10px;
   background: #b72b27;
   border-color: #b72b27;
-<<<<<<< Updated upstream
   letter-spacing: .07em;
   margin-top: 16px;
 }
@@ -439,22 +286,11 @@
   background: #d32f2f;
 }
 
-=======
-  letter-spacing: 0.07em;
-  margin-top: 16px;
-}
-.swarm-workbench .swarm-run:hover:not(:disabled) {
-  background: #d32f2f;
-}
->>>>>>> Stashed changes
 .swarm-workbench details {
   margin: 12px 0;
   min-width: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench summary {
   color: #d4c9bb;
   cursor: pointer;
@@ -463,42 +299,27 @@
   overflow-wrap: anywhere;
   padding-block: 4px;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench details[open]>summary {
   margin-bottom: 10px;
 }
 
-=======
-.swarm-workbench details[open] > summary {
-  margin-bottom: 10px;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-field-guide {
   border-block: 1px solid #38332f;
   padding: 9px 0;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-field-guide p {
   color: var(--swarm-muted);
 }
 
-=======
-.swarm-workbench .swarm-field-guide p {
-  color: var(--swarm-muted);
-}
->>>>>>> Stashed changes
 .swarm-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-error {
   border: 1px solid #9a4037;
   background: #291a18;
@@ -507,18 +328,12 @@
   color: #f7c4b8;
   font-size: 11px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-error p {
   white-space: pre-wrap;
   margin: 8px 0 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-welcome {
   min-height: 500px;
   display: flex;
@@ -530,16 +345,12 @@
   background-image: radial-gradient(#4b3b32 1px, transparent 1px) !important;
   background-size: 24px 24px !important;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-welcome p {
   max-width: 420px;
   background: #141414;
   padding: 6px;
 }
-<<<<<<< Updated upstream
 
 .swarm-crosshair {
   color: #d32f2f;
@@ -547,58 +358,35 @@
   margin-bottom: 20px;
 }
 
-=======
-.swarm-crosshair {
-  color: #d32f2f;
-  font:
-    56px/1 Georgia,
-    serif;
-  margin-bottom: 20px;
-}
->>>>>>> Stashed changes
 .swarm-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   margin: 14px 0;
   border: 1px solid #3c3731;
 }
-<<<<<<< Updated upstream
 
 .swarm-metrics>div {
-=======
-.swarm-metrics > div {
->>>>>>> Stashed changes
   padding: 10px;
   min-width: 0;
   border-right: 1px solid #3c3731;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-metrics dt {
   color: var(--swarm-muted);
   font-size: 10px;
   line-height: 1.6;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-metrics dd {
   font-size: 21px;
   margin: 5px 0 0;
   overflow-wrap: anywhere;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-metrics dd small {
   display: block;
   margin-top: 8px;
   color: var(--swarm-muted);
-<<<<<<< Updated upstream
   font: 11px/1.6 ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -610,43 +398,21 @@
   font-size: 24px;
 }
 
-=======
-  font:
-    11px/1.6 ui-sans-serif,
-    system-ui,
-    sans-serif;
-}
-.swarm-counts {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.swarm-counts dd {
-  font-size: 24px;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-formula {
   padding: 10px;
   background: #221e1b;
   border-left: 2px solid #b72b27;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-limitations {
   margin-top: 16px;
   color: var(--swarm-muted);
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-limitations li {
   font-size: 10px;
 }
 
-=======
-.swarm-workbench .swarm-limitations li {
-  font-size: 10px;
-}
->>>>>>> Stashed changes
 .swarm-canvas {
   position: relative;
   width: 100%;
@@ -654,17 +420,11 @@
   height: clamp(300px, 48dvh, 500px);
   overflow: hidden;
 }
-<<<<<<< Updated upstream
 
 .swarm-canvas canvas {
   display: block;
 }
 
-=======
-.swarm-canvas canvas {
-  display: block;
-}
->>>>>>> Stashed changes
 .swarm-canvas-empty {
   position: absolute;
   inset: 45% 10px auto;
@@ -672,20 +432,14 @@
   color: var(--swarm-muted);
   pointer-events: none;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-graph-warning {
   margin: 0;
   padding: 10px 14px;
   border-bottom: 1px solid #63392f;
   background: #251b17;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-graph-footer {
   display: flex;
   justify-content: space-between;
@@ -695,26 +449,17 @@
   padding: 10px 12px;
   border-top: 1px solid #38332f;
 }
-<<<<<<< Updated upstream
 
 .swarm-zoom {
   display: flex;
 }
 
-=======
-.swarm-zoom {
-  display: flex;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-zoom button {
   min-width: 36px;
   min-height: 36px;
   font-size: 15px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-legend {
   display: flex;
   flex-wrap: wrap;
@@ -723,82 +468,39 @@
   font-size: 9px;
   color: var(--swarm-muted);
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-legend span {
   display: flex;
   align-items: center;
   gap: 5px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-legend i {
   width: 7px;
   height: 7px;
   display: inline-block;
   flex-shrink: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-account-key {
   background: #a2927f;
   border-radius: 50%;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-content-key {
   background: #f4efe6;
   border-radius: 50%;
 }
-<<<<<<< Updated upstream
 
 .swarm-url-key {
   background: #777d83;
 }
 
-=======
-.swarm-validation-key {
-  background: #c2a46f;
-  border-radius: 50%;
-}
-.swarm-workbench .swarm-needs-validation {
-  background: #28231b;
-  border-color: #8b7652;
-}
-.swarm-content-scoring {
-  margin-top: 12px;
-  font-size: 11px;
-}
-.swarm-content-scoring > p {
-  margin: 6px 0;
-}
-.swarm-content-scoring details {
-  margin-top: 8px;
-}
-.swarm-content-scoring dl > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-.swarm-content-scoring dd {
-  margin: 0;
-  white-space: nowrap;
-}
->>>>>>> Stashed changes
 .swarm-legend .swarm-observed-key {
   width: 16px;
   height: 0;
   border-top: 1px solid #807568;
 }
-<<<<<<< Updated upstream
 
 .swarm-legend .swarm-inferred-key {
   width: 16px;
@@ -806,15 +508,12 @@
   border-top: 2px dashed #e34e48;
 }
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-graph-hint {
   color: var(--swarm-muted);
   font-size: 9px;
   padding: 0 12px 10px;
   margin: 0;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-graph-help {
   margin: 0;
@@ -839,16 +538,10 @@
 .swarm-evidence-grid {
   display: grid;
   grid-template-columns: minmax(210px, .65fr) minmax(0, 1.35fr);
-=======
-.swarm-evidence-grid {
-  display: grid;
-  grid-template-columns: minmax(210px, 0.65fr) minmax(0, 1.35fr);
->>>>>>> Stashed changes
   gap: 16px;
   align-items: start;
   scroll-margin-top: 20px;
 }
-<<<<<<< Updated upstream
 
 .swarm-inspection {
   scroll-margin-block: 16px;
@@ -870,61 +563,40 @@
   font-size: 9px !important;
 }
 
-=======
-.swarm-inspection {
-  scroll-margin-block: 16px;
-}
->>>>>>> Stashed changes
 .swarm-members {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-members button {
   max-width: 100%;
   overflow-wrap: anywhere;
   text-align: left;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-groups {
   display: grid;
   gap: 7px;
   max-height: 400px;
   overflow: auto;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-groups button {
   display: grid;
   gap: 4px;
   text-align: left;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-groups button span:last-child {
   color: var(--swarm-muted);
   font-size: 9px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-pair-evidence {
   margin-top: 18px;
   border-top: 1px solid var(--swarm-border);
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-pair-evidence h4 {
   font-size: 14px;
@@ -934,29 +606,15 @@
   color: var(--swarm-red);
 }
 
-=======
-.swarm-workbench .swarm-pair-evidence h4 {
-  font-size: 14px;
-}
-.swarm-pair-evidence h4 span {
-  color: var(--swarm-red);
-}
->>>>>>> Stashed changes
 .swarm-episode {
   border-top: 1px solid #4d3a33;
   padding: 10px 0;
 }
-<<<<<<< Updated upstream
 
 .swarm-episode>summary {
   color: #f4efe6;
 }
 
-=======
-.swarm-episode > summary {
-  color: #f4efe6;
-}
->>>>>>> Stashed changes
 .swarm-matched-event {
   border-left: 2px solid #a03730;
   padding: 10px 12px;
@@ -965,36 +623,24 @@
   font-size: 11px;
   overflow-wrap: anywhere;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-matched-event strong,
 .swarm-matched-event time {
   display: block;
   line-height: 1.7;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-matched-event time {
   font-size: 10px;
   color: var(--swarm-muted);
   margin: 4px 0 9px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-entity-text p,
 .swarm-matched-event p {
   white-space: pre-wrap;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-disclaimer {
   padding: 15px clamp(16px, 3vw, 44px);
   border-top: 1px solid var(--swarm-border);
@@ -1002,10 +648,7 @@
   font-size: 10px;
   line-height: 1.8;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1014,10 +657,7 @@
   margin: 0 clamp(16px, 3vw, 44px) 18px;
   padding: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-steps li {
   display: flex;
   align-items: center;
@@ -1026,12 +666,8 @@
   padding: 14px;
   border: 1px solid #39352f;
 }
-<<<<<<< Updated upstream
 
 .swarm-steps li>span {
-=======
-.swarm-steps li > span {
->>>>>>> Stashed changes
   display: grid;
   place-items: center;
   width: 30px;
@@ -1042,60 +678,40 @@
   color: var(--swarm-muted);
   font: 12px/1 monospace;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-steps strong,
 .swarm-steps small {
   display: block;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-steps strong {
   font-size: 13px;
   font-weight: 500;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-steps small {
   color: var(--swarm-muted);
   font-size: 12px;
   margin-top: 3px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-steps li[aria-current="step"] {
   border-color: #9c5145;
   background: #211a17;
 }
-<<<<<<< Updated upstream
 
 .swarm-steps li[aria-current="step"]>span {
-=======
-.swarm-steps li[aria-current="step"] > span {
->>>>>>> Stashed changes
   color: #f4efe6;
   border-color: #e34e48;
   background: #632722;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-reading-guide {
   margin: 0 clamp(16px, 3vw, 44px) 20px;
   border: 1px solid #49433c;
   background: #1b1917;
   padding: 12px 16px;
 }
-<<<<<<< Updated upstream
 
 .swarm-reading-guide>summary {
   color: #f4efe6;
@@ -1106,18 +722,6 @@
   font: 12px/1.6 ui-sans-serif, system-ui, sans-serif;
 }
 
-=======
-.swarm-reading-guide > summary {
-  color: #f4efe6;
-}
-.swarm-reading-guide > summary span:last-child {
-  margin-left: 14px;
-  font:
-    12px/1.6 ui-sans-serif,
-    system-ui,
-    sans-serif;
-}
->>>>>>> Stashed changes
 .swarm-glossary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1126,44 +730,28 @@
   background: #3c3731;
   border: 1px solid #3c3731;
 }
-<<<<<<< Updated upstream
 
 .swarm-glossary>div {
   background: #1b1917;
   padding: 16px;
 }
 
-=======
-.swarm-glossary > div {
-  background: #1b1917;
-  padding: 16px;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-glossary h4 {
   margin: 0 0 6px;
   font-size: 12px;
   color: #f0c1b4;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-glossary p {
   margin: 0;
   color: #c5bdb3;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-guide-note {
   margin: 16px 0 0;
   color: var(--swarm-muted);
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-demo-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1171,10 +759,7 @@
   width: 100%;
   margin: 20px 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-demo-cards button {
   display: flex;
   flex-direction: column;
@@ -1184,7 +769,6 @@
   padding: 18px;
   background: #1c1917;
 }
-<<<<<<< Updated upstream
 
 .swarm-demo-cards strong {
   font: 400 21px/1.25 Georgia, serif;
@@ -1195,64 +779,35 @@
   color: var(--swarm-muted);
 }
 
-=======
-.swarm-demo-cards strong {
-  font:
-    400 21px/1.25 Georgia,
-    serif;
-}
-.swarm-demo-cards button > span:not(.swarm-demo-number) {
-  font:
-    12px/1.65 ui-sans-serif,
-    system-ui,
-    sans-serif;
-  color: var(--swarm-muted);
-}
->>>>>>> Stashed changes
 .swarm-demo-number {
   color: #e7a08e;
   font-size: 11px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-demo-cards button .swarm-demo-cta {
   margin-top: auto;
   padding-top: 12px;
   color: #f2c1b4;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-quick-run {
   background: #b72b27;
   border-color: #b72b27;
   padding: 12px 24px;
   margin-bottom: 16px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-example-description {
   margin: 12px 0;
   border-left: 2px solid #a34a3c;
   padding-left: 12px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-example-description p {
   margin-top: 8px;
   color: var(--swarm-muted);
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-evidence-badge {
   display: inline-block;
   border: 1px solid #5d554b;
@@ -1262,29 +817,20 @@
   font-size: 10px;
   line-height: 1.7;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-evidence-badge.is-flagged {
   color: #f2b5a5;
   border-color: #844238;
   background: #2a1c19;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-input-preview {
   margin-top: 18px;
   padding: 12px;
   background: #1c1b18;
   border: 1px solid #3c3731;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-preview-heading {
   display: flex;
   flex-wrap: wrap;
@@ -1292,7 +838,6 @@
   gap: 5px;
   font-size: 11px;
 }
-<<<<<<< Updated upstream
 
 .swarm-preview-heading span {
   color: #c0b49f;
@@ -1303,60 +848,35 @@
   margin: 6px 0 10px;
 }
 
-=======
-.swarm-preview-heading span {
-  color: #c0b49f;
-}
-.swarm-input-preview > p {
-  font-size: 11px;
-  margin: 6px 0 10px;
-}
->>>>>>> Stashed changes
 .swarm-preview-row {
   padding-block: 10px;
   border-top: 1px solid #37322d;
   min-width: 0;
 }
-<<<<<<< Updated upstream
 
 .swarm-preview-row>strong,
 .swarm-preview-row>span {
-=======
-.swarm-preview-row > strong,
-.swarm-preview-row > span {
->>>>>>> Stashed changes
   display: block;
   overflow-wrap: anywhere;
   font-size: 10px;
   line-height: 1.6;
 }
-<<<<<<< Updated upstream
 
 .swarm-preview-row>span {
   color: var(--swarm-muted);
   margin: 3px 0;
 }
 
-=======
-.swarm-preview-row > span {
-  color: var(--swarm-muted);
-  margin: 3px 0;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-preview-row p {
   font-size: 12px;
   margin: 5px 0 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-raw-editor {
   border-block: 1px solid #3c3731;
   padding-block: 10px;
   margin-block: 18px;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-privacy-note {
   font-size: 12px;
@@ -1369,36 +889,19 @@
   margin-top: 6px;
 }
 
-=======
-.swarm-workbench .swarm-privacy-note {
-  font-size: 12px;
-}
-.swarm-workbench .swarm-run {
-  font-size: 12px;
-  letter-spacing: 0.01em;
-  min-height: 48px;
-  margin-top: 6px;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-run-hint {
   font-size: 11px;
   text-align: center;
   margin: 8px 0 0;
   color: var(--swarm-muted);
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-run-progress {
   list-style: none;
   margin: 0 0 16px;
   padding: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-run-progress li {
   display: flex;
   align-items: center;
@@ -1408,10 +911,7 @@
   padding: 6px 0;
   margin: 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-run-progress span {
   display: grid;
   place-items: center;
@@ -1420,22 +920,15 @@
   border: 1px solid #59534c;
   font: 10px/1 monospace;
 }
-<<<<<<< Updated upstream
 
 .swarm-run-progress li[aria-current="step"] {
   color: #f5c2b5;
 }
 
-=======
-.swarm-run-progress li[aria-current="step"] {
-  color: #f5c2b5;
-}
->>>>>>> Stashed changes
 .swarm-run-progress li[aria-current="step"] span {
   border-color: #e34e48;
   background: #632722;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-takeaway {
   margin-top: 16px;
@@ -1444,33 +937,19 @@
   max-width: 700px;
 }
 
-=======
-.swarm-workbench .swarm-takeaway {
-  margin-top: 16px;
-  color: #f4efe6;
-  font:
-    400 clamp(24px, 2.4vw, 34px)/1.25 Georgia,
-    serif;
-  max-width: 700px;
-}
->>>>>>> Stashed changes
 .swarm-trust-note {
   padding: 12px 14px;
   border-left: 2px solid #9c7d61;
   background: #211e19;
   color: #d4c5b2;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-next-step {
   padding: 16px;
   margin-block: 18px;
   background: #231b18;
   border: 1px solid #5a3931;
 }
-<<<<<<< Updated upstream
 
 .swarm-next-step>strong {
   color: #eec1b2;
@@ -1485,79 +964,45 @@
   font-size: 12px;
 }
 
-=======
-.swarm-next-step > strong {
-  color: #eec1b2;
-  font-size: 12px;
-}
-.swarm-next-step p {
-  margin-top: 6px;
-}
-.swarm-next-step a {
-  font-size: 12px;
-}
->>>>>>> Stashed changes
 .swarm-result-links {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 24px;
 }
-<<<<<<< Updated upstream
 
 #swarm-map {
   scroll-margin-top: 20px;
 }
 
-=======
-#swarm-map {
-  scroll-margin-top: 20px;
-}
->>>>>>> Stashed changes
 .swarm-score-variables {
   margin: 12px 0;
   font-size: 12px;
 }
-<<<<<<< Updated upstream
 
 .swarm-score-variables>div {
-=======
-.swarm-score-variables > div {
->>>>>>> Stashed changes
   display: flex;
   justify-content: space-between;
   gap: 16px;
   padding: 8px 0;
   border-bottom: 1px solid #3c3731;
 }
-<<<<<<< Updated upstream
 
 .swarm-score-variables dt {
   color: var(--swarm-muted);
 }
 
-=======
-.swarm-score-variables dt {
-  color: var(--swarm-muted);
-}
->>>>>>> Stashed changes
 .swarm-score-variables dd {
   margin: 0;
   text-align: right;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-formula {
   font-family: "IBM Plex Mono", monospace;
   font-size: 12px;
   line-height: 1.9;
   overflow-wrap: anywhere;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-count-pill {
   display: inline-block;
   border: 1px solid #5d554b;
@@ -1565,20 +1010,13 @@
   margin-left: 6px;
   color: #edb4a2;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-selection h4:first-child {
   margin-top: 0;
   font-size: 14px;
 }
-<<<<<<< Updated upstream
 
 .swarm-groups button>span:first-child {
-=======
-.swarm-groups button > span:first-child {
->>>>>>> Stashed changes
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1586,7 +1024,6 @@
   color: #f4efe6;
   font-size: 15px;
 }
-<<<<<<< Updated upstream
 
 .swarm-groups button>span:nth-child(2) {
   color: #e1ad9c;
@@ -1598,33 +1035,17 @@
   overflow-wrap: anywhere;
 }
 
-=======
-.swarm-groups button > span:nth-child(2) {
-  color: #e1ad9c;
-  font-size: 11px;
-}
-.swarm-groups button > span:last-child {
-  line-height: 1.8;
-  overflow-wrap: anywhere;
-}
->>>>>>> Stashed changes
 .swarm-group-arrow {
   font-size: 17px;
   color: #e4a68f;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-pair-list {
   display: grid;
   gap: 6px;
   margin-block: 12px 20px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-pair-list button {
   display: grid;
   gap: 6px;
@@ -1632,44 +1053,27 @@
   padding: 12px;
   overflow-wrap: anywhere;
 }
-<<<<<<< Updated upstream
 
 .swarm-pair-list small {
   font: 11px/1.6 ui-sans-serif, system-ui, sans-serif;
   color: var(--swarm-muted);
 }
 
-=======
-.swarm-pair-list small {
-  font:
-    11px/1.6 ui-sans-serif,
-    system-ui,
-    sans-serif;
-  color: var(--swarm-muted);
-}
->>>>>>> Stashed changes
 .swarm-pair-list b {
   color: #e49b85;
   font-weight: 400;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-pair-story {
   font-size: 14px;
   margin-top: 14px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-baseline-comparison {
   padding: 14px;
   background: #1d1b18;
   border: 1px solid #3c3731;
 }
-<<<<<<< Updated upstream
 
 .swarm-baseline-comparison>div {
   display: grid;
@@ -1686,45 +1090,21 @@
   font-weight: 500;
 }
 
-=======
-.swarm-baseline-comparison > div {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 7px;
-  font:
-    11px/1.6 ui-sans-serif,
-    system-ui,
-    sans-serif;
-}
-.swarm-baseline-comparison > div + div {
-  margin-top: 14px;
-}
-.swarm-baseline-comparison strong {
-  font-weight: 500;
-}
->>>>>>> Stashed changes
 .swarm-baseline-comparison i {
   display: block;
   grid-column: 1 / -1;
   height: 6px;
   background: #d7745e;
 }
-<<<<<<< Updated upstream
 
 .swarm-baseline-comparison>div+div i {
   background: #928676;
 }
 
-=======
-.swarm-baseline-comparison > div + div i {
-  background: #928676;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-score-explainer {
   padding: 10px 0;
   border-bottom: 1px solid #443b32;
 }
-<<<<<<< Updated upstream
 
 .swarm-score-explainer>summary {
   color: #f0bdab;
@@ -1734,65 +1114,37 @@
   margin-top: 24px;
 }
 
-=======
-.swarm-score-explainer > summary {
-  color: #f0bdab;
-}
-.swarm-occasion-heading {
-  margin-top: 24px;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-occasion-heading h4 {
   font-size: 17px;
   margin: 0 0 5px;
 }
-<<<<<<< Updated upstream
 
 .swarm-occasion-heading p {
   color: var(--swarm-muted);
 }
 
 .swarm-episode>summary {
-=======
-.swarm-occasion-heading p {
-  color: var(--swarm-muted);
-}
-.swarm-episode > summary {
->>>>>>> Stashed changes
   display: flex;
   align-items: center;
   gap: 10px;
   list-style: none;
 }
-<<<<<<< Updated upstream
 
 .swarm-episode>summary::-webkit-details-marker {
   display: none;
 }
 
 .swarm-episode>summary::after {
-=======
-.swarm-episode > summary::-webkit-details-marker {
-  display: none;
-}
-.swarm-episode > summary::after {
->>>>>>> Stashed changes
   content: "+";
   color: #e7a28d;
   font-size: 20px;
   margin-left: auto;
 }
-<<<<<<< Updated upstream
 
 .swarm-episode[open]>summary::after {
   content: "−";
 }
 
-=======
-.swarm-episode[open] > summary::after {
-  content: "−";
-}
->>>>>>> Stashed changes
 .swarm-occasion-number {
   display: grid;
   place-items: center;
@@ -1804,7 +1156,6 @@
   flex-shrink: 0;
   font-size: 11px;
 }
-<<<<<<< Updated upstream
 
 .swarm-episode>summary strong,
 .swarm-episode>summary time {
@@ -1821,47 +1172,23 @@
   color: var(--swarm-muted);
 }
 
-=======
-.swarm-episode > summary strong,
-.swarm-episode > summary time {
-  display: block;
-}
-.swarm-episode > summary strong {
-  font-size: 12px;
-  font-weight: 500;
-}
-.swarm-episode > summary time {
-  font:
-    10px/1.7 ui-sans-serif,
-    system-ui,
-    sans-serif;
-  color: var(--swarm-muted);
-}
->>>>>>> Stashed changes
 .swarm-time-gap {
   color: #e5bba8;
   white-space: nowrap;
   font-size: 10px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-match-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin: 14px 0;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-match-tags span {
   border: 1px solid #594d3d;
   color: #d6c3a9;
   padding: 4px 8px;
-<<<<<<< Updated upstream
   font: 11px/1.5 ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -1869,39 +1196,22 @@
   display: none;
 }
 
-=======
-  font:
-    11px/1.5 ui-sans-serif,
-    system-ui,
-    sans-serif;
-}
-.swarm-match-tags .swarm-mobile-gap {
-  display: none;
-}
->>>>>>> Stashed changes
 .swarm-post-comparison {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-post-comparison .swarm-matched-event {
   margin: 0;
   min-width: 0;
   padding: 14px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-post-action {
   display: block;
   margin-bottom: 8px;
   text-transform: uppercase;
-<<<<<<< Updated upstream
   letter-spacing: .06em;
   font-size: 9px;
   color: #d6ac97;
@@ -1928,98 +1238,53 @@
   padding: 6px 0;
 }
 
-=======
-  letter-spacing: 0.06em;
-  font-size: 9px;
-  color: #d6ac97;
-}
-.swarm-matched-event > strong {
-  font-size: 12px;
-}
-.swarm-matched-event > p {
-  font-size: 13px;
-  line-height: 1.8;
-}
-.swarm-matched-event details summary {
-  font-size: 10px;
-}
-.swarm-matched-event details p {
-  font-size: 10px;
-}
-.swarm-occasion-technical {
-  padding: 6px 0;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-map-explainer {
   padding: 14px;
   color: var(--swarm-muted);
   margin: 0;
   border-bottom: 1px solid #39342e;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-bluesky-import {
   border: 1px solid #916449;
   background: #211b17;
   padding: 12px;
   margin: 0 0 20px;
 }
-<<<<<<< Updated upstream
 
 .swarm-bluesky-import>summary {
-=======
-.swarm-bluesky-import > summary {
->>>>>>> Stashed changes
   color: #f2d4b8;
   font-size: 13px;
   font-weight: 600;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-bluesky-import textarea {
   height: 110px;
   min-height: 100px;
   max-height: 230px;
 }
-<<<<<<< Updated upstream
 
 .swarm-workbench .swarm-bluesky-import p {
   font-size: 12px;
 }
 
-=======
-.swarm-workbench .swarm-bluesky-import p {
-  font-size: 12px;
-}
->>>>>>> Stashed changes
 .swarm-workbench .swarm-fetch {
   width: 100%;
   background: #573827;
   border-color: #b58258;
   min-height: 46px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-collection-status {
   margin-top: 12px;
   color: #ddc5ad;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 .swarm-workbench .swarm-collection-coverage {
   padding: 12px;
   border: 1px solid #6a533e;
   background: #211d18;
 }
-<<<<<<< Updated upstream
 
 .swarm-collection-coverage li,
 .swarm-collection-coverage a,
@@ -2027,24 +1292,11 @@
   font: 11px/1.7 ui-sans-serif, system-ui, sans-serif;
 }
 
-=======
-.swarm-collection-coverage li,
-.swarm-collection-coverage a,
-.swarm-source-post {
-  font:
-    11px/1.7 ui-sans-serif,
-    system-ui,
-    sans-serif;
-}
->>>>>>> Stashed changes
 .swarm-original-link {
   border-left: 2px solid #997a55;
   padding-left: 10px;
 }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
 @media (min-width: 1600px) {
   .swarm-layout {
     grid-template-columns: 380px minmax(0, 1fr);
@@ -2055,17 +1307,11 @@
   .swarm-evidence-grid {
     grid-template-columns: 1fr;
   }
-<<<<<<< Updated upstream
 
   .swarm-counts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-=======
-  .swarm-counts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
->>>>>>> Stashed changes
   .swarm-demo-cards {
     grid-template-columns: 1fr;
   }
@@ -2077,22 +1323,15 @@
     flex-direction: column;
     gap: 20px;
   }
-<<<<<<< Updated upstream
 
   .swarm-layout {
     grid-template-columns: 1fr;
   }
 
-=======
-  .swarm-layout {
-    grid-template-columns: 1fr;
-  }
->>>>>>> Stashed changes
   .swarm-workbench textarea {
     min-height: 250px;
     height: 36dvh;
   }
-<<<<<<< Updated upstream
 
   .swarm-welcome {
     min-height: 320px;
@@ -2102,36 +1341,21 @@
     height: clamp(300px, 50dvh, 440px);
   }
 
-=======
-  .swarm-welcome {
-    min-height: 320px;
-  }
-  .swarm-canvas {
-    height: clamp(300px, 50dvh, 440px);
-  }
->>>>>>> Stashed changes
   .swarm-workbench input,
   .swarm-workbench select {
     min-height: 42px;
   }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
   .swarm-workbench .swarm-actions button,
   .swarm-workbench .swarm-members button,
   .swarm-workbench .swarm-groups button {
     min-height: 42px;
   }
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
   .swarm-steps {
     grid-template-columns: 1fr;
     gap: 7px;
   }
-<<<<<<< Updated upstream
 
   .swarm-workbench .swarm-steps li {
     padding: 10px 12px;
@@ -2167,34 +1391,6 @@
     display: none;
   }
 
-=======
-  .swarm-workbench .swarm-steps li {
-    padding: 10px 12px;
-  }
-  .swarm-steps small {
-    margin-top: 0;
-  }
-  .swarm-reading-guide > summary span:last-child {
-    display: block;
-    margin: 5px 0 0 16px;
-  }
-  .swarm-glossary {
-    grid-template-columns: 1fr;
-  }
-  .swarm-post-comparison {
-    grid-template-columns: 1fr;
-  }
-  .swarm-pair-evidence > .swarm-metrics > div:last-child {
-    grid-column: 1 / -1;
-    border-top: 1px solid #3c3731;
-  }
-  .swarm-match-tags .swarm-mobile-gap {
-    display: inline-block;
-  }
-  .swarm-time-gap {
-    display: none;
-  }
->>>>>>> Stashed changes
   .swarm-reading-guide,
   .swarm-steps,
   .swarm-layout {
@@ -2304,8 +1500,4 @@
   .swarm-workbench * {
     scroll-behavior: auto;
   }
-<<<<<<< Updated upstream
 }
-=======
-}
->>>>>>> Stashed changes

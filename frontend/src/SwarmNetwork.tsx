@@ -2,15 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { parseBlueskyProfiles } from "./blueskyProfiles";
-<<<<<<< Updated upstream
-=======
-import {
-  PostScoring,
-  PostScoringProvider,
-  usePostScoring,
-  type ContentScore,
-} from "./PostScoring";
->>>>>>> Stashed changes
 import "./SwarmNetwork.css";
 
 type InputFormat = "json" | "csv";
@@ -24,20 +15,8 @@ type Example = {
 };
 type Entity = {
   id: string;
-<<<<<<< Updated upstream
   kind: "account" | "content" | "url";
   data: { source_id: string; text?: string; url?: string; platform?: string; handle?: string; source_post_url?: string };
-=======
-  kind: "account" | "content";
-  data: {
-    source_id: string;
-    text?: string;
-    url?: string;
-    platform?: string;
-    handle?: string;
-    source_post_url?: string;
-  };
->>>>>>> Stashed changes
   x?: number;
   y?: number;
 };
@@ -51,17 +30,7 @@ type Edge = {
   score?: number;
 };
 type Cluster = { id: string; account_ids: string[]; density: number };
-<<<<<<< Updated upstream
 type Graph = { nodes: Entity[]; edges: Edge[]; hidden_nodes: number; clusters: Cluster[] };
-=======
-type Graph = {
-  nodes: Entity[];
-  edges: Edge[];
-  hidden_nodes: number;
-  clusters: Cluster[];
-  content_screenings?: Record<string, ContentScore>;
-};
->>>>>>> Stashed changes
 type MatchedEvent = {
   event_id: string;
   account_id: string;
@@ -140,17 +109,8 @@ type RunContext = {
 type PendingJob = RunContext & { jobId: string };
 type Snapshot = PendingJob & { result: SwarmResult; graph: Graph };
 type Selection = { kind: "cluster" | "pair" | "entity"; id: string };
-<<<<<<< Updated upstream
 type Operation = { controller: AbortController; deadline: number; timedOut: boolean };
 type DisplayLink = { id: string; source: string; target: string; inferred: boolean };
-=======
-type Operation = {
-  controller: AbortController;
-  deadline: number;
-  timedOut: boolean;
-};
-type DisplayLink = { id: string; source: string; target: string };
->>>>>>> Stashed changes
 type CollectionInfo = {
   post_count: number;
   accounts_with_posts: number;
@@ -479,79 +439,7 @@ function Metric({
   );
 }
 
-<<<<<<< Updated upstream
 function InputPreview({ input, format, collected }: { input: string; format: InputFormat; collected?: CollectedPosts | null }) {
-=======
-function ReadingGuide() {
-  const terms = [
-    [
-      "Account",
-      "Who acted. A person, organization or automated account—we do not determine which.",
-    ],
-    [
-      "Post / content",
-      "The material an account published or interacted with. Identical text can appear in separate posts.",
-    ],
-    [
-      "Recorded action / observation",
-      "One stored relationship: an account published or reposted a post, or a post linked to a URL.",
-    ],
-    [
-      "Usable activity / eligible event",
-      "An action with a usable time and enough text or a valid URL. Usable does not mean suspicious. Likes and derived URL links are excluded.",
-    ],
-    [
-      "Matching occasion / episode",
-      "One burst of matching activity between two accounts. Another occasion begins after more than the matching window without a match.",
-    ],
-    [
-      "Group / cluster",
-      "At least three accounts, with a flagged connection between every pair. These are two names for the same thing.",
-    ],
-    [
-      "Shuffled comparison / baseline",
-      "The detector scrambles posting times and counts matches again. This is a rough comparison, not a significance test.",
-    ],
-    [
-      "Coordination score",
-      "A 0–1 heuristic combining recurrence, match strength and excess over shuffled timing. It is not a bot probability.",
-    ],
-  ];
-  return (
-    <details className="swarm-reading-guide">
-      <summary>
-        <span>New here? Understand what you’re looking at</span>
-        <span className="swarm-muted">
-          A quick guide to the words and numbers
-        </span>
-      </summary>
-      <div className="swarm-glossary">
-        {terms.map(([term, meaning]) => (
-          <div key={term}>
-            <h4>{term}</h4>
-            <p>{meaning}</p>
-          </div>
-        ))}
-      </div>
-      <p className="swarm-guide-note">
-        We look for repeated similar wording or shared URLs close together in
-        time. Scheduled campaigns, news sharing and legitimate organizations can
-        also match. No AI provider or bot classifier is used here.
-      </p>
-    </details>
-  );
-}
-
-function InputPreview({
-  input,
-  format,
-  collected,
-}: {
-  input: string;
-  format: InputFormat;
-  collected?: CollectedPosts | null;
-}) {
->>>>>>> Stashed changes
   const preview = useMemo(() => {
     if (!input.trim() || new Blob([input]).size > MAX_BYTES) return null;
     try {
@@ -581,7 +469,6 @@ function InputPreview({
     }
   }, [input, format]);
   if (!preview) return null;
-<<<<<<< Updated upstream
   return <div className="swarm-input-preview">
     <div className="swarm-preview-heading"><strong>{collected ? "Real Bluesky posts loaded" : "Activity loaded"}</strong><span>{number(preview.rows.length)} rows · {number(preview.accounts)} accounts</span></div>
     <p className="swarm-muted">{collected ? "Original post previews—not detected bots. Times are UTC. Open the sources to verify." : `A preview of the first ${Math.min(3, preview.rows.length)} rows. Full validation happens when you analyze.`}</p>
@@ -594,59 +481,6 @@ function InputPreview({
       </div>;
     })}
   </div>;
-=======
-  return (
-    <div className="swarm-input-preview">
-      <div className="swarm-preview-heading">
-        <strong>
-          {collected ? "Real Bluesky posts loaded" : "Activity loaded"}
-        </strong>
-        <span>
-          {number(preview.rows.length)} rows · {number(preview.accounts)}{" "}
-          accounts
-        </span>
-      </div>
-      <p className="swarm-muted">
-        {collected
-          ? "Original post previews—not detected bots. Times are UTC. Open the sources to verify."
-          : `A preview of the first ${Math.min(3, preview.rows.length)} rows. Full validation happens when you analyze.`}
-      </p>
-      {preview.rows.slice(0, 3).map((row, index) => {
-        const source = collected?.posts[String(row.content_id)];
-        return (
-          <div className="swarm-preview-row" key={index}>
-            <strong>
-              {source?.author_handle_at_collection
-                ? `@${source.author_handle_at_collection}`
-                : String(row.account_id || "Account not supplied")}
-            </strong>
-            <span>
-              {row.timestamp
-                ? timestamp(String(row.timestamp))
-                : "Time not supplied"}
-            </span>
-            <p>
-              {String(row.text || row.url || "No post text supplied").slice(
-                0,
-                150,
-              )}
-            </p>
-            {source && (
-              <a
-                className="swarm-source-post"
-                href={source.source_post_url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open original on Bluesky ↗
-              </a>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
->>>>>>> Stashed changes
 }
 
 function CollectionCoverage({
@@ -977,18 +811,7 @@ function defaultSelection(snapshot: Snapshot): Selection | null {
   return entity ? { kind: "entity", id: entity.id } : null;
 }
 
-<<<<<<< Updated upstream
 function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Snapshot }) {
-=======
-function FindingEvidence({
-  finding,
-  snapshot,
-}: {
-  finding: Finding;
-  snapshot: Snapshot;
-}) {
-  const { scores } = usePostScoring();
->>>>>>> Stashed changes
   const { result } = snapshot;
   const strength = finding.contributions?.mean_signal_strength;
   const recurrence =
@@ -1126,7 +949,6 @@ function FindingEvidence({
       )}
       <div className="swarm-episodes">
         {finding.episodes.map((episode, index) => (
-<<<<<<< Updated upstream
           <details className="swarm-episode" key={`${episode.time}-${index}`} open={index === 0}>
             <summary><span className="swarm-occasion-number">{String(index + 1).padStart(2, "0")}</span><span><strong>Matching occasion {index + 1}</strong><time>First match {timestamp(episode.time)}</time></span><span className="swarm-time-gap">{number(episode.separation_seconds, 2)} s apart</span></summary>
             <div className="swarm-match-tags"><span>{episode.lexical_similarity === 1 ? "Same normalized words" : episode.lexical_similarity >= 0.85 ? "Very similar wording" : "Shared URL match"}</span><span className="swarm-mobile-gap">{number(episode.separation_seconds, 2)} seconds apart</span>{episode.shared_urls?.length > 0 && <span>{episode.shared_urls.length} shared {episode.shared_urls.length === 1 ? "URL" : "URLs"}</span>}</div>
@@ -1148,98 +970,6 @@ function FindingEvidence({
               );
             }) : <p className="swarm-notice">This detector response did not supply matched-event text previews.</p>}</div>
             <details className="swarm-occasion-technical"><summary>Technical details for this occasion</summary>
-=======
-          <details
-            className="swarm-episode"
-            key={`${episode.time}-${index}`}
-            open={index === 0}
-          >
-            <summary>
-              <span className="swarm-occasion-number">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span>
-                <strong>Matching occasion {index + 1}</strong>
-                <time>First match {timestamp(episode.time)}</time>
-              </span>
-              <span className="swarm-time-gap">
-                {number(episode.separation_seconds, 2)} s apart
-              </span>
-            </summary>
-            <div className="swarm-match-tags">
-              <span>
-                {episode.lexical_similarity === 1
-                  ? "Same normalized words"
-                  : episode.lexical_similarity >= 0.85
-                    ? "Very similar wording"
-                    : "Shared URL match"}
-              </span>
-              <span className="swarm-mobile-gap">
-                {number(episode.separation_seconds, 2)} seconds apart
-              </span>
-              {episode.shared_urls?.length > 0 && (
-                <span>
-                  {episode.shared_urls.length} shared{" "}
-                  {episode.shared_urls.length === 1 ? "URL" : "URLs"}
-                </span>
-              )}
-            </div>
-            <div className="swarm-post-comparison">
-              {episode.matched_events?.length ? (
-                episode.matched_events.map((event, eventIndex) => {
-                  const preview = (event.text || "").slice(0, 1200);
-                  const truncated =
-                    event.text_truncated ||
-                    (event.text?.length || 0) > preview.length;
-                  return (
-                    <div
-                      className={`swarm-matched-event ${scores[event.content_id]?.screening?.label === "requires_further_analysis" ? "swarm-needs-validation" : ""}`}
-                      key={`${event.event_id}-${eventIndex}`}
-                    >
-                      <span className="swarm-post-action">
-                        {activityLabel(event.action)}
-                      </span>
-                      <strong>
-                        {event.account_label ||
-                          entityLabel(event.account_id, snapshot)}
-                      </strong>
-                      <time>{timestamp(event.timestamp)}</time>
-                      <p>{preview || "No text supplied for this event."}</p>
-                      {event.action === "replied_to" && (
-                        <p className="swarm-muted">
-                          This is the referenced post, not the reply’s own text.
-                        </p>
-                      )}
-                      {truncated && (
-                        <p className="swarm-notice">Text preview truncated.</p>
-                      )}
-                      {event.source_post_url && (
-                        <p className="swarm-original-link">
-                          Original Bluesky post:{" "}
-                          <SourceLink url={event.source_post_url} />
-                        </p>
-                      )}
-                      {event.url && <SourceLink url={event.url} />}
-                      <PostScoring contentId={event.content_id} />
-                      <details>
-                        <summary>Post &amp; source identifiers</summary>
-                        <p>Post: {event.content_label || event.content_id}</p>
-                        <p>Internal content ID: {event.content_id}</p>
-                        <p>Action ID: {event.event_id}</p>
-                      </details>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="swarm-notice">
-                  This detector response did not supply matched-event text
-                  previews.
-                </p>
-              )}
-            </div>
-            <details className="swarm-occasion-technical">
-              <summary>Technical details for this occasion</summary>
->>>>>>> Stashed changes
               <dl className="swarm-metrics">
                 <Metric
                   label="Word-set similarity"
@@ -1291,7 +1021,6 @@ function FindingEvidence({
   );
 }
 
-<<<<<<< Updated upstream
 function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void; onClose: () => void }) {
   const [pairId, setPairId] = useState("");
   const node = selection?.kind === "entity" ? snapshot.graph.nodes.find((entry) => entry.id === selection.id) : undefined;
@@ -1307,52 +1036,6 @@ function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot:
     }
     return false;
   }).sort((a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score);
-=======
-function EvidenceInspector({
-  snapshot,
-  selection,
-  select,
-}: {
-  snapshot: Snapshot;
-  selection: Selection | null;
-  select: (selection: Selection) => void;
-}) {
-  const { scores } = usePostScoring();
-  const [pairId, setPairId] = useState("");
-  const node =
-    selection?.kind === "entity"
-      ? snapshot.graph.nodes.find((entry) => entry.id === selection.id)
-      : undefined;
-  const cluster =
-    selection?.kind === "cluster"
-      ? snapshot.result.clusters.find((entry) => entry.id === selection.id)
-      : undefined;
-  const related = snapshot.result.findings
-    .filter((finding) => {
-      if (!selection) return false;
-      if (selection.kind === "pair") return finding.id === selection.id;
-      if (cluster)
-        return (
-          cluster.account_ids.includes(finding.source_id) &&
-          cluster.account_ids.includes(finding.target_id)
-        );
-      if (selection.kind === "entity") {
-        return (
-          finding.source_id === selection.id ||
-          finding.target_id === selection.id ||
-          finding.episodes.some((episode) =>
-            episode.matched_events?.some(
-              (event) =>
-                event.content_id === selection.id ||
-                event.content_id === node?.data.source_id,
-            ),
-          )
-        );
-      }
-      return false;
-    })
-    .sort((a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score);
->>>>>>> Stashed changes
   const pair = related.find((finding) => finding.id === pairId) || related[0];
   const heading = cluster
     ? groupLabel(cluster.id, snapshot)
@@ -1360,7 +1043,6 @@ function EvidenceInspector({
       ? entityLabel(selection.id, snapshot)
       : "Two-account comparison";
   return (
-<<<<<<< Updated upstream
     <aside className="swarm-panel swarm-inspection" aria-label="Swarm evidence inspector">
       <header className="swarm-panel-heading"><span>THE EVIDENCE / {cluster ? "ACCOUNT GROUP" : selection?.kind === "entity" ? "SELECTED ITEM" : "ACCOUNT PAIR"}</span><button type="button" className="swarm-close-panel" onClick={onClose} aria-label="Close evidence panel">Close ×</button></header>
       <div className="swarm-panel-body">
@@ -1384,154 +1066,17 @@ function EvidenceInspector({
           </label>}
           {pair ? <FindingEvidence key={pair.id} finding={pair} snapshot={snapshot} /> : <p className="swarm-muted">No pair-level coordination evidence was returned for this selection. This is not a safety verdict.</p>}
         </>}
-=======
-    <aside
-      className={`swarm-panel swarm-inspection ${node && scores[node.id]?.screening?.label === "requires_further_analysis" ? "swarm-needs-validation" : ""}`}
-      aria-label="Swarm evidence inspector"
-    >
-      <header className="swarm-panel-heading">
-        THE EVIDENCE /{" "}
-        {cluster
-          ? "ACCOUNT GROUP"
-          : selection?.kind === "entity"
-            ? "SELECTED ITEM"
-            : "ACCOUNT PAIR"}
-      </header>
-      <div className="swarm-panel-body">
-        {!selection ? (
-          <p className="swarm-muted">
-            Select an entity, group, or pair to inspect evidence.
-          </p>
-        ) : (
-          <>
-            <h3>{heading}</h3>
-            {cluster && (
-              <>
-                <p>
-                  <strong>{cluster.account_ids.length} accounts</strong> with a
-                  flagged connection between every pair. A group is also called
-                  a cluster; it is not proof of shared ownership or automation.
-                </p>
-                <div className="swarm-members">
-                  {cluster.account_ids.map((id) => (
-                    <button
-                      type="button"
-                      key={id}
-                      onClick={() => select({ kind: "entity", id })}
-                    >
-                      {entityLabel(id, snapshot)}
-                    </button>
-                  ))}
-                </div>
-                <p className="swarm-muted">
-                  Select a name to inspect that account, or compare a pair
-                  below.
-                </p>
-              </>
-            )}
-            {selection.kind === "entity" && (
-              <>
-                <p className="swarm-kicker">
-                  {node?.kind === "content" ? "Post / content" : "Account"}
-                  {node?.data.platform ? ` / ${node.data.platform}` : ""}
-                </p>
-                <p className="swarm-muted">
-                  {node?.kind === "content"
-                    ? "This is one post, not an account. Identical wording can appear in other posts."
-                    : "This is an account that performed recorded actions. Its name is not evidence that it is a bot."}
-                </p>
-                {!node && (
-                  <p className="swarm-notice">
-                    This account is outside the displayed graph. The map
-                    includes only attributed agents with publishing or editing
-                    activity or declared capability; at most 300 entities are
-                    drawn.
-                  </p>
-                )}
-                {node?.data.text && (
-                  <div className="swarm-entity-text">
-                    <p>{node.data.text.slice(0, 1200)}</p>
-                    {node.data.text.length > 1200 && (
-                      <p className="swarm-notice">Text preview truncated.</p>
-                    )}
-                  </div>
-                )}
-                {node?.data.url && (
-                  <p>
-                    <SourceLink url={node.data.url} />
-                  </p>
-                )}
-                {node?.data.source_post_url && (
-                  <p className="swarm-original-link">
-                    Open original on Bluesky:{" "}
-                    <SourceLink url={node.data.source_post_url} />
-                  </p>
-                )}
-                {node?.kind === "content" && (
-                  <PostScoring contentId={node.id} />
-                )}
-              </>
-            )}
-            {related.length > 1 && (
-              <label className="swarm-field">
-                COMPARE TWO ACCOUNTS / {related.length} PAIRS
-                <select
-                  value={pair?.id || ""}
-                  onChange={(event) => setPairId(event.target.value)}
-                >
-                  {related.map((finding) => (
-                    <option key={finding.id} value={finding.id}>
-                      {entityLabel(finding.source_id, snapshot)} ↔{" "}
-                      {entityLabel(finding.target_id, snapshot)}
-                      {finding.strong ? " · strong" : " · candidate"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {pair ? (
-              <FindingEvidence
-                key={pair.id}
-                finding={pair}
-                snapshot={snapshot}
-              />
-            ) : (
-              <p className="swarm-muted">
-                No pair-level coordination evidence was returned for this
-                selection. This is not a safety verdict.
-              </p>
-            )}
-          </>
-        )}
->>>>>>> Stashed changes
       </div>
     </aside>
   );
 }
 
-<<<<<<< Updated upstream
 function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void }) {
   const graphRef = useRef<ForceGraphMethods<Entity, DisplayLink> | undefined>(undefined);
-=======
-function ObservationGraph({
-  snapshot,
-  selection,
-  select,
-}: {
-  snapshot: Snapshot;
-  selection: Selection | null;
-  select: (selection: Selection) => void;
-}) {
-  const { scores } = usePostScoring();
-  const graphRef = useRef<ForceGraphMethods<Entity, DisplayLink> | undefined>(
-    undefined,
-  );
->>>>>>> Stashed changes
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const fitted = useRef(false);
   const graph = useMemo(() => {
-<<<<<<< Updated upstream
     const nodeIds = new Set(snapshot.graph.nodes.map((node) => node.id));
     const accounts = new Set(snapshot.graph.nodes.filter((node) => node.kind === "account").map((node) => node.id));
     // The detector findings, not an arbitrary score threshold in the UI, define strong links.
@@ -1541,28 +1086,6 @@ function ObservationGraph({
     for (const finding of snapshot.result.findings) {
       if (finding.strong && accounts.has(finding.source_id) && accounts.has(finding.target_id)) links.push({ id: finding.id, source: finding.source_id, target: finding.target_id, inferred: true });
     }
-=======
-    const contents = new Set(
-      snapshot.graph.nodes
-        .filter((node) => node.kind === "content")
-        .map((node) => node.id),
-    );
-    const accounts = new Set(
-      snapshot.graph.nodes
-        .filter((node) => node.kind === "account")
-        .map((node) => node.id),
-    );
-    // Relationships come from the observed graph; detector findings stay in the evidence panels.
-    const links: DisplayLink[] = snapshot.graph.edges
-      .filter(
-        (edge) => accounts.has(edge.source_id) && contents.has(edge.target_id),
-      )
-      .map((edge) => ({
-        id: edge.id,
-        source: edge.source_id,
-        target: edge.target_id,
-      }));
->>>>>>> Stashed changes
     // d3-force mutates positions and link endpoints. Never hand it the API snapshot.
     return {
       nodes: snapshot.graph.nodes.map((node) => ({
@@ -1617,16 +1140,7 @@ function ObservationGraph({
     const x = node.x ?? 0,
       y = node.y ?? 0;
     const radius = node.kind === "account" ? 4.5 : 3.5;
-<<<<<<< Updated upstream
     context.fillStyle = node.kind === "account" ? "#a2927f" : node.kind === "content" ? "#f4efe6" : "#777d83";
-=======
-    context.fillStyle =
-      node.kind === "account"
-        ? "#a2927f"
-        : scores[node.id]?.screening?.label === "requires_further_analysis"
-          ? "#c2a46f"
-          : "#f4efe6";
->>>>>>> Stashed changes
     context.beginPath();
     if (node.kind === "url") context.rect(x - radius, y - radius, radius * 2, radius * 2);
     else context.arc(x, y, radius, 0, Math.PI * 2);
@@ -1658,7 +1172,6 @@ function ObservationGraph({
       );
   }
   return (
-<<<<<<< Updated upstream
     <section className="swarm-panel" id="swarm-map" aria-label="Observed network graph">
       <header className="swarm-panel-heading"><span>NETWORK MAP / WHO ACTED ON WHAT</span><span>{graph.nodes.length} items · {graph.links.filter((link) => !link.inferred).length} recorded links · {graph.links.filter((link) => link.inferred).length} flagged pair links shown</span></header>
       {snapshot.graph.hidden_nodes > 0 && <p className="swarm-notice swarm-graph-warning" role="note">Graph truncated: {number(snapshot.graph.hidden_nodes)} entities hidden; at most 300 are drawn. Counts and evidence below cover the full detector result, not just this view.</p>}
@@ -1682,65 +1195,6 @@ function ObservationGraph({
           onEngineStop={() => { if (!fitted.current) { fitted.current = true; graphRef.current?.zoomToFit(250, 36); } }}
         />}
         {!graph.nodes.length && <p className="swarm-canvas-empty">No entities returned for this graph.</p>}
-=======
-    <section
-      className="swarm-panel"
-      id="swarm-map"
-      aria-label="Observed network graph"
-    >
-      <header className="swarm-panel-heading">
-        <span>NETWORK MAP / WHO ACTED ON WHAT</span>
-        <span>
-          {graph.nodes.length} items · {graph.links.length} observed actions
-        </span>
-      </header>
-      <p className="swarm-map-explainer">
-        Agents connect to posts through observed actions, including replies
-        recorded in post metadata. Agents need attributed publishing or editing
-        activity or declared capability. URLs appear in post details;
-        coordination findings remain in the evidence panels and may cover
-        accounts outside this map.
-      </p>
-      {snapshot.graph.hidden_nodes > 0 && (
-        <p className="swarm-notice swarm-graph-warning" role="note">
-          Graph truncated: {number(snapshot.graph.hidden_nodes)} entities
-          hidden; at most 300 are drawn. Counts and evidence below cover the
-          full detector result, not just this view.
-        </p>
-      )}
-      <div className="swarm-canvas" ref={containerRef}>
-        {size.width > 0 && size.height > 0 && (
-          <ForceGraph2D<Entity, DisplayLink>
-            ref={graphRef}
-            graphData={graph}
-            width={size.width}
-            height={size.height}
-            backgroundColor="#141414"
-            cooldownTicks={100}
-            minZoom={0.05}
-            maxZoom={20}
-            nodeCanvasObject={drawNode}
-            nodeLabel={() => ""}
-            onNodeClick={(node) => select({ kind: "entity", id: node.id })}
-            linkColor={() => "#60584e"}
-            linkWidth={0.8}
-            enableZoomInteraction={(event) =>
-              event.type !== "wheel" || event.ctrlKey || event.metaKey
-            }
-            onEngineStop={() => {
-              if (!fitted.current) {
-                fitted.current = true;
-                graphRef.current?.zoomToFit(250, 36);
-              }
-            }}
-          />
-        )}
-        {!graph.nodes.length && (
-          <p className="swarm-canvas-empty">
-            No entities returned for this graph.
-          </p>
-        )}
->>>>>>> Stashed changes
       </div>
       <div className="swarm-graph-footer">
         <div className="swarm-zoom" aria-label="Graph zoom controls">
@@ -1780,14 +1234,7 @@ function ObservationGraph({
           </span>
         </div>
       </div>
-<<<<<<< Updated upstream
       <details className="swarm-graph-help"><summary>How to read this map</summary><p>Accounts connect to the posts they acted on; posts may connect to URLs. Dashed red lines are calculated coordination signals, not proof of shared control.</p><div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />account</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-url-key" />URL</span><span><i className="swarm-observed-key" />recorded action</span><span><i className="swarm-inferred-key" />flagged pair</span></div><p className="swarm-graph-hint">Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom.</p></details>
-=======
-      <p className="swarm-graph-hint">
-        Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom · select an entity
-        below without using the canvas.
-      </p>
->>>>>>> Stashed changes
     </section>
   );
 }
@@ -1800,7 +1247,6 @@ function ResultSummary({
   exportResult: () => void;
 }) {
   const { result } = snapshot;
-<<<<<<< Updated upstream
   const takeaway = result.status === "insufficient_data" ? "There isn’t enough usable activity to draw a conclusion."
     : result.status === "needs_review" ? "Read this result with caution. Some evidence has limits."
       : result.clusters.length > 0 ? `${result.clusters.length} account ${result.clusters.length === 1 ? "group is" : "groups are"} worth a closer look.`
@@ -1813,26 +1259,6 @@ function ResultSummary({
       : result.counts.strong_pairs > 0
         ? "Complete — strong coordination signals found. Inspect the episodes and baseline before interpreting them."
         : "Complete — no strong account pairs found under these detector settings.";
-=======
-  const takeaway =
-    result.status === "insufficient_data"
-      ? "There isn’t enough usable activity to draw a conclusion."
-      : result.status === "needs_review"
-        ? "Read this result with caution. Some evidence has limits."
-        : result.clusters.length > 0
-          ? `${result.clusters.length} account ${result.clusters.length === 1 ? "group is" : "groups are"} worth a closer look.`
-          : result.counts.strong_pairs > 0
-            ? "Repeated matches found between account pairs."
-            : "No strong repeating pattern found in this sample.";
-  const statusText =
-    result.status === "insufficient_data"
-      ? "Insufficient data — the detector cannot draw a coordination conclusion from this input."
-      : result.status === "needs_review"
-        ? "Needs review — this result has limitations or incomplete coverage. Do not treat it as an exhaustive finding."
-        : result.counts.strong_pairs > 0
-          ? "Complete — strong coordination signals found. Inspect the episodes and baseline before interpreting them."
-          : "Complete — no strong account pairs found under these detector settings.";
->>>>>>> Stashed changes
   return (
     <section
       className="swarm-panel swarm-result-summary"
@@ -1873,63 +1299,12 @@ function ResultSummary({
             hint="3+ mutually connected accounts per group"
           />
         </dl>
-<<<<<<< Updated upstream
         <details className="swarm-result-context"><summary>How to read this result</summary><p>{statusText}</p><p className="swarm-trust-note">Coordination is not proof of bots or malicious intent. {!result.clusters.length && "No strong groups does not prove safety or independence. A strong pair need not form a group."}</p></details>
         {result.collection && <CollectionCoverage collection={result.collection} datasetId={snapshot.datasetId} />}
         {!!result.warnings?.length && <div className="swarm-notice"><h4>Detector warnings</h4><ul>{result.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
         {result.status === "insufficient_data" ? <div className="swarm-next-step"><strong>What to do next</strong><p>Add timezone-aware timestamps and repeated activity from at least two accounts. The default settings need three usable events per account and an observation span longer than two minutes.</p></div>
           : <div className="swarm-next-step"><strong>What to do next</strong><p>{result.findings.length ? "Choose a group or account pair below. Compare the actual posts and times before interpreting the score." : "Try a wider sample or a longer time period. This only tests the imported activity under the current matching rules."}</p><div className="swarm-result-links">{result.findings.length > 0 && <a href="#swarm-evidence">Review the matching activity ↓</a>}<a href="#swarm-map">Explore the network map ↓</a></div></div>}
         <details className="swarm-coverage"><summary>What was analyzed? Data coverage &amp; counts</summary>
-=======
-        <p className="swarm-trust-note">
-          Coordination is not proof of bots or malicious intent.{" "}
-          {!result.clusters.length &&
-            "No strong groups does not prove safety or independence. A strong pair need not form a group."}
-        </p>
-        {result.collection && (
-          <CollectionCoverage
-            collection={result.collection}
-            datasetId={snapshot.datasetId}
-          />
-        )}
-        {!!result.warnings?.length && (
-          <div className="swarm-notice">
-            <h4>Detector warnings</h4>
-            <ul>
-              {result.warnings.map((warning, index) => (
-                <li key={index}>{warning}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {result.status === "insufficient_data" ? (
-          <div className="swarm-next-step">
-            <strong>What to do next</strong>
-            <p>
-              Add timezone-aware timestamps and repeated activity from at least
-              two accounts. The default settings need three usable events per
-              account and an observation span longer than two minutes.
-            </p>
-          </div>
-        ) : (
-          <div className="swarm-next-step">
-            <strong>What to do next</strong>
-            <p>
-              {result.findings.length
-                ? "Choose a group or account pair below. Compare the actual posts and times before interpreting the score."
-                : "Try a wider sample or a longer time period. This only tests the imported activity under the current matching rules."}
-            </p>
-            <div className="swarm-result-links">
-              {result.findings.length > 0 && (
-                <a href="#swarm-evidence">Review the matching activity ↓</a>
-              )}
-              <a href="#swarm-map">Explore the network map ↓</a>
-            </div>
-          </div>
-        )}
-        <details className="swarm-coverage">
-          <summary>What was analyzed? Data coverage &amp; counts</summary>
->>>>>>> Stashed changes
           <dl className="swarm-score-variables">
             <div>
               <dt>Recorded actions (observations)</dt>
@@ -2154,16 +1529,8 @@ export default function SwarmNetwork() {
     )
       return;
     const next = { ...context, result, graph };
-<<<<<<< Updated upstream
     setSnapshot(next); setSelection(defaultSelection(next)); setEvidenceOpen(false);
     setActivity(`Finished: ${result.status.replaceAll("_", " ")}. Showing ${context.name}.`);
-=======
-    setSnapshot(next);
-    setSelection(defaultSelection(next));
-    setActivity(
-      `Finished: ${result.status.replaceAll("_", " ")}. Showing ${context.name}.`,
-    );
->>>>>>> Stashed changes
   }
 
   async function track(job: Job, context: PendingJob, operation: Operation) {
@@ -2351,24 +1718,12 @@ export default function SwarmNetwork() {
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
-<<<<<<< Updated upstream
   function inspect(nextSelection: Selection) {
     setSelection(nextSelection);
     setEvidenceOpen(true);
   }
 
   const pairs = useMemo(() => snapshot ? [...snapshot.result.findings].sort((a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score) : [], [snapshot]);
-=======
-  const pairs = useMemo(
-    () =>
-      snapshot
-        ? [...snapshot.result.findings].sort(
-            (a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score,
-          )
-        : [],
-    [snapshot],
-  );
->>>>>>> Stashed changes
   const disabled = busy || reading || collecting;
   const activeCollection =
     collected &&
@@ -2378,58 +1733,10 @@ export default function SwarmNetwork() {
       ? collected
       : null;
   return (
-<<<<<<< Updated upstream
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>03 / FOLLOW THE NETWORK</span><a href="#analysis">↑ CONTENT ANALYSIS</a></header>
       <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Follow the pattern.</h2></div><p>Find repeated posting patterns. A pattern is a lead to investigate—not proof of bots.</p></div>
       {!snapshot && <p className="swarm-first-run">Try a fictional example, or upload activity you already have. We’ll show the evidence behind any pattern we find.</p>}
-=======
-    <section
-      className="screen swarm-screen swarm-workbench"
-      id="swarm"
-      aria-labelledby="swarm-title"
-    >
-      <header className="section-title">
-        <span>03 / FOLLOW THE NETWORK</span>
-        <a href="#analysis">↑ CONTENT ANALYSIS</a>
-      </header>
-      <div className="swarm-intro">
-        <div>
-          <p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p>
-          <h2 id="swarm-title">Follow the pattern.</h2>
-        </div>
-        <p>
-          Do the same accounts keep sharing similar posts at nearly the same
-          time? Import public Bluesky profiles, try a demo or add your own
-          activity, then inspect the original posts. A pattern is a reason to
-          investigate—not proof of bots.
-        </p>
-      </div>
-      <ol className="swarm-steps" aria-label="Investigation steps">
-        <li aria-current={!snapshot && !busy ? "step" : undefined}>
-          <span>1</span>
-          <div>
-            <strong>Add activity</strong>
-            <small>Fetch Bluesky posts, try a demo or upload</small>
-          </div>
-        </li>
-        <li aria-current={busy ? "step" : undefined}>
-          <span>2</span>
-          <div>
-            <strong>Find repeated patterns</strong>
-            <small>Compare wording, links and timing</small>
-          </div>
-        </li>
-        <li aria-current={snapshot && !busy ? "step" : undefined}>
-          <span>3</span>
-          <div>
-            <strong>Read the evidence</strong>
-            <small>Compare actual posts, not just scores</small>
-          </div>
-        </li>
-      </ol>
-      <ReadingGuide />
->>>>>>> Stashed changes
       <div className="swarm-layout">
         <div className="swarm-input-column">
           <form
@@ -2444,7 +1751,6 @@ export default function SwarmNetwork() {
               1 / ADD ACTIVITY <span>UP TO 5,000 ROWS · 10 MB</span>
             </header>
             <div className="swarm-panel-body">
-<<<<<<< Updated upstream
               <BlueskyImport disabled={busy || reading || !!pending} onBusyChange={setCollecting} onLoad={(value) => {
                 setCollected(value); setInput(JSON.stringify(value.rows, null, 2)); setFormat("json"); setName(value.name);
                 setExampleId(""); setExampleSource(null); setExampleEdited(false); setEditorOpen(false);
@@ -2474,227 +1780,6 @@ export default function SwarmNetwork() {
           </form>
           {(busy || pending || error || snapshot) && <div className="swarm-panel swarm-job-panel" aria-busy={busy}>
             <header className="swarm-panel-heading">ANALYSIS PROGRESS / {busy ? "WORKING" : pending ? "CHECK STATUS" : "READY"}</header>
-=======
-              <BlueskyImport
-                disabled={busy || reading || !!pending}
-                onBusyChange={setCollecting}
-                onLoad={(value) => {
-                  setCollected(value);
-                  setInput(JSON.stringify(value.rows, null, 2));
-                  setFormat("json");
-                  setName(value.name);
-                  setExampleId("");
-                  setExampleSource(null);
-                  setExampleEdited(false);
-                  setEditorOpen(false);
-                  setRevision((value) => value + 1);
-                  setError("");
-                  setActivity(
-                    "Real Bluesky posts loaded. Verify the source previews, then click Analyze activity.",
-                  );
-                }}
-              />
-              <label className="swarm-field" htmlFor="swarm-example">
-                START WITH A DEMO
-              </label>
-              <select
-                id="swarm-example"
-                disabled={disabled || loadingExamples || !examples.length}
-                value={exampleId}
-                onChange={(event) => loadExample(event.target.value)}
-              >
-                <option value="">
-                  {loadingExamples ? "Loading examples…" : "Choose an example…"}
-                </option>
-                {examples.map((example) => (
-                  <option key={example.id} value={example.id}>
-                    {example.name}
-                  </option>
-                ))}
-              </select>
-              {examplesError && (
-                <div className="swarm-notice">
-                  <p>{examplesError}</p>
-                  <button
-                    type="button"
-                    disabled={loadingExamples}
-                    onClick={() => setExamplesAttempt((value) => value + 1)}
-                  >
-                    Retry examples
-                  </button>
-                </div>
-              )}
-              {!loadingExamples && !examplesError && !examples.length && (
-                <p className="swarm-muted">
-                  No examples are available. Upload or paste observations below.
-                </p>
-              )}
-              {exampleSource && (
-                <div className="swarm-example-description">
-                  <span className="swarm-evidence-badge">
-                    Fictional demo{exampleEdited ? " · edited" : ""}
-                  </span>
-                  <p>{exampleSource.description}</p>
-                </div>
-              )}
-              <p className="swarm-muted">
-                Demo accounts are fictional; the analysis is real. Examples do
-                not measure real-world accuracy.
-              </p>
-              <label className="swarm-field" htmlFor="swarm-name">
-                NAME YOUR INVESTIGATION
-              </label>
-              <input
-                id="swarm-name"
-                value={name}
-                maxLength={200}
-                disabled={disabled}
-                onChange={(event) => {
-                  setName(event.target.value);
-                  setRevision((value) => value + 1);
-                }}
-              />
-              <label className="swarm-field" htmlFor="swarm-file">
-                OR UPLOAD YOUR OWN CSV / JSON
-              </label>
-              <input
-                id="swarm-file"
-                type="file"
-                accept=".json,.csv,application/json,text/csv"
-                disabled={disabled}
-                onChange={(event) => {
-                  upload(event.target.files?.[0]);
-                  event.target.value = "";
-                }}
-              />
-              <details
-                className="swarm-raw-editor"
-                open={editorOpen}
-                onToggle={(event) => setEditorOpen(event.currentTarget.open)}
-              >
-                <summary>
-                  {input ? "View or edit the raw data" : "Or paste JSON / CSV"}
-                </summary>
-                <div className="swarm-editor-heading">
-                  <label htmlFor="swarm-input">ACTIVITY DATA</label>
-                  <select
-                    aria-label="Input format"
-                    value={format}
-                    disabled={disabled}
-                    onChange={(event) => {
-                      setFormat(event.target.value as InputFormat);
-                      if (exampleSource) setExampleEdited(true);
-                      setRevision((value) => value + 1);
-                    }}
-                  >
-                    <option value="json">JSON array</option>
-                    <option value="csv">CSV</option>
-                  </select>
-                </div>
-                <textarea
-                  id="swarm-input"
-                  value={input}
-                  disabled={disabled}
-                  spellCheck={false}
-                  aria-describedby="swarm-fields"
-                  placeholder={
-                    format === "json"
-                      ? "Paste a JSON array of event objects, or load an example above."
-                      : "account_id,content_id,action,timestamp,text,url,platform"
-                  }
-                  onChange={(event) => {
-                    setInput(event.target.value);
-                    if (exampleSource) setExampleEdited(true);
-                    setRevision((value) => value + 1);
-                  }}
-                />
-                <div className="swarm-editor-meta">
-                  <span>{number(new Blob([input]).size)} bytes</span>
-                  <button
-                    type="button"
-                    disabled={disabled || !input}
-                    onClick={() => {
-                      setInput("");
-                      setExampleSource(null);
-                      setExampleId("");
-                      setExampleEdited(false);
-                      setRevision((value) => value + 1);
-                    }}
-                  >
-                    Clear input
-                  </button>
-                </div>
-                <details id="swarm-fields" className="swarm-field-guide">
-                  <summary>Input fields &amp; timestamp requirements</summary>
-                  <p>
-                    Fields: account_id, content_id, action, timestamp, text,
-                    url, platform. JSON must be an array of objects; CSV needs a
-                    header row. Quote CSV fields containing commas or newlines.
-                  </p>
-                  <p>
-                    Actions: created, reposted, replied_to, liked. Each
-                    interaction must reference content with a created
-                    observation; each content_id must have a consistent author
-                    and content.
-                  </p>
-                  <p>
-                    Use ISO 8601 timestamps with Z or a UTC offset, e.g.
-                    2026-11-14T09:00:00Z. Missing timestamps and likes are
-                    excluded by the detector and may lead to insufficient data.
-                  </p>
-                  <p>
-                    Created content needs text or a URL. Source validation on
-                    the server is authoritative.
-                  </p>
-                </details>
-              </details>
-              <p className="swarm-muted swarm-privacy-note">
-                Stored on this server · activity analysis runs locally. Score
-                post uses configured AI models on request. Only upload data you
-                have permission to use.
-              </p>
-              <button
-                type="submit"
-                className="swarm-run"
-                disabled={disabled || !!pending || !input.trim()}
-              >
-                {reading
-                  ? "Reading file…"
-                  : busy
-                    ? "Analyzing…"
-                    : "Analyze activity →"}
-              </button>
-              {!input.trim() && (
-                <p className="swarm-run-hint">
-                  Choose a demo or add a file to get started.
-                </p>
-              )}
-              {collected && !activeCollection && (
-                <p className="swarm-notice">
-                  The name or raw data was edited. This will be saved as
-                  user-provided input, without claiming server-verified Bluesky
-                  provenance.
-                </p>
-              )}
-              <InputPreview
-                input={input}
-                format={format}
-                collected={activeCollection}
-              />
-              {activeCollection && (
-                <CollectionCoverage
-                  collection={activeCollection.collection}
-                  datasetId={activeCollection.dataset_id}
-                />
-              )}
-            </div>
-          </form>
-          <div className="swarm-panel swarm-job-panel" aria-busy={busy}>
-            <header className="swarm-panel-heading">
-              ANALYSIS PROGRESS /{" "}
-              {busy ? "WORKING" : pending ? "CHECK STATUS" : "READY"}
-            </header>
->>>>>>> Stashed changes
             <div className="swarm-panel-body">
               {busy && (
                 <ol
@@ -2771,7 +1856,6 @@ export default function SwarmNetwork() {
           </div>}
         </div>
         <div className="swarm-results-column">
-<<<<<<< Updated upstream
           {!snapshot ? <div className="swarm-panel swarm-welcome"><p className="swarm-kicker">START WITH A SAMPLE</p><h3>See how it works</h3><p>Pick one example, then analyze it. The examples are fictional and help explain what the results mean.</p>
             {examplesError && <div className="swarm-notice"><p>{examplesError}</p><button type="button" disabled={loadingExamples} onClick={() => setExamplesAttempt((value) => value + 1)}>Try again</button></div>}
             <div className="swarm-demo-cards">{examples.map((example) => <button type="button" key={example.id} disabled={disabled} aria-pressed={exampleId === example.id} onClick={() => loadExample(example.id)}><strong>{example.name.replace(/^Synthetic /, "")}</strong><span>{example.id === "coordinated-network" ? "Repeated similar posts" : example.id === "benign-announcement" ? "One shared announcement" : "Not enough timing information"}</span><span className="swarm-demo-cta">{exampleId === example.id ? "Selected" : "Choose sample"}</span></button>)}</div>
@@ -2796,245 +1880,6 @@ export default function SwarmNetwork() {
             </div>
             <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
           </>}
-=======
-          {!snapshot ? (
-            <div className="swarm-panel swarm-welcome">
-              <span className="swarm-crosshair">↗</span>
-              <p className="swarm-kicker">YOUR FIRST INVESTIGATION</p>
-              <h3>Start with a story, not a spreadsheet.</h3>
-              <p>
-                Load a demo to see what repeated coordination looks like, then
-                click <strong>Analyze activity</strong>. You’ll get an
-                explanation, account groups, and the actual posts behind each
-                match.
-              </p>
-              <div className="swarm-demo-cards">
-                {examples.map((example, index) => (
-                  <button
-                    type="button"
-                    key={example.id}
-                    disabled={disabled}
-                    aria-pressed={exampleId === example.id}
-                    onClick={() => loadExample(example.id)}
-                  >
-                    <span className="swarm-demo-number">0{index + 1}</span>
-                    <strong>{example.name.replace(/^Synthetic /, "")}</strong>
-                    <span>
-                      {example.id === "coordinated-network"
-                        ? "Repeated matching posts · learn to read the evidence"
-                        : example.id === "benign-announcement"
-                          ? "A one-off shared announcement · compare the contrast"
-                          : "Missing timing evidence · see when we cannot conclude"}
-                    </span>
-                    <span className="swarm-demo-cta">
-                      {exampleId === example.id
-                        ? "Loaded · analyze when ready"
-                        : "Load this demo →"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              {exampleId && (
-                <button
-                  type="button"
-                  className="swarm-quick-run"
-                  disabled={disabled || !!pending || !input.trim()}
-                  onClick={start}
-                >
-                  Analyze loaded demo →
-                </button>
-              )}
-              {!examples.length && (
-                <p className="swarm-muted">
-                  {loadingExamples
-                    ? "Loading demos…"
-                    : "Demos aren’t available right now. You can still upload a file or paste activity."}
-                </p>
-              )}
-              <p className="swarm-muted">
-                All demos are fictional inputs run through the real detector. No
-                precomputed verdicts.
-              </p>
-            </div>
-          ) : (
-            <>
-              <ResultSummary snapshot={snapshot} exportResult={exportResult} />
-              <PostScoringProvider
-                key={`${snapshot.datasetId}:${snapshot.jobId}`}
-                initial={snapshot.graph.content_screenings}
-              >
-                <div className="swarm-evidence-grid" id="swarm-evidence">
-                  <section
-                    className="swarm-panel swarm-selection"
-                    aria-label="Select investigation evidence"
-                  >
-                    <header className="swarm-panel-heading">
-                      3 / FOLLOW THE EVIDENCE
-                    </header>
-                    <div className="swarm-panel-body">
-                      <h4>
-                        Account groups{" "}
-                        <span className="swarm-count-pill">
-                          {snapshot.result.clusters.length}
-                        </span>
-                      </h4>
-                      <p className="swarm-muted">
-                        A group has at least three accounts, with a flagged
-                        connection between every pair. “Cluster” means the same
-                        thing.
-                      </p>
-                      <div className="swarm-groups">
-                        {snapshot.result.clusters.map((cluster) => (
-                          <button
-                            type="button"
-                            key={cluster.id}
-                            aria-pressed={
-                              selection?.kind === "cluster" &&
-                              selection.id === cluster.id
-                            }
-                            onClick={() =>
-                              setSelection({ kind: "cluster", id: cluster.id })
-                            }
-                          >
-                            <span>
-                              {groupLabel(cluster.id, snapshot)}{" "}
-                              <span className="swarm-group-arrow">↗</span>
-                            </span>
-                            <span>
-                              {cluster.account_ids.length} accounts ·{" "}
-                              {(cluster.account_ids.length *
-                                (cluster.account_ids.length - 1)) /
-                                2}{" "}
-                              mutual pair connections
-                            </span>
-                            <span>
-                              {cluster.account_ids
-                                .map((id) => entityLabel(id, snapshot))
-                                .join(", ")}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      {!snapshot.result.clusters.length && (
-                        <p className="swarm-muted">
-                          No strong groups returned. A flagged pair can still
-                          appear below; no groups is not a safety verdict.
-                        </p>
-                      )}
-                      <label className="swarm-field" htmlFor="swarm-pair">
-                        OR CHOOSE AN ACCOUNT PAIR / {pairs.length}
-                      </label>
-                      <select
-                        id="swarm-pair"
-                        disabled={!pairs.length}
-                        value={selection?.kind === "pair" ? selection.id : ""}
-                        onChange={(event) => {
-                          if (event.target.value)
-                            setSelection({
-                              kind: "pair",
-                              id: event.target.value,
-                            });
-                        }}
-                      >
-                        <option value="">
-                          {pairs.length
-                            ? "Select pair evidence…"
-                            : "No pair findings returned"}
-                        </option>
-                        {pairs.map((pair) => (
-                          <option key={pair.id} value={pair.id}>
-                            {entityLabel(pair.source_id, snapshot)} ↔{" "}
-                            {entityLabel(pair.target_id, snapshot)} ·{" "}
-                            {pair.strong ? "strong" : "candidate"}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="swarm-pair-list">
-                        {pairs.slice(0, 6).map((pair) => (
-                          <button
-                            type="button"
-                            key={pair.id}
-                            aria-pressed={
-                              selection?.kind === "pair" &&
-                              selection.id === pair.id
-                            }
-                            onClick={() =>
-                              setSelection({ kind: "pair", id: pair.id })
-                            }
-                          >
-                            <span>
-                              {entityLabel(pair.source_id, snapshot)} <b>↔</b>{" "}
-                              {entityLabel(pair.target_id, snapshot)}
-                            </span>
-                            <small>
-                              {pair.episode_count} matching occasions ·{" "}
-                              {pair.strong ? "flagged pair" : "candidate only"}
-                            </small>
-                          </button>
-                        ))}
-                      </div>
-                      {pairs.length > 6 && (
-                        <p className="swarm-muted">
-                          Showing the first 6 pairs. Use the selector for all{" "}
-                          {pairs.length}.
-                        </p>
-                      )}
-                      <details>
-                        <summary>Browse individual agents &amp; posts</summary>
-                        <label className="swarm-field" htmlFor="swarm-entity">
-                          ITEMS IN THE MAP / {snapshot.graph.nodes.length}
-                        </label>
-                        <select
-                          id="swarm-entity"
-                          value={
-                            selection?.kind === "entity" &&
-                            snapshot.graph.nodes.some(
-                              (node) => node.id === selection.id,
-                            )
-                              ? selection.id
-                              : ""
-                          }
-                          onChange={(event) => {
-                            if (event.target.value)
-                              setSelection({
-                                kind: "entity",
-                                id: event.target.value,
-                              });
-                          }}
-                        >
-                          <option value="">Select an item…</option>
-                          {snapshot.graph.nodes.map((node) => (
-                            <option key={node.id} value={node.id}>
-                              {node.kind === "content" ? "post" : node.kind} /{" "}
-                              {entityLabel(node.id, snapshot)}
-                            </option>
-                          ))}
-                        </select>
-                      </details>
-                      <details>
-                        <summary>Dataset &amp; job identifiers</summary>
-                        <p>Dataset: {snapshot.datasetId}</p>
-                        <p>Job: {snapshot.jobId}</p>
-                      </details>
-                    </div>
-                  </section>
-                  <EvidenceInspector
-                    key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`}
-                    snapshot={snapshot}
-                    selection={selection}
-                    select={setSelection}
-                  />
-                </div>
-                <ObservationGraph
-                  key={`${snapshot.datasetId}:${snapshot.jobId}`}
-                  snapshot={snapshot}
-                  selection={selection}
-                  select={setSelection}
-                />
-              </PostScoringProvider>
-            </>
-          )}
->>>>>>> Stashed changes
         </div>
       </div>
       <footer className="swarm-disclaimer">
