@@ -39,7 +39,7 @@ def content_handler(state):
                 text, title, provider, state.config, url, demo=bool(example_id), stage=stage
             ),
             {"content_id": node["id"]},
-            "Luna / Jev",
+            "packaged synthetic fixture" if example_id else "Luna / Jev",
         )
         result["original_url"] = data.get("url")
         if example_id:
