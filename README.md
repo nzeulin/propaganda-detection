@@ -51,12 +51,15 @@ The synthetic town-hall example includes an emoji, repeated endorsed threats, mo
 
 The screen returns `indicators_detected`. Scores are illustrative fixtures, not model predictions. The architecture page shows the actual article, canonical claims, occurrences, section weights, coverage and exact contributions from this same offline pipeline. `public-notice` illustrates informational writing. Arbitrary text is always live input, even if it matches a sample; missing/failed providers never activate fixture scoring.
 
-### Analyze an image through the API
+### Analyze an image
 
 In local `.env`, set `IMAGE_ANALYSIS_ENABLED=true` and a server-side
 `OPENAI_API_KEY`. The default image model is `gpt-4.1-mini`. Override it
 using `IMAGE_ANALYSIS_MODEL`. Image analysis runs independently of TypeSafe.
-Restart the backend, then test **Image analysis** in `/docs`.
+Restart the backend. In **Content analysis**, select **Add image**, choose a
+file and select **Analyze image**. You can add the caption from the original
+post or check the image on its own. The **Image analysis** section in `/docs`
+also exposes the endpoint directly.
 
 ```bash
 curl -F "image=@poster.png" -F "caption=This poster is shown in a history lesson." http://127.0.0.1:8000/api/v1/images/analyze
