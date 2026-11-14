@@ -19,9 +19,9 @@ async def analyze_content(original: str, title: str | None, provider, config, so
         try:
             extraction = await provider.extract(text, paragraphs, title, warnings if attempt else None)
             claims, issues = validate_and_group(extraction, text, paragraphs)
-            warnings.extend(issues)
             if not issues:
                 break
+            warnings.extend(issues if attempt else ["Invalid source extraction; retried once."])
         except ValueError as exc:
             if attempt:
                 raise HTTPException(502, "Extraction failed after one retry; try a shorter article.") from exc

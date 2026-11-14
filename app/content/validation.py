@@ -43,8 +43,14 @@ def validate_and_group(extraction: Extraction, text: str, paragraphs: list[dict]
             warnings.append(f"Omitted {statement.id}: {'; '.join(sorted(set(issues)))}.")
         else:
             valid.append(statement)
-    groups = defaultdict(list)
-    exact_groups = {}
+    groups, parents, exact_groups, keyed = defaultdict(list), {}, {}, []
+
+    def root(key):
+        while parents[key] != key:
+            parents[key] = parents[parents[key]]
+            key = parents[key]
+        return key
+
     for statement in sorted(valid, key=lambda s: min(span.start for span in s.source_spans)):
         attribution = (
             statement.speaker,
@@ -53,10 +59,15 @@ def validate_and_group(extraction: Extraction, text: str, paragraphs: list[dict]
             statement.author_attributable,
             statement.narrative_id,
         )
-        # Also collapse exact proposition duplicates if extraction gave them different group IDs.
+        # Union semantic groups and exact duplicates transitively, preserving attribution boundaries.
         exact_key = (" ".join(statement.text.casefold().split()), attribution)
-        group_key = exact_groups.setdefault(exact_key, (statement.canonical_claim_id, attribution))
-        groups[group_key].append(statement)
+        group_key = (statement.canonical_claim_id, attribution)
+        parents.setdefault(group_key, group_key)
+        equivalent = exact_groups.setdefault(exact_key, group_key)
+        parents[root(group_key)] = root(equivalent)
+        keyed.append((statement, group_key))
+    for statement, group_key in keyed:
+        groups[root(group_key)].append(statement)
     canonical = []
     for index, occurrences in enumerate(groups.values()):
         unique = {}
