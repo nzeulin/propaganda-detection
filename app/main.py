@@ -3,9 +3,11 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 
 from app.api.datasets import import_dataset
 from app.api.datasets import router as datasets_router
@@ -136,3 +138,9 @@ async def analyze(body: AnalyzeRequest, request: Request):
         for key in ("statements", "sections", "contextual_findings", "diagnostics", "annotations"):
             result.pop(key)
     return result
+
+
+# Hash-based navigation allows a single origin without intercepting API routes.
+frontend_dist = Path(os.getenv("FRONTEND_DIST", "frontend/dist"))
+if frontend_dist.is_dir():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
