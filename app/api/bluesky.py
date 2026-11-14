@@ -11,7 +11,7 @@ from app.api.contracts import JobRecord
 from app.api.datasets import persist_dataset
 from app.core.database import jobs
 from app.core.ingestion import DatasetInput, canonical_id
-from app.swarm.bluesky import COLLECTION_VERSION, CollectionError, collect_author_feeds, normalize_actor
+from app.swarm.bluesky import COLLECTION_VERSION, CollectionError, collect_author_feeds, normalize_source
 
 router = APIRouter(prefix="/api/v1/bluesky")
 
@@ -24,7 +24,7 @@ class CollectionInput(BaseModel):
     @field_validator("actors")
     @classmethod
     def public_profiles(cls, values):
-        return list(dict.fromkeys(normalize_actor(value) for value in values))
+        return list(dict.fromkeys(normalize_source(value) for value in values))
 
 
 def collection_handler(state):
@@ -49,7 +49,7 @@ def collection_handler(state):
         try:
             rows, provenance = await collect()
             if not rows:
-                raise HTTPException(422, "No valid authored posts returned. Try another public profile; no synthetic fallback was used.")
+                raise HTTPException(422, "No valid authored posts returned. Try another public profile or post URL; no synthetic fallback was used.")
             # Do not place complete original records in the public job trace as well.
             await stage("public_feed_collection", lambda: provenance["collection"], job["payload"], "Bluesky public API")
             name = f"Bluesky: {', '.join(job['payload']['actors'])[:90]} · {provenance['collection']['started_at_utc']}"

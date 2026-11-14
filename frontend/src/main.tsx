@@ -415,7 +415,6 @@ function Briefing() {
           <span className="briefing-mark" aria-hidden="true">V</span>
           <span>VERITASCOPE</span>
         </a>
-        <span className="briefing-identity-note">MEDIA LITERACY / INVESTIGATION TOOLS</span>
       </header>
 
       <div className="briefing-content">
@@ -429,7 +428,6 @@ function Briefing() {
             <a className="briefing-primary-cta" href="#analysis">See a statement analyzed <span aria-hidden="true">↓</span></a>
             <a className="briefing-secondary-cta" href="#swarm">See how messages spread</a>
           </div>
-          <p className="briefing-trust-note">Investigation signals for people—not automated verdicts.</p>
         </div>
 
         <div className="briefing-preview" aria-label="Preview of a fictional content analysis">
