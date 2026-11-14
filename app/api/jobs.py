@@ -1,5 +1,7 @@
 """Durable analysis submission, inspection, explicit retry and cancellation."""
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
@@ -9,9 +11,10 @@ from app.api.datasets import import_dataset
 from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
+from app.content.screening import scoring_signature, screen_content
 from app.content.verification import verify_content
-from app.core.database import analyses, entities
-from app.core.ingestion import DatasetInput
+from app.core.database import analyses, entities, jobs
+from app.core.ingestion import DatasetInput, canonical_id
 from app.swarm.bluesky import COLLECTION_VERSION
 from app.swarm.engine import VERSION as SWARM_VERSION
 
@@ -21,6 +24,7 @@ router = APIRouter(prefix="/api/v1")
 class ContentJobInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     content_id: str
+    verification: Literal["none", "sol"] = "sol"
 
 
 def content_handler(state):
@@ -50,6 +54,9 @@ def content_handler(state):
                 "Labeled synthetic text fixture: provider scores are packaged examples, not live verification."
             )
             return result
+        if job["payload"].get("verification") == "none":
+            result["propaganda_screening"] = screen_content(result, state.config)
+            return result
         return await verify_content(result, state.live, state.config, stage)
 
     return handle
@@ -75,15 +82,33 @@ async def submit_demo(example_id: str, request: Request):
 @router.post("/content/analyze", status_code=202, response_model=JobRecord)
 async def submit_content(body: ContentJobInput, request: Request):
     state = request.app.state
-    if state.live is None:
-        raise HTTPException(503, "Live analysis requires OPENAI_API_KEY and TYPESAFE_API_KEY.")
+    payload = body.model_dump()
+    if body.verification == "none":
+        payload["scoring_signature"] = scoring_signature(state.config)
     with state.database.connect() as connection:
         node = connection.execute(
             select(entities).where(entities.c.id == body.content_id, entities.c.kind == "content")
         ).first()
+        cached = None
+        if body.verification == "none":
+            fingerprint = canonical_id("content", body.content_id, payload, state.config.versions)
+            cached = connection.execute(
+                select(jobs)
+                .where(
+                    jobs.c.fingerprint == fingerprint,
+                    jobs.c.status == "completed",
+                    jobs.c.result["propaganda_screening"]["complete"].as_boolean().is_(True),
+                )
+                .order_by(jobs.c.created_at.desc())
+                .limit(1)
+            ).mappings().first()
     if node is None:
         raise HTTPException(404, "Unknown content")
-    return state.jobs.submit("content", body.content_id, body.model_dump(), state.config.versions)
+    if cached:
+        return dict(cached)
+    if state.live is None:
+        raise HTTPException(503, "Live analysis requires OPENAI_API_KEY and TYPESAFE_API_KEY.")
+    return state.jobs.submit("content", body.content_id, payload, state.config.versions)
 
 
 @router.get("/jobs/{job_id}", response_model=JobRecord)
@@ -102,6 +127,8 @@ async def retry_job(job_id: str, request: Request):
     old = state.jobs.get(job_id)
     if old["status"] in ("queued", "running", "completed"):
         raise HTTPException(409, "Only failed, cancelled, or interrupted jobs can be retried.")
+    if old["kind"] == "content" and old["payload"].get("verification") == "none":
+        return await submit_content(ContentJobInput(content_id=old["target_id"], verification="none"), request)
     configuration = {"coordination": SWARM_VERSION} if old["kind"] == "swarm" else state.config.versions
     if old["kind"] == "bluesky":
         configuration = {"bluesky": COLLECTION_VERSION}

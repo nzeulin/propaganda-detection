@@ -38,6 +38,9 @@ class LiveProvider:
     async def score(self, state, questions):
         return await self.scorer.score(state, questions)
 
+    async def score_batch(self, context, jobs):
+        return await self.scorer.score_batch(context, jobs)
+
     async def close(self):
         await self.extractor.client.close()
         await self.scorer.client.aclose()

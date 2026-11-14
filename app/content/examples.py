@@ -1,5 +1,7 @@
 """Explicit synthetic fixtures. These providers are never selected for arbitrary input."""
 
+from fastapi import HTTPException
+
 from app.content.schemas import Assessment, Extraction
 
 EXAMPLES = {
@@ -163,3 +165,13 @@ class DemoProvider:
                 model=self.models["scorer"],
             )
         return result
+
+    async def score_batch(self, context, jobs):
+        assessments, errors = {}, {}
+        for key, target, questions in jobs:
+            try:
+                assessments[key] = await self.score({**context, "target": target}, questions)
+            except (HTTPException, ValueError, TimeoutError) as exc:
+                assessments[key] = {}
+                errors[key] = str(getattr(exc, "detail", exc))
+        return assessments, errors

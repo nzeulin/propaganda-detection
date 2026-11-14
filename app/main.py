@@ -14,7 +14,7 @@ from app.api.bluesky import router as bluesky_router
 from app.api.datasets import import_dataset
 from app.api.datasets import router as datasets_router
 from app.api.evaluations import router as evaluations_router
-from app.api.jobs import content_handler
+from app.api.jobs import ContentJobInput, content_handler, submit_content
 from app.api.jobs import router as jobs_router
 from app.api.swarm import router as swarm_router
 from app.api.swarm import swarm_handler
@@ -116,14 +116,20 @@ async def analyze(body: AnalyzeRequest, request: Request):
                 .mappings()
                 .one()["id"]
             )
-        job = state.jobs.submit("content", content_id, {"content_id": content_id}, state.config.versions)
-        await asyncio.shield(state.jobs.tasks[job["id"]])
+        # This endpoint is text-only; external verification is a separate job mode.
+        job = await submit_content(ContentJobInput(content_id=content_id, verification="none"), request)
+        if job["status"] != "completed":
+            await asyncio.shield(state.jobs.tasks[job["id"]])
         saved = state.jobs.get(job["id"])
         if saved["status"] != "completed":
             raise HTTPException(
                 502, f"{(saved.get('error') or {}).get('message', saved['status'])} Saved job: {job['id']}"
             )
-        result = {key: value for key, value in saved["result"].items() if key != "analysis_id"}
+        result = {
+            key: value
+            for key, value in saved["result"].items()
+            if key not in ("analysis_id", "propaganda_screening")
+        }
         if not body.include_details:
             for key in ("statements", "sections", "contextual_findings", "diagnostics", "annotations"):
                 result.pop(key)

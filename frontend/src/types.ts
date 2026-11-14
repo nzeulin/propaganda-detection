@@ -46,6 +46,14 @@ export interface Claim {
   role: string;
   stance: string;
   speaker: string;
+  speaker_name: string | null;
+  source_spans: {
+    paragraph_id: string;
+    start: number;
+    end: number;
+    excerpt: string;
+  }[];
+  techniques: { technique: string; excerpt: string; explanation: string }[];
   relevance: number | null;
   role_coefficient: number | null;
   local_weight: number | null;

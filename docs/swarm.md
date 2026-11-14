@@ -1,12 +1,12 @@
 # Spot the Swarm: local minimum working detector
 
-The third section of the current single-page UI (`/#swarm`), **Follow the pattern**, runs a real CPU-only coordination detector. It does not classify accounts as proven bots or infer malicious intent. Analysis needs no AI provider credentials, scraping or external requests; the optional explicit Bluesky import contacts its public API to collect selected accounts' posts.
+The third section of the current single-page UI (`/#swarm`), **Find repeated posts across accounts**, runs a real CPU-only coordination detector. It does not classify accounts as proven bots or infer malicious intent. Analysis needs no AI provider credentials, scraping or external requests; the optional explicit Bluesky import contacts its public API to collect selected accounts' posts.
 
 ## Try it
 
 Start the backend and Vite using the repository's local startup instructions. During development open http://127.0.0.1:5173/#swarm. After `npm run build --prefix frontend`, the backend serves the same interface at http://127.0.0.1:8000/#swarm. Restart the backend after backend changes unless it was started with reload.
 
-Choose a demo card or use **Start with a demo**, then select **Analyze activity** (or **Analyze loaded demo**):
+Choose a sample card, then select **Analyze activity**:
 
 - **Coordinated network:** the same 172 observations as `data/demo_network.json`; 26 accounts, two synchronized three-account groups and 20 background accounts. The default v2 detector returns two groups and six strong pairs on this deliberately easy fixture.
 - **Library announcement:** four library branches share a launch URL once and post separate later updates. No strong recurring group should be returned. This is a limited contrast case, not evidence that legitimate recurring campaigns are reliably distinguished.
@@ -27,8 +27,14 @@ To fetch real posts without exporting files, expand **Import real posts from Blu
 3. `POST /api/v1/swarm/analyze`: `{dataset_id}` returns a queued job with HTTP 202.
 4. `GET /api/v1/jobs/{job_id}`: poll until completed, failed, cancelled or interrupted. Queue/run status is separate from the detector's assessment status.
 5. A completed job's `result` contains status, warnings, parameters, counts, account labels, pair findings and groups. Episodes include the strongest supporting event IDs, account labels, source text previews, timestamps, lexical similarity and shared URLs.
-6. `GET /api/v1/datasets/{dataset_id}/graph` includes observed relationships and strong inferred links. At most 300 entities are displayed; hidden entities are counted. The detector itself uses the full imported dataset.
+6. `GET /api/v1/datasets/{dataset_id}/graph` shows content and attributed agents with observed publishing/editing activity or declared capability, connected only by observed actions. Reply metadata adds author-to-parent-post edges in this view; URLs remain post metadata. Coordination findings stay in evidence panels, outside the graph. At most 300 entities are displayed; hidden counts cover the eligible graph. Imports, stored observations and detector results are unchanged.
 7. `GET /api/v1/swarm/{dataset_id}/analysis` returns the latest saved analysis. `POST /api/v1/jobs/{job_id}/cancel` cooperatively stops a queued/running job. Failed or interrupted jobs may be explicitly retried through the existing jobs API.
+
+Select **Score post** in a post inspector or evidence card to request AI content features using the configured OpenAI/TypeSafe keys. Only that post is scored; activity analysis remains CPU-only. `POST /api/v1/content/analyze` accepts `verification: "none"` for this workflow (existing callers still default to `"sol"`). Compatible successful results are reused and exposed in the graph's `content_screenings` map, including scored posts outside the displayed subset. Reading a graph never starts scoring. Failed or incomplete scoring can be retried explicitly.
+
+The content-analysis panel also submits entered text to `/analyze` for text-only scoring, with source highlights and feature explanations. It requires the configured provider keys and does not run external verification.
+
+The experimental decision uses five text features: emotional, logical, authority, repetition and strategic. Complete scores all below **0.50** produce **Not propaganda**; at least two scores **≥0.75** produce **Propaganda**; other cases, missing scores, insufficient coverage or unresolved narratives/attribution produce **Requires further analysis**. The latter receives a muted amber tint in the map and post cards. These are heuristic bands, not calibrated probabilities. Factual/selective scores remain unassessed without external evidence; no external validation runs automatically.
 
 For real Bluesky input, use `POST /api/v1/bluesky/collect` with `actors` and `per_actor` before step 3. It returns a collection job; on completion its `dataset_id` is already persisted, so no separate manual import is needed. The saved source records are available through `GET /api/v1/datasets/{dataset_id}/provenance`. Collected analyses carry collection coverage and readable handles; graph content and matched evidence include original-post URLs.
 

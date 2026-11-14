@@ -9,8 +9,10 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
-from app.core.database import analyses, datasets, entities, feedback, observations, utc_now
+from app.content.screening import scoring_signature
+from app.core.database import analyses, datasets, entities, feedback, jobs, observations, utc_now
 from app.core.ingestion import DatasetInput, prepare_dataset
+from app.core.interactions import observed_graph
 
 router = APIRouter(prefix="/api/v1")
 
@@ -112,6 +114,35 @@ async def dataset_graph(
             .order_by(analyses.c.created_at.desc())
             .limit(1)
         ).scalar()
+        content_screenings = {}
+        saved = connection.execute(
+            select(
+                jobs.c.target_id,
+                jobs.c.id,
+                jobs.c.result["analysis_id"].label("analysis_id"),
+                jobs.c.result["features"].label("features"),
+                jobs.c.result["propaganda_screening"].label("screening"),
+            )
+            .select_from(jobs.join(entities, jobs.c.target_id == entities.c.id))
+            .where(
+                entities.c.dataset_id == dataset_id,
+                entities.c.kind == "content",
+                jobs.c.kind == "content",
+                jobs.c.status == "completed",
+                jobs.c.payload["verification"].as_string() == "none",
+                jobs.c.payload["scoring_signature"].as_string() == scoring_signature(request.app.state.config),
+            )
+            .order_by(jobs.c.created_at.desc(), jobs.c.id)
+        ).mappings()
+        for score in saved:
+            content_screenings.setdefault(score["target_id"], {
+                "job_id": score["id"],
+                "analysis_id": score["analysis_id"],
+                "features": score["features"],
+                "screening": score["screening"],
+            })
+    eligible, edges = observed_graph(nodes.values(), edges)
+    nodes = {node["id"]: node for node in eligible}
     if since or until:
         edges = [
             e
@@ -120,17 +151,20 @@ async def dataset_graph(
             and (not since or datetime.fromisoformat(e["timestamp"]) >= since)
             and (not until or datetime.fromisoformat(e["timestamp"]) <= until)
         ]
-    clusters = swarm["clusters"] if swarm else []
-    inferred = [f for f in swarm["findings"] if f["strong"]] if swarm and not (since or until) else []
-    edges.extend(inferred)
+    clusters = [
+        {**group, "account_ids": [agent for agent in group["account_ids"] if agent in nodes]}
+        for group in (swarm["clusters"] if swarm else [])
+    ]
+    clusters = [group for group in clusters if len(group["account_ids"]) >= 3]
     adjacency = {node: set() for node in nodes}
     for edge in edges:
         adjacency[edge["source_id"]].add(edge["target_id"])
         adjacency[edge["target_id"]].add(edge["source_id"])
     if focus:
-        seeds = [focus] if focus in nodes else []
+        seeds = [focus] if focus in nodes and (not (since or until) or adjacency[focus]) else []
     elif cluster:
         seeds = next((c["account_ids"] for c in clusters if c["id"] == cluster), [])
+        seeds = [node for node in seeds if not (since or until) or adjacency[node]]
     else:
         seeds = [
             node_id
@@ -158,6 +192,7 @@ async def dataset_graph(
         "total_nodes": len(nodes),
         "hidden_nodes": len(nodes) - len(selected),
         "time_filter_excludes_unknown": bool(since or until),
+        "content_screenings": content_screenings,
     }
 
 

@@ -1,6 +1,5 @@
 """Self-contained content orchestration with injectable extraction/scoring providers."""
 
-import asyncio
 import hashlib
 import inspect
 
@@ -54,44 +53,34 @@ async def analyze_content(
         "narratives": narratives,
         "canonical_claims": claims,
         "paragraphs": paragraphs,
+        "sections": sections,
+        "patterns": [p.model_dump() for p in extraction.patterns],
     }
     jobs = []
     for section in sections:
         if any(c["section_id"] == section["id"] for c in claims):
-            jobs.append((f"section:{section['id']}", {**context, "target": section}, ["relevance"]))
+            jobs.append((f"section:{section['id']}", section, ["relevance"]))
     for claim in claims:
         questions = ["relevance"]
         if claim["author_attributable"] and claim["stance"] == "endorsed":
             questions += config.statement_features
-        jobs.append((f"claim:{claim['id']}", {**context, "target": claim}, questions))
+        jobs.append((f"claim:{claim['id']}", claim, questions))
     if claims:
         jobs.append(
             (
                 "material",
-                {**context, "patterns": [p.model_dump() for p in extraction.patterns]},
+                None,
                 ["repetition_amplification", "strategic_persuasion"],
             )
         )
-    # Limit workers as well as provider sockets; long articles cannot create unbounded fan-out.
-    assessments = {}
-    queue = asyncio.Queue()
-    for job in jobs:
-        queue.put_nowait(job)
-
-    async def worker():
-        while not queue.empty():
-            key, state, questions = queue.get_nowait()
-            try:
-                assessments[key] = await provider.score(state, questions)
-            except (HTTPException, ValueError, TimeoutError) as exc:
-                assessments[key] = {}
-                warnings.append(f"Scoring unavailable for {key}: {getattr(exc, 'detail', str(exc))}")
-
     async def score_all():
-        await asyncio.gather(*(worker() for _ in range(min(4, len(jobs)))))
-        return {key: {k: v.model_dump() for k, v in values.items()} for key, values in assessments.items()}
+        assessments, errors = await provider.score_batch(context, jobs)
+        warnings.extend(f"Scoring unavailable for {key}: {message}" for key, message in errors.items())
+        return assessments
 
-    await execute("scoring", score_all, {"validated_claims": claims}, provider.models["scorer"])
+    assessments = await execute(
+        "scoring", score_all, {"validated_claims": claims, "target_count": len(jobs)}, provider.models["scorer"]
+    )
     features, metadata, diagnostics, math_warnings = await execute(
         "aggregation", lambda: aggregate(claims, sections, assessments, config)
     )

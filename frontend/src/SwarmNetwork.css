@@ -492,20 +492,51 @@
   border-radius: 50%;
 }
 
-.swarm-url-key {
-  background: #777d83;
+.swarm-validation-key {
+  background: #c2a46f;
+  border-radius: 50%;
+}
+
+.swarm-workbench .swarm-needs-validation {
+  background: #28231b;
+  border-color: #8b7652;
+}
+
+.swarm-content-scoring {
+  margin-top: 12px;
+  font-size: 11px;
+}
+
+.swarm-content-scoring > p {
+  margin: 6px 0;
+}
+
+.swarm-content-scoring details {
+  margin-top: 8px;
+}
+
+.swarm-content-scoring dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  margin: 8px 0;
+}
+
+.swarm-content-scoring dd {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.swarm-content-scoring .swarm-feature-reason {
+  grid-column: 1 / -1;
+  white-space: normal;
+  color: var(--swarm-muted);
 }
 
 .swarm-legend .swarm-observed-key {
   width: 16px;
   height: 0;
   border-top: 1px solid #807568;
-}
-
-.swarm-legend .swarm-inferred-key {
-  width: 16px;
-  height: 0;
-  border-top: 2px dashed #e34e48;
 }
 
 .swarm-workbench .swarm-graph-hint {

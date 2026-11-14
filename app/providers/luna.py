@@ -27,7 +27,17 @@ class LunaExtractor:
         self.client = AsyncOpenAI(timeout=45, max_retries=0)
 
     async def extract(self, text, paragraphs, title, feedback=None):
-        payload = {"text": text, "paragraphs": paragraphs, "title": title, "validation_feedback": feedback}
+        payload = {
+            "text": text,
+            "paragraphs": paragraphs,
+            "title": title,
+            "assessment_unit": (
+                "paragraph_or_sentence_pair"
+                if len(text) >= self.config.prompts["passage_threshold_characters"]
+                else "statement"
+            ),
+            "validation_feedback": feedback,
+        }
 
         async def request():
             response = await self.client.responses.parse(
