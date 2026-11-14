@@ -15,18 +15,20 @@ Bluesky's keyword-search endpoint returned HTTP 403 in this environment. Public 
 Open **Follow the pattern** at [the main application](http://127.0.0.1:8000/#swarm), then:
 
 1. Expand **Import real posts from Bluesky** in **Add activity**.
-2. Paste one or more public profile URLs or handles, one per line. Examples: https://bsky.app/profile/bsky.app and `@atproto.com`.
-3. Choose a cap of 10, 50, 100 or 200 authored posts per account and select **Fetch public posts**.
+2. Paste public profile URLs, handles or exact post URLs, one per line (copied lists and Markdown links also work). Profiles such as https://bsky.app/profile/bsky.app or `@atproto.com` fetch recent authored posts. A link shaped like `https://bsky.app/profile/HANDLE/post/POST_ID` imports only that exact post, not the author's feed, replies or reposts. Profile and post inputs may be mixed, up to ten inputs in total.
+3. Choose a cap of 10, 50, 100 or 200 authored posts per **profile** and select **Fetch public posts**. This cap does not expand post URLs: each imports at most one exact post. Duplicate stable post URIs are imported once, including overlap between feeds and explicit links.
 4. Review the real-post previews, readable handles, **Open original on Bluesky** links and collection-coverage disclosure.
 5. Select the existing **Analyze activity** button. It reuses the saved collected dataset, preserving its original records and source links. Results, source inspection and the map stay in the same page.
 
-Inputs accept up to ten explicit public handles, `did:plc` identities, or exact HTTPS profile URLs on `bsky.app`. Post links, article URLs, keywords, arbitrary websites, URL credentials and alternate ports are rejected. Only the fixed public API is contacted; submitted profile URLs, links and media are not fetched directly.
+Inputs accept up to ten explicit public handles, `did:plc` identities, or exact HTTPS profile/post URLs on `bsky.app`. Post record keys retain their original case. Article URLs, keywords, arbitrary websites, URL credentials, alternate ports, query strings and fragments are rejected. Only the fixed public API is contacted; submitted URLs, links and media are not fetched directly. Post authors resolve through `getProfile`; the exact DID-based AT URI is retrieved with `getPosts` and checked against the returned URI and author. Missing/deleted/unavailable or malformed explicitly requested posts fail the entire collection without a partial import or synthetic fallback.
+
+A single post can be collected and inspected, but cannot establish recurring cross-account coordination. A few exact posts will often produce `insufficient_data`; this is an expected abstention, not an import failure. Linked reply records retain their original text/record, but are imported as authored content without reconstructing the reply relationship. This feature does not discover participants or collect an amplification network.
 
 The collection job supports cancellation and explicit resume after a tracking error. A request already in flight can take up to 25 seconds to stop; its worker slot stays occupied until it stops. Failures preserve the previous input and completed result, and never activate synthetic fallback or automatic retries. Collection jobs share the existing two-worker limit, with at most four active/queued collection jobs. Original records are imported atomically after successful collection; cancellation or source failure before that point imports no partial snapshot.
 
 Server-collected datasets show **REAL BLUESKY PUBLIC FEEDS**, account handles and original post URLs in results. Their coverage and collection warnings remain separate from detector warnings. Editing a collected dataset's name or raw input makes the next run user-provided input instead; the UI explicitly warns that server-collected provenance will not be claimed for that edited import.
 
-API: `POST /api/v1/bluesky/collect` accepts `actors` and `per_actor`, returns HTTP 202 and a durable job reference. Poll/cancel through the existing jobs API. A completed collection returns `dataset_id`, `name`, importable `rows`, collection coverage and source-link metadata. `GET /api/v1/datasets/{dataset_id}/provenance` returns the saved original records and their hashes. No new database tables or AI credentials are required. Authentication, per-user rate limiting and retention controls still need deployment hardening before public exposure.
+API: `POST /api/v1/bluesky/collect` keeps the compatible `actors` and `per_actor` fields; `actors` now also accepts exact post URLs. It returns HTTP 202 and a durable job reference. Poll/cancel through the existing jobs API. A completed collection returns `dataset_id`, `name`, importable `rows`, collection coverage and source-link metadata. Coverage distinguishes `public_author_feeds`, `public_selected_posts` and `public_mixed_sources`, records the requested sources and labels post/feed selections. `GET /api/v1/datasets/{dataset_id}/provenance` returns the saved original records and their hashes. Collection fingerprints use `bluesky-public-inputs-v2`; detector rules are unchanged. No new database tables or AI credentials are required. Authentication, per-user rate limiting and retention controls still need deployment hardening before public exposure.
 
 ## Collect another snapshot
 
@@ -38,7 +40,7 @@ From the repository root, use the configured local interpreter:
 
 Arguments:
 
-- Repeat `--actor` for explicit public handles or DIDs (maximum 10 accounts).
+- Repeat `--actor` for explicit public handles, DIDs, profile URLs or exact post URLs (maximum 10 inputs). Post URLs retrieve one exact record each; `--per-actor` applies only to profile feeds.
 - `--per-actor` is a requested cap, from 1 to 200 posts, not a guarantee of returned posts.
 - At most three feed pages are fetched per account. Reposts, duplicates and invalid records can reduce the exported count.
 - By default each snapshot gets a new directory under ignored `.local-data/bluesky/`.
@@ -125,5 +127,20 @@ After a user reported HTTP 422 with those URLs, a browser reproduction found tha
 The input parser now normalizes copied list/Markdown formatting and invisible copy artifacts, validates each profile, and deduplicates selected handles. Invalid entries identify their position before any collection request is made. The existing UI layout, controls, server validation, collection limits, fixed public API destination and detector are unchanged.
 
 Regression checks cover 14 accepted paste formats and 12 invalid/security cases on both the built app (port 8000) and Vite frontend (port 5173), plus mobile layout. These input-only checks use clearly controlled jobs, not fabricated collected posts. A separate **real-network** main-UI run pasted the formerly failing three-link bulleted list and fetched **150 actual posts from three accounts**, then verified the saved originals, post previews, source links, dataset reuse and completed analysis. Original records and test artifacts remain local and ignored.
+
+### Exact-post collection verification
+
+Post-URL support adds 36 offline checks for normalization and key case, unsafe URLs, exact-record/author validation, missing records, mixed-source/alias deduplication, timestamp and reply-record preservation, bounded responses, cancellation, persisted provenance, atomic failure, versioned retry and single-post abstention. Before commit, all **119 focused collection/API/experiment and tracked engine checks passed**. The broader selected suite had **155 passing checks and six baseline failures**: four existing CSV/extreme-timestamp validation failures and two older graph assertions expecting inferred links after upstream graph changes. All six were reproduced in an isolated, unmodified checkout of `8fec847`; this fix does not change detector or graph rules.
+
+The built and Vite frontends each passed 12 copied post-link formats and 11 invalid/security input checks with explicitly controlled jobs. A separate real-network browser run verified these actual collection → saved-source → analysis workflows:
+
+| Inputs | Actual imported posts | Collection method | Detector assessment |
+| --- | ---: | --- | --- |
+| `bsky.app` and `atproto.com` profiles, cap 10 each | 15 | Authored feeds | `needs_review` |
+| The earlier NYT and AP post links | 2 | Exact selected posts | `insufficient_data` |
+| `bsky.app` profile plus the NYT post link | 6 | Mixed feeds and exact posts | `insufficient_data` |
+| The NYT post link alone | 1 | Exact selected post | `insufficient_data` |
+
+All runs preserved source text, author IDs and posting timestamps, showed original-post links, reused the persisted dataset and made no AI-provider calls. Invalid input and a controlled unavailable-post failure preserved the previous input/result; mobile checks and frontend type/build checks passed. The two real post inputs were https://bsky.app/profile/nytimes.com/post/3mzv6k5dmjx2a and https://bsky.app/profile/apnews.com/post/3mzv6kmmyqf2v. Raw records and browser artifacts remain ignored under `.local-data/bluesky/post-url-ui-20261114/`. These are integration results, not accuracy measurements.
 
 Official API reference: [Bluesky HTTP endpoints](https://endpoints.bsky.app/). The collection and analysis checks use no API keys or AI-provider credentials.

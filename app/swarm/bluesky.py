@@ -25,7 +25,7 @@ MAX_RESPONSE_BYTES = 2_000_000
 MAX_ACTORS = 10
 MAX_POSTS_PER_ACTOR = 200
 MAX_PAGES_PER_ACTOR = 3
-COLLECTION_VERSION = "bluesky-public-feeds-v1"
+COLLECTION_VERSION = "bluesky-public-inputs-v2"
 
 
 def normalize_actor(value):
@@ -48,6 +48,22 @@ def normalize_actor(value):
     ) or len(value) > 200:
         raise ValueError("Enter a Bluesky handle such as bsky.app or an HTTPS Bluesky profile URL")
     return value
+
+
+def normalize_source(value):
+    """Return an actor or exact post URL; never expand a post into a feed."""
+    if not isinstance(value, str) or len(value) > 300:
+        raise ValueError("Enter a Bluesky profile, handle or post URL of at most 300 characters")
+    value = value.strip()
+    if value.startswith("https://"):
+        parts = urlsplit(value)
+        post = re.fullmatch(r"/profile/([^/]+)/post/([a-zA-Z0-9._~:-]{1,512})/?", parts.path)
+        if post:
+            if parts.netloc != "bsky.app" or parts.query or parts.fragment or post[2] in {".", ".."}:
+                raise ValueError("Use an exact HTTPS bsky.app profile or post URL without query or fragment")
+            actor = normalize_actor(post[1])
+            return f"https://bsky.app/profile/{actor}/post/{post[2]}"
+    return normalize_actor(value)
 
 
 def _check_cancelled(cancellation):
@@ -162,17 +178,21 @@ def normalize_authored_post(entry, did):
 
 
 def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=None):
-    """Collect a capped snapshot from explicitly selected public accounts.
+    """Collect capped public feeds and/or exact linked posts (legacy entry name).
 
+    A post URL imports only that post, not the author's feed or amplification.
     This is not a keyword search, bot-labeled dataset, or complete network sample.
     The caller owns an injected HTTP client; default clients are always closed.
     """
     if not actors or len(actors) > MAX_ACTORS or any(
-        not isinstance(actor, str) or not actor.strip() or len(actor) > 200 for actor in actors
+        not isinstance(actor, str) or not actor.strip() or len(actor) > 300 for actor in actors
     ):
-        raise ValueError(f"Supply between 1 and {MAX_ACTORS} nonempty account handles or DIDs")
-    if not isinstance(per_actor, int) or not 1 <= per_actor <= MAX_POSTS_PER_ACTOR:
+        raise ValueError(f"Supply between 1 and {MAX_ACTORS} public profiles, handles or post URLs")
+    if type(per_actor) is not int or not 1 <= per_actor <= MAX_POSTS_PER_ACTOR:
         raise ValueError(f"Posts per account must be between 1 and {MAX_POSTS_PER_ACTOR}")
+    selections = list(dict.fromkeys(normalize_source(actor) for actor in actors))
+    post_urls = [value for value in selections if value.startswith("https://")]
+    profile_count = len(selections) - len(post_urls)
     started = datetime.now(UTC).isoformat()
     rows, sources, account_reports = [], {}, []
     accounts, seen = set(), set()
@@ -183,19 +203,46 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
         headers={"User-Agent": "VeritasScope/0.1 (public author-feed research prototype)"},
     )
     with context as transport:
-        for actor in dict.fromkeys(actor.strip() for actor in actors):
+        for selection in selections:
+            is_post = selection.startswith("https://")
+            actor = selection.split("/")[4] if is_post else selection
             profile = _read_json(transport, "app.bsky.actor.getProfile", {"actor": actor}, cancellation=cancellation)
             requests += 1
             did, handle = profile.get("did"), profile.get("handle")
             if not isinstance(did, str) or not did.startswith("did:") or not isinstance(handle, str):
                 raise CollectionError("Public profile was missing its stable account ID or handle")
+            if is_post:
+                uri = f"at://{did}/app.bsky.feed.post/{selection.rsplit('/', 1)[1]}"
+                data = _read_json(transport, "app.bsky.feed.getPosts", {"uris": [uri]}, cancellation=cancellation)
+                requests += 1
+                posts = data.get("posts")
+                if not isinstance(posts, list) or len(posts) != 1 or not isinstance(posts[0], dict) or posts[0].get("uri") != uri:
+                    raise CollectionError(f"The public API did not return the exact requested post: {selection}. No dataset was imported.")
+                row, source, skip = normalize_authored_post({"post": posts[0]}, did)
+                if skip:
+                    raise CollectionError(f"Requested post could not be imported ({skip}): {selection}. No dataset was imported.")
+                duplicate = uri in seen
+                if not duplicate:
+                    seen.add(uri)
+                    rows.append(row)
+                    sources[uri] = source
+                sources[uri].setdefault("requested_post_urls", []).append(selection)
+                account_reports.append({
+                    "requested_actor": actor, "requested_source": selection, "source_type": "post",
+                    "did": did, "handle": handle, "pages": 0, "feed_entries_received": 0,
+                    "posts_collected": int(not duplicate), "stop_reason": "duplicate_post" if duplicate else "selected_post",
+                    "more_feed_available": False, "skipped_entries": {"duplicate_post": 1} if duplicate else {},
+                    "oldest_post_utc": row["timestamp"], "newest_post_utc": row["timestamp"],
+                })
+                continue
             if did in accounts:
                 account_reports.append({"requested_actor": actor, "did": did, "stop_reason": "duplicate_account_alias"})
                 continue
             accounts.add(did)
             cursor, used_cursors, skipped = None, set(), Counter()
             report = {
-                "requested_actor": actor, "did": did, "handle": handle,
+                "requested_actor": actor, "requested_source": selection, "source_type": "profile",
+                "did": did, "handle": handle,
                 "pages": 0, "feed_entries_received": 0, "posts_collected": 0,
                 "stop_reason": "page_limit", "more_feed_available": False,
             }
@@ -248,12 +295,18 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
             account_reports.append(report)
     rows.sort(key=lambda row: (row["timestamp"], row["content_id"]))
     warnings = [
-        "Selected public account feeds only, not a keyword search or representative platform sample.",
-        "Per-account post/page caps and source API filtering can omit activity; account time ranges may differ.",
+        "Selected public sources only, not a keyword search or representative platform sample.",
         "Only authored posts are imported. Repost wrappers and reply relationships are not reconstructed.",
         "Posting times come from author-provided createdAt; indexedAt is preserved separately, never substituted.",
         "No bot labels or independent ground truth are available; no detection accuracy can be inferred.",
     ]
+    if profile_count:
+        warnings.append("Per-account post/page caps and source API filtering can omit activity; account time ranges may differ.")
+    if post_urls:
+        warnings.append(
+            "Post URLs import only the exact linked posts, including a reply's text if explicitly linked. "
+            "They do not expand author feeds or collect replies/reposts. A single post cannot establish recurring coordination."
+        )
     extra_urls = sum(max(0, len(source["structured_urls"]) - 1) for source in sources.values())
     if extra_urls:
         warnings.append(
@@ -263,8 +316,11 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
     if not rows:
         warnings.append("No valid authored posts were collected. No detector-ready import can be created.")
     manifest = {
-        "source": "bluesky", "method": "public_author_feeds", "synthetic": False,
+        "source": "bluesky", "method": "public_mixed_sources" if post_urls and profile_count else
+        "public_selected_posts" if post_urls else "public_author_feeds", "synthetic": False,
         "endpoint": PUBLIC_API, "started_at_utc": started, "finished_at_utc": datetime.now(UTC).isoformat(),
+        "requested_sources": selections, "requested_profile_count": profile_count,
+        "requested_post_count": len(post_urls),
         "per_account_post_limit": per_actor, "per_account_page_limit": MAX_PAGES_PER_ACTOR,
         "api_requests": requests, "post_count": len(rows),
         "accounts_with_posts": len({row["account_id"] for row in rows}),
@@ -275,14 +331,14 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
     # Apply the same complete-import validation as the real dataset endpoint.
     _check_cancelled(cancellation)
     if rows:
-        prepare_dataset(DatasetInput(name="Bluesky public author-feed snapshot", rows=rows))
+        prepare_dataset(DatasetInput(name="Bluesky public source snapshot", rows=rows))
     return rows, {"collection": manifest, "posts": sources}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--actor", action="append", required=True, help="Public account handle or DID; repeatable")
-    parser.add_argument("--per-actor", type=int, default=100, help="Maximum authored posts per account (1–200)")
+    parser.add_argument("--actor", action="append", required=True, help="Public handle, DID, profile URL or exact post URL; repeatable")
+    parser.add_argument("--per-actor", type=int, default=100, help="Maximum posts per profile (1–200); post URLs import one post each")
     parser.add_argument("--output-dir", type=Path, help="New output directory; defaults to ignored .local-data/bluesky")
     args = parser.parse_args(argv)
     output = args.output_dir or Path(".local-data/bluesky") / datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")

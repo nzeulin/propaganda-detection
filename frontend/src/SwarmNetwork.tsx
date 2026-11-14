@@ -111,6 +111,8 @@ type Selection = { kind: "cluster" | "pair" | "entity"; id: string };
 type Operation = { controller: AbortController; deadline: number; timedOut: boolean };
 type DisplayLink = { id: string; source: string; target: string };
 type CollectionInfo = {
+  requested_post_count?: number;
+  method?: string;
   post_count: number;
   accounts_with_posts: number;
   started_at_utc: string;
@@ -120,6 +122,7 @@ type CollectionInfo = {
   accounts: {
     did: string;
     handle?: string;
+    source_type?: "profile" | "post";
     posts_collected?: number;
     stop_reason: string;
     skipped_entries?: Record<string, number>;
@@ -496,9 +499,9 @@ function CollectionCoverage({
         {number(collection.accounts_with_posts)} accounts
       </summary>
       <p>
-        These are multiple posts per selected account—not newly discovered
-        accounts. Feed caps can omit activity; no topic search or repost chains
-        were collected.
+        {collection.requested_post_count
+          ? "Post links import only the exact selected posts; profile links collect capped feeds. Accounts are their authors—not newly discovered accounts. No threads or repost chains were collected."
+          : "These are multiple posts per selected account—not newly discovered accounts. Feed caps can omit activity; no topic search or repost chains were collected."}
       </p>
       <p className="swarm-muted">
         Collected {timestamp(collection.started_at_utc)}. Posting dates:{" "}
@@ -509,7 +512,7 @@ function CollectionCoverage({
         {collection.accounts.map((account, index) => (
           <li key={`${account.did}-${index}`}>
             <strong>@{account.handle || account.did}</strong>:{" "}
-            {number(account.posts_collected || 0)} authored posts ·{" "}
+            {number(account.posts_collected || 0)} {account.source_type === "post" ? "linked posts" : "authored posts"} ·{" "}
             {account.stop_reason.replaceAll("_", " ")}
             {account.skipped_entries?.repost_not_collected
               ? ` · ${account.skipped_entries.repost_not_collected} repost wrappers skipped`
@@ -547,7 +550,7 @@ function BlueskyImport({
   const [busy, setBusy] = useState(false);
   const [jobId, setJobId] = useState("");
   const [message, setMessage] = useState(
-    "Paste profiles you want to compare. Nothing is fetched until you click below.",
+    "Paste profiles or post links to compare. Nothing is fetched until you click below.",
   );
   const [error, setError] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
@@ -571,7 +574,7 @@ function BlueskyImport({
       setMessage(
         job.status === "queued"
           ? "Collection queued. Waiting for a worker…"
-          : "Fetching selected public author feeds from Bluesky. Reposts are skipped…",
+          : "Fetching selected profiles and exact linked posts from Bluesky. No repost discovery…",
       );
       await pause(1500, signal);
       job = await request<CollectionJob>(
@@ -623,7 +626,7 @@ function BlueskyImport({
       }
       if (!actors.length) {
         setError(
-          "Enter between 1 and 10 public Bluesky profiles or handles, separated by newlines.",
+          "Enter between 1 and 10 public Bluesky profiles, handles or post URLs, separated by newlines.",
         );
         return;
       }
@@ -719,11 +722,11 @@ function BlueskyImport({
     <details className="swarm-bluesky-import">
       <summary>Import real posts from Bluesky ↗</summary>
       <p>
-        Choose public profiles, fetch their latest authored posts, then use the
-        same analysis and evidence view below. No separate experiment page.
+        Paste public profile links to fetch recent posts, or post links to import
+        only those exact posts. You can mix both in the same collection.
       </p>
       <label className="swarm-field" htmlFor="swarm-bluesky-profiles">
-        BLUESKY PROFILE URLS OR HANDLES
+        BLUESKY PROFILE / POST URLS OR HANDLES
       </label>
       <textarea
         id="swarm-bluesky-profiles"
@@ -732,16 +735,17 @@ function BlueskyImport({
         rows={3}
         maxLength={4000}
         spellCheck={false}
-        placeholder={"https://bsky.app/profile/bsky.app\natproto.com"}
+        placeholder={"https://bsky.app/profile/bsky.app\nhttps://bsky.app/profile/HANDLE/post/POST_ID"}
         onChange={(event) => setProfiles(event.target.value)}
         aria-describedby="swarm-bluesky-help"
       />
       <p id="swarm-bluesky-help" className="swarm-muted">
-        One per line, up to 10. Use profile URLs or @handles—not post links,
-        article URLs or keywords. Choose at least two accounts for comparison.
+        One per line, up to 10. Use profile URLs, @handles or exact Bluesky post
+        URLs—not article links or keywords. A single post cannot establish
+        recurring coordination; a few linked posts may return insufficient data.
       </p>
       <label className="swarm-field" htmlFor="swarm-bluesky-limit">
-        MAXIMUM POSTS PER ACCOUNT
+        MAXIMUM POSTS PER PROFILE
       </label>
       <select
         id="swarm-bluesky-limit"
@@ -756,9 +760,10 @@ function BlueskyImport({
         ))}
       </select>
       <p className="swarm-muted">
-        At most three feed pages per account. Public posts only; no login or LLM
-        calls. This does not discover accounts, search topics or collect repost
-        chains. Original records are stored on this server.
+        This limit applies to profiles only, with at most three feed pages each.
+        A post URL imports one post, not the author's feed or replies/reposts.
+        Public posts only; no login, LLM calls or account discovery. Original
+        records are stored on this server.
       </p>
       <button
         type="button"
@@ -1604,7 +1609,9 @@ export default function SwarmNetwork() {
         name: name.trim(),
         revision,
         provenance: useCollected
-          ? "REAL BLUESKY PUBLIC FEEDS"
+          ? activeCollection?.collection.requested_post_count
+            ? "REAL BLUESKY PUBLIC POSTS"
+            : "REAL BLUESKY PUBLIC FEEDS"
           : exampleSource
             ? `SYNTHETIC INPUT${exampleEdited ? " / EDITED" : ""}`
             : "USER-PROVIDED INPUT",
