@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import inspect
 
 from fastapi import HTTPException
 
@@ -17,20 +18,25 @@ async def analyze_content(
     async def execute(name, operation, inputs=None, provider="local"):
         if stage:
             return await stage(name, operation, inputs, provider)
-        return await operation()
+        value = operation()
+        return await value if inspect.isawaitable(value) else value
 
-    text, paragraphs = normalize(original)
+    text, paragraphs = await execute("ingestion", lambda: normalize(original), {"source_url": source_url})
     warnings, claims = [], []
     extraction = None
     for attempt in range(2):
         try:
             extraction = await execute(
                 "extraction",
-                lambda attempt=attempt: provider.extract(text, paragraphs, title, warnings if attempt else None),
+                lambda attempt=attempt: provider.extract(
+                    text, paragraphs, title, warnings if attempt else None
+                ),
                 {"paragraphs": paragraphs},
                 provider.models["extractor"],
             )
-            claims, issues = validate_and_group(extraction, text, paragraphs)
+            claims, issues = await execute(
+                "anchoring", lambda extraction=extraction: validate_and_group(extraction, text, paragraphs)
+            )
             if not issues:
                 break
             warnings.extend(issues if attempt else ["Invalid source extraction; retried once."])
@@ -86,7 +92,9 @@ async def analyze_content(
         return {key: {k: v.model_dump() for k, v in values.items()} for key, values in assessments.items()}
 
     await execute("scoring", score_all, {"validated_claims": claims}, provider.models["scorer"])
-    features, metadata, diagnostics, math_warnings = aggregate(claims, sections, assessments, config)
+    features, metadata, diagnostics, math_warnings = await execute(
+        "aggregation", lambda: aggregate(claims, sections, assessments, config)
+    )
     warnings.extend(math_warnings)
     review = len(narratives) != 1
     if review:

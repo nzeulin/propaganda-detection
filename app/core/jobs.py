@@ -1,6 +1,7 @@
 """Bounded local jobs; durable stage artifacts survive reloads and later failures."""
 
 import asyncio
+import inspect
 import logging
 import time
 from uuid import uuid4
@@ -92,7 +93,9 @@ class JobRunner:
             self.update(job_id, trace=trace)
             started = time.monotonic()
             try:
-                value = await operation()
+                value = operation()
+                if inspect.isawaitable(value):
+                    value = await value
                 entry.update(status="completed", artifact=jsonable_encoder(value))
                 return value
             except BaseException:
