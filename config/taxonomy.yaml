@@ -1,4 +1,4 @@
-version: v0.1
+version: taxonomy-v0.2
 features:
   factual_manipulation: External trustworthy verification required.
   selective_presentation: Comparison coverage and counterevidence required.
@@ -7,3 +7,17 @@ features:
   authority_manipulation: Misleading appeal only; fabrication remains unassessed without verification.
   repetition_amplification: Repeated canonical claims within this material only.
   strategic_persuasion: Manipulative document-level persuasion, not ordinary advocacy.
+techniques:
+  loaded_language: emotional_manipulation
+  appeal_to_fear: emotional_manipulation
+  false_dilemma: logical_manipulation
+  scapegoating: strategic_persuasion
+  ad_hominem: logical_manipulation
+  appeal_to_authority: authority_manipulation
+  bandwagon: authority_manipulation
+  repetition: repetition_amplification
+  thought_terminating_cliche: logical_manipulation
+  coercive_identity: strategic_persuasion
+  misleading_statistics: factual_manipulation
+  unsupported_factual_assertion: factual_manipulation
+  cherry_picking: selective_presentation

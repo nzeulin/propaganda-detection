@@ -63,6 +63,11 @@ def validate_and_group(extraction: Extraction, text: str, paragraphs: list[dict]
                 issues.append("source span/excerpt does not match frozen text, paragraph or section")
         if statement.author_attributable and statement.stance != "endorsed":
             issues.append("attribution conflicts with author stance")
+        statement.techniques = [
+            t
+            for t in statement.techniques
+            if t.excerpt.strip() and any(t.excerpt in span.excerpt for span in statement.source_spans)
+        ]
         if issues:
             warnings.append(f"Omitted {statement.id}: {'; '.join(sorted(set(issues)))}.")
         else:

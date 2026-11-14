@@ -250,6 +250,28 @@ export function Results({ result }: { result: Analysis }) {
         </div>
       </section>
       <Article result={result} />
+      <details className="panel explorer">
+        <summary>Source-grounded technique hypotheses</summary>
+        <p className="small muted">
+          Extractor descriptions are hypotheses. Rubric scores and source
+          verification determine the assessment; these descriptions do not
+          establish intent or falsity.
+        </p>
+        {result.statements.flatMap((c) =>
+          (c.techniques || []).map((t, i) => (
+            <div className="finding" key={`${c.id}-${i}`}>
+              <h3>
+                {t.technique.replaceAll("_", " ")} · {c.id}
+              </h3>
+              <blockquote>{t.excerpt}</blockquote>
+              <p>{t.explanation}</p>
+              <small>
+                {c.stance} · {c.speaker}
+              </small>
+            </div>
+          )),
+        )}
+      </details>
       <details className="panel provenance">
         <summary>Assessment limits & provenance</summary>
         <ul>

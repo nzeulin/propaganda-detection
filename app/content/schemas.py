@@ -48,6 +48,26 @@ class Section(Entity):
     paragraph_ids: list[str]
 
 
+class TechniqueFinding(Entity):
+    technique: Literal[
+        "loaded_language",
+        "appeal_to_fear",
+        "false_dilemma",
+        "scapegoating",
+        "ad_hominem",
+        "appeal_to_authority",
+        "bandwagon",
+        "repetition",
+        "thought_terminating_cliche",
+        "coercive_identity",
+        "misleading_statistics",
+        "unsupported_factual_assertion",
+        "cherry_picking",
+    ]
+    excerpt: str
+    explanation: str
+
+
 class StatementContent(Entity):
     id: str
     canonical_claim_id: str
@@ -60,6 +80,7 @@ class StatementContent(Entity):
     stance: Literal["endorsed", "rejected", "neutrally_reported", "unclear"]
     is_direct_quote: bool
     author_attributable: bool
+    techniques: list[TechniqueFinding] = Field(default_factory=list)
 
 
 class Statement(StatementContent):

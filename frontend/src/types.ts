@@ -40,6 +40,7 @@ export interface Annotation {
   assessment: Assessment;
 }
 export interface Claim {
+  techniques?: { technique: string; excerpt: string; explanation: string }[];
   id: string;
   text: string;
   section_id: string;
