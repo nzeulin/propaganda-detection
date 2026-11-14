@@ -1,12 +1,23 @@
-import { Investigations } from "./Investigations";
-import { SystemExplorer } from "./SystemExplorer";
-import { Evaluations } from "./Evaluations";
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, features, labels, type Analysis, type Example } from "./types";
 import { Results } from "./Results";
 import { JobPanel, type Job } from "./JobPanel";
 import "./style.css";
+
+const Investigations = lazy(() =>
+  import("./Investigations").then((module) => ({
+    default: module.Investigations,
+  })),
+);
+const SystemExplorer = lazy(() =>
+  import("./SystemExplorer").then((module) => ({
+    default: module.SystemExplorer,
+  })),
+);
+const Evaluations = lazy(() =>
+  import("./Evaluations").then((module) => ({ default: module.Evaluations })),
+);
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 const scoreLabel = (value: number | null) =>
@@ -68,7 +79,11 @@ function Analyze() {
     setResult(null);
     try {
       if (example) {
-        const job = await api<Job>(`/api/v1/demos/${example}`, {}, controller.current.signal);
+        const job = await api<Job>(
+          `/api/v1/demos/${example}`,
+          {},
+          controller.current.signal,
+        );
         setJobId(job.id);
         localStorage.setItem("last-analysis-job", job.id);
       } else {
@@ -537,17 +552,19 @@ function App() {
         <span className="experimental mono">EXPERIMENTAL / v0.1</span>
       </header>
       <main id="main-content" className="max-w-[1440px] mx-auto px-5 md:px-10">
-        {page === "evaluations" ? (
-          <Evaluations />
-        ) : page === "system" ? (
-          <SystemExplorer />
-        ) : page === "investigations" ? (
-          <Investigations />
-        ) : page === "analyze" ? (
-          <Analyze />
-        ) : (
-          <Architecture />
-        )}
+        <Suspense fallback={<p role="status">Loading workspace…</p>}>
+          {page === "evaluations" ? (
+            <Evaluations />
+          ) : page === "system" ? (
+            <SystemExplorer />
+          ) : page === "investigations" ? (
+            <Investigations />
+          ) : page === "analyze" ? (
+            <Analyze />
+          ) : (
+            <Architecture />
+          )}
+        </Suspense>
       </main>
       <footer>
         <span className="mono">VERITAS//ANALYTICS</span>

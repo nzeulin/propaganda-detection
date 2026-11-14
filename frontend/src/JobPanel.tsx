@@ -67,7 +67,10 @@ export type Swarm = {
   formula: string;
   limitations: string[];
 };
-export type Job = Omit<components["schemas"]["JobRecord"], "trace" | "result" | "error"> & {
+export type Job = Omit<
+  components["schemas"]["JobRecord"],
+  "trace" | "result" | "error"
+> & {
   id: string;
   kind: string;
   target_id: string;
@@ -309,7 +312,11 @@ export function JobPanel({
         <section className="panel">
           <div className="eyebrow">INDEPENDENT COORDINATION ANALYSIS</div>
           <h2>{job.result.clusters.length} suspicious groups</h2>
-          {job.result.warnings?.map(w=><p className="error" key={w}>{w}</p>)}
+          {job.result.warnings?.map((w) => (
+            <p className="error" key={w}>
+              {w}
+            </p>
+          ))}
           <p>{job.result.formula}</p>
           {job.result.findings.map((f) => (
             <details className="finding" key={f.id}>

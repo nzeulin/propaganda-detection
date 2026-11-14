@@ -960,3 +960,23 @@ select {
 .table-scroll {
   overflow-x: auto;
 }
+
+.explorer {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+pre {
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  padding: 16px;
+  background: #08111f;
+  border-radius: 8px;
+}
+@media (max-width: 700px) {
+  .explorer {
+    padding: 16px;
+  }
+}
