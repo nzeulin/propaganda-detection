@@ -1,5 +1,7 @@
 """Persistent investigation imports, observed graphs, and append-only entity review."""
 
+from collections import deque
+from datetime import datetime
 from typing import Literal
 from uuid import uuid4
 
@@ -7,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
-from app.core.database import datasets, entities, feedback, observations, utc_now
+from app.core.database import analyses, datasets, entities, feedback, observations, utc_now
 from app.core.ingestion import DatasetInput, prepare_dataset
 
 router = APIRouter(prefix="/api/v1")
@@ -50,35 +52,86 @@ async def list_datasets(request: Request, offset: int = Query(0, ge=0), limit: i
 
 
 @router.get("/datasets/{dataset_id}/graph")
-async def dataset_graph(dataset_id: str, request: Request, limit: int = Query(300, ge=1, le=300)):
+async def dataset_graph(
+    dataset_id: str,
+    request: Request,
+    limit: int = Query(300, ge=1, le=300),
+    search: str = "",
+    focus: str | None = None,
+    cluster: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+):
+    if any(value and value.tzinfo is None for value in (since, until)):
+        raise HTTPException(422, "Time filters require a UTC offset")
     with request.app.state.database.connect() as connection:
         if not connection.execute(select(datasets.c.id).where(datasets.c.id == dataset_id)).first():
             raise HTTPException(404, "Unknown dataset")
-        all_nodes = (
-            connection.execute(
-                select(entities)
-                .where(entities.c.dataset_id == dataset_id)
-                .order_by(entities.c.kind, entities.c.id)
-            )
-            .mappings()
-            .all()
-        )
-        nodes = [dict(row) for row in all_nodes[:limit]]
-        visible = {node["id"] for node in nodes}
-        edges = connection.execute(
-            select(observations).where(
-                observations.c.dataset_id == dataset_id,
-                observations.c.source_id.in_(visible),
-                observations.c.target_id.in_(visible),
-            )
-        ).mappings()
-        return {
-            "dataset_id": dataset_id,
-            "nodes": nodes,
-            "edges": [dict(e) for e in edges],
-            "total_nodes": len(all_nodes),
-            "hidden_nodes": len(all_nodes) - len(nodes),
+        nodes = {
+            r["id"]: dict(r)
+            for r in connection.execute(
+                select(entities).where(entities.c.dataset_id == dataset_id)
+            ).mappings()
         }
+        edges = [
+            dict(r)
+            for r in connection.execute(
+                select(observations).where(observations.c.dataset_id == dataset_id)
+            ).mappings()
+        ]
+        swarm = connection.execute(
+            select(analyses.c.result)
+            .where(analyses.c.target_id == dataset_id, analyses.c.kind == "swarm")
+            .order_by(analyses.c.created_at.desc())
+            .limit(1)
+        ).scalar()
+    if since or until:
+        edges = [
+            e
+            for e in edges
+            if e["timestamp"]
+            and (not since or datetime.fromisoformat(e["timestamp"]) >= since)
+            and (not until or datetime.fromisoformat(e["timestamp"]) <= until)
+        ]
+    clusters = swarm["clusters"] if swarm else []
+    inferred = [f for f in swarm["findings"] if f["strong"]] if swarm and not (since or until) else []
+    edges.extend(inferred)
+    adjacency = {node: set() for node in nodes}
+    for edge in edges:
+        adjacency[edge["source_id"]].add(edge["target_id"])
+        adjacency[edge["target_id"]].add(edge["source_id"])
+    if focus:
+        seeds = [focus] if focus in nodes else []
+    elif cluster:
+        seeds = next((c["account_ids"] for c in clusters if c["id"] == cluster), [])
+    else:
+        seeds = [
+            node_id
+            for node_id, n in nodes.items()
+            if search.casefold() in str(n["data"]).casefold() and (not (since or until) or adjacency[node_id])
+        ]
+    selected, pending = [], deque(seeds if focus or cluster else seeds[:1])
+    seen = set()
+    # Traverse observed neighborhoods first so the cap cannot produce 300 isolated accounts.
+    while len(selected) < limit and (pending or seeds):
+        if not pending:
+            pending.append(seeds.pop(0))
+        node_id = pending.popleft()
+        if node_id in seen:
+            continue
+        seen.add(node_id)
+        selected.append(node_id)
+        pending.extend(sorted(adjacency[node_id] - seen))
+    visible = set(selected)
+    return {
+        "dataset_id": dataset_id,
+        "nodes": [nodes[n] for n in selected],
+        "edges": [e for e in edges if e["source_id"] in visible and e["target_id"] in visible],
+        "clusters": clusters,
+        "total_nodes": len(nodes),
+        "hidden_nodes": len(nodes) - len(selected),
+        "time_filter_excludes_unknown": bool(since or until),
+    }
 
 
 @router.post("/feedback", status_code=201)
