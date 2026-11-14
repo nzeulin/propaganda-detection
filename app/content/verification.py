@@ -43,7 +43,7 @@ def escalation_reasons(result, report, config):
     return list(dict.fromkeys(reasons))
 
 
-async def verify_content(result, provider, config, stage):
+async def verify_content(result, provider, config, stage, evidence_packet=None):
     claims = {c["id"]: c for c in result["statements"]}
 
     async def assess(report):
@@ -84,7 +84,9 @@ async def verify_content(result, provider, config, stage):
 
     report = await stage(
         "verification_initial",
-        lambda: provider.verifier.research(result),
+        lambda: provider.verifier.research(
+            result, **({"packaged_sources": evidence_packet} if evidence_packet is not None else {})
+        ),
         {"claim_ids": list(claims)},
         provider.verifier.model,
     )
@@ -94,7 +96,11 @@ async def verify_content(result, provider, config, stage):
         previous = report
         report = await stage(
             "verification_deeper",
-            lambda: provider.verifier.research(result, previous),
+            lambda: provider.verifier.research(
+                result,
+                previous,
+                **({"packaged_sources": evidence_packet} if evidence_packet is not None else {}),
+            ),
             {"reasons": reasons},
             provider.verifier.model,
         )
@@ -148,7 +154,9 @@ async def verify_content(result, provider, config, stage):
     result["availability_mask"] = list(result["availability"].values())
     result["verification"] = report
     result["investigation_status"] = "needs_review" if result["review_required"] else report["status"]
-    result["provenance"]["evidence_scope"] = "retrieved_exact_excerpts"
+    result["provenance"]["evidence_scope"] = (
+        "packaged_synthetic_evidence" if evidence_packet is not None else "retrieved_exact_excerpts"
+    )
     result["warnings"] = [
         w for w in result["warnings"] if w != "Factual claims and omissions were not externally verified."
     ]
