@@ -1,0 +1,8 @@
+version: explicit-scores-v1
+# Experimental relative weights, normalized over assessed features at each scope.
+weights:
+  emotional_manipulation: 0.20
+  logical_manipulation: 0.30
+  authority_manipulation: 0.10
+  repetition_amplification: 0.10
+  strategic_persuasion: 0.30

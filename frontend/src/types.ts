@@ -39,6 +39,13 @@ export interface Annotation {
   rubric: string[];
   assessment: Assessment;
 }
+export interface PropagandaScore {
+  value: number | null;
+  status: "assessed" | "partial" | "not_assessed";
+  label: "not_suspicious" | "suspicious" | "propaganda" | "requires_review" | "not_assessed";
+  reason: string;
+  policy_version: string;
+}
 export interface Claim {
   id: string;
   text: string;
@@ -61,6 +68,7 @@ export interface Claim {
   occurrence_count: number;
   features: Partial<Record<Feature, number | null>>;
   contributions: Partial<Record<Feature, number>>;
+  propaganda_score: PropagandaScore;
 }
 export interface Analysis {
   material_id: string;
@@ -69,6 +77,7 @@ export interface Analysis {
   demo: boolean;
   primary_narrative: string | null;
   review_required: boolean;
+  propaganda_score: PropagandaScore;
   features: Record<Feature, number | null>;
   feature_details: Record<
     Feature,

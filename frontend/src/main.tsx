@@ -10,6 +10,7 @@ import {
   type Analysis as AnalysisResult,
   type Claim,
   type Feature,
+  type PropagandaScore,
 } from "./types";
 import { segmentText } from "./highlights";
 
@@ -51,6 +52,29 @@ type StatementViewProps = {
   registerElement: (element: HTMLElement | null) => void;
 };
 
+function PropagandaScoreView({ score }: { score: PropagandaScore }) {
+  const scoreLabels = {
+    not_suspicious: "No strong indicators",
+    suspicious: "Suspicious",
+    propaganda: "Propaganda",
+    requires_review: "Requires review",
+    not_assessed: "Not assessed",
+  };
+  return (
+    <section className="propaganda-score" aria-label="Propaganda score">
+      <div className="propaganda-score-heading">
+        <span title="Experimental weighted indicator score, not a probability. Missing features are excluded; assessed zeroes count.">
+          Propaganda score
+        </span>
+        <strong>{score.value == null ? "Unavailable" : `${Math.round(score.value * 100)}/100`}</strong>
+        <span className={`score-label score-${score.label}`}>{scoreLabels[score.label]}</span>
+        {score.status === "partial" && <span className="score-partial">Partial</span>}
+      </div>
+      <p>{score.reason}</p>
+    </section>
+  );
+}
+
 function StatementView({
   statement,
   selected,
@@ -78,6 +102,7 @@ function StatementView({
         </span>
       </header>
 
+      <PropagandaScoreView score={statement.propaganda_score} />
       <p className="statement-text">{statement.text}</p>
 
       <div className="tags">
@@ -116,12 +141,20 @@ function Analysis() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [statementFilter, setStatementFilter] = useState<"suspicious" | "all" | "unscored">("suspicious");
   const [selectedStatementId, setSelectedStatementId] = useState<string | null>(
     null,
   );
   const controller = useRef<AbortController | null>(null);
   const resultElements = useRef<Record<string, HTMLElement | null>>({});
   const characterCount = Array.from(input).length;
+  const statementGroups = {
+    suspicious: result?.statements.filter((statement) =>
+      ["suspicious", "propaganda"].includes(statement.propaganda_score.label)) ?? [],
+    all: result?.statements ?? [],
+    unscored: result?.statements.filter((statement) => statement.propaganda_score.status !== "assessed") ?? [],
+  };
+  const visibleStatements = statementGroups[statementFilter];
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -130,6 +163,7 @@ function Analysis() {
     setResult(null);
     setError("");
     setSelectedStatementId(null);
+    setStatementFilter("suspicious");
   }
 
   async function analyze() {
@@ -140,6 +174,7 @@ function Analysis() {
     setResult(null);
     setError("");
     setSelectedStatementId(null);
+    setStatementFilter("suspicious");
     try {
       const response = await api<AnalysisResult>(
         "/analyze",
@@ -148,7 +183,8 @@ function Analysis() {
       );
       if (!request.signal.aborted) {
         setResult(response);
-        setSelectedStatementId(response.statements[0]?.id ?? null);
+        setSelectedStatementId(response.statements.find((statement) =>
+          ["suspicious", "propaganda"].includes(statement.propaganda_score.label))?.id ?? null);
       }
     } catch (err) {
       if (!request.signal.aborted) {
@@ -163,6 +199,7 @@ function Analysis() {
   }
 
   function selectStatement(statementId: string) {
+    if (!visibleStatements.some((statement) => statement.id === statementId)) setStatementFilter("all");
     setSelectedStatementId(statementId);
     requestAnimationFrame(() => {
       resultElements.current[statementId]?.scrollIntoView({
@@ -170,6 +207,13 @@ function Analysis() {
         block: "nearest",
       });
     });
+  }
+
+  function changeFilter(filter: typeof statementFilter) {
+    setStatementFilter(filter);
+    setSelectedStatementId((current) =>
+      statementGroups[filter].some((statement) => statement.id === current)
+        ? current : statementGroups[filter][0]?.id ?? null);
   }
 
   const segments = result
@@ -289,6 +333,7 @@ function Analysis() {
                 {result.primary_narrative ?? "No main idea was identified."}
               </p>
             </div>
+            <PropagandaScoreView score={result.propaganda_score} />
             <div className="idea">
               <label>MATERIAL-LEVEL FEATURES</label>
               <p>{result.classification.label.replaceAll("_", " ")}</p>
@@ -313,8 +358,18 @@ function Analysis() {
                 </ul>
               </details>
             )}
+            <div className="statement-filters" role="group" aria-label="Statement filters">
+              {([
+                ["suspicious", "Suspicious"],
+                ["all", "All statements"],
+                ["unscored", "Unscored / partial"],
+              ] as const).map(([filter, label]) => (
+                <button type="button" key={filter} aria-pressed={statementFilter === filter}
+                  onClick={() => changeFilter(filter)}>{label} ({statementGroups[filter].length})</button>
+              ))}
+            </div>
             <div className="results-list">
-              {result.statements.map((statement) => (
+              {visibleStatements.map((statement) => (
                 <StatementView
                   key={statement.id}
                   statement={statement}
@@ -325,10 +380,13 @@ function Analysis() {
                   }}
                 />
               ))}
-              {result.statements.length === 0 && (
+              {visibleStatements.length === 0 && (
                 <div className="empty">
-                  No statement-level findings were returned. Review the analysis
-                  notes.
+                  {result.statements.length === 0
+                    ? "No statement-level findings were returned. Review the analysis notes."
+                    : statementFilter === "suspicious"
+                      ? "No suspicious statements found in the assessed evidence. Use All statements or Unscored / partial to inspect the rest."
+                      : "No unscored or partially assessed statements."}
                 </div>
               )}
             </div>

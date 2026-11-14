@@ -21,6 +21,7 @@ from app.api.swarm import swarm_handler
 from app.api.system import router as system_router
 from app.content.config import Configuration
 from app.content.examples import EXAMPLES, DemoProvider
+from app.content.explicit_scores import with_explicit_scores
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
 from app.content.schemas import AnalysisResponse, AnalyzeRequest
@@ -130,6 +131,7 @@ async def analyze(body: AnalyzeRequest, request: Request):
             for key, value in saved["result"].items()
             if key not in ("analysis_id", "propaganda_screening")
         }
+        result = with_explicit_scores(result, state.config)
         if not body.include_details:
             for key in ("statements", "sections", "contextual_findings", "diagnostics", "annotations"):
                 result.pop(key)
@@ -144,6 +146,7 @@ async def analyze(body: AnalyzeRequest, request: Request):
                 result["original_url"] = body.url
     except TimeoutError as exc:
         raise HTTPException(504, "Analysis timed out. Try a shorter article.") from exc
+    result = with_explicit_scores(result, state.config)
     if not body.include_details:
         for key in ("statements", "sections", "contextual_findings", "diagnostics", "annotations"):
             result.pop(key)

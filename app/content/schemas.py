@@ -146,6 +146,20 @@ class Classification(Entity):
     strong_features: list[str]
 
 
+class PropagandaScore(Entity):
+    value: float | None = Field(ge=0, le=1)
+    status: Literal["assessed", "partial", "not_assessed"]
+    label: Literal["not_suspicious", "suspicious", "propaganda", "requires_review", "not_assessed"]
+    reason: str
+    policy_version: str
+
+
+class ScoredStatement(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: str
+    propaganda_score: PropagandaScore
+
+
 class AnalysisResponse(Entity):
     material_id: str
     title: str | None
@@ -165,8 +179,9 @@ class AnalysisResponse(Entity):
     coverage: dict[str, float]
     feature_details: dict[str, FeatureDetail]
     classification: Classification
+    propaganda_score: PropagandaScore
     sections: list[dict] | None = None
-    statements: list[dict] | None = None
+    statements: list[ScoredStatement] | None = None
     contextual_findings: list[dict] | None = None
     annotations: list[dict] | None = None
     diagnostics: dict | None = None

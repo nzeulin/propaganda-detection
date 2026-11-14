@@ -411,6 +411,57 @@ textarea {
     serif;
   max-width: 650px;
 }
+.propaganda-score {
+  border-bottom: 1px solid #59534c;
+  padding: 15px;
+}
+.propaganda-score-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.propaganda-score-heading strong {
+  font-size: 20px;
+}
+.propaganda-score p {
+  margin: 8px 0 0;
+  color: #b2a99e;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.score-label,
+.score-partial {
+  color: #b2a99e;
+  font-size: 10px;
+}
+.score-suspicious,
+.score-partial {
+  color: #c2a46f;
+}
+.score-propaganda {
+  color: #ef8f7c;
+}
+.statement-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 15px;
+  border-bottom: 1px solid #59534c;
+}
+.statement-filters button {
+  padding: 9px;
+  border: 1px solid #59534c;
+  background: transparent;
+  color: #f4efe6;
+  font: inherit;
+  font-size: 10px;
+}
+.statement-filters button[aria-pressed="true"] {
+  background: #493e22;
+  border-color: #c2a46f;
+}
 .statement {
   border-bottom: 1px solid #59534c;
   scroll-margin: 12px;
