@@ -4,27 +4,33 @@ import asyncio
 from threading import Event
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import func, select
 
 from app.api.contracts import JobRecord
 from app.api.datasets import persist_dataset
 from app.core.database import jobs
 from app.core.ingestion import DatasetInput, canonical_id
-from app.swarm.bluesky import COLLECTION_VERSION, CollectionError, collect_author_feeds, normalize_source
+from app.swarm.bluesky import (
+    COLLECTION_VERSION,
+    MAX_ACTORS,
+    CollectionError,
+    collect_author_feeds,
+    prepare_collection_sources,
+)
 
 router = APIRouter(prefix="/api/v1/bluesky")
 
 
 class CollectionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    actors: list[str] = Field(min_length=1, max_length=10)
+    actors: list[str] = Field(min_length=1, description=f"Up to {MAX_ACTORS} unique profiles or post URLs")
     per_actor: int = Field(default=50, ge=1, le=200, strict=True)
 
-    @field_validator("actors")
-    @classmethod
-    def public_profiles(cls, values):
-        return list(dict.fromkeys(normalize_source(value) for value in values))
+    @model_validator(mode="after")
+    def collection_limits(self):
+        self.actors = prepare_collection_sources(self.actors, self.per_actor)
+        return self
 
 
 def collection_handler(state):

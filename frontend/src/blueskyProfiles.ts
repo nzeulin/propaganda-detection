@@ -1,11 +1,13 @@
 const HANDLE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const DID = /^did:plc:[a-z2-7]{24}$/;
+export const BLUESKY_MAX_SOURCES = 50;
+export const BLUESKY_MAX_INPUT_LENGTH = 20_000;
 
 // Normalize presentation copied from chat, without extracting URLs from arbitrary
 // prose or relaxing the server's fixed-public-host restrictions. Post URLs stay
 // post URLs: they must never silently become whole-profile feed requests.
 export function parseBlueskyProfiles(input: string): string[] {
-  if (input.length > 4000) throw new Error("Profile list exceeds 4,000 characters.");
+  if (input.length > BLUESKY_MAX_INPUT_LENGTH) throw new Error("Source list exceeds 20,000 characters.");
   const entries = input
     .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
     .replace(/^\s*(?:[-*+•]|\d+[.)])\s+/gm, "")
@@ -25,6 +27,6 @@ export function parseBlueskyProfiles(input: string): string[] {
     return post ? `https://bsky.app/profile/${actor}/post/${post[2]}` : actor;
   });
   const unique = [...new Set(actors)];
-  if (unique.length > 10) throw new Error(`Too many sources: ${unique.length} unique inputs. Maximum 10 Bluesky profiles or post URLs per run.`);
+  if (unique.length > BLUESKY_MAX_SOURCES) throw new Error(`Too many sources: ${unique.length} unique inputs. Maximum ${BLUESKY_MAX_SOURCES} Bluesky profiles or post URLs per run.`);
   return unique;
 }

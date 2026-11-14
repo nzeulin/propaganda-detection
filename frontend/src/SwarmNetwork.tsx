@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
-import { parseBlueskyProfiles } from "./blueskyProfiles";
+import { BLUESKY_MAX_INPUT_LENGTH, BLUESKY_MAX_SOURCES, parseBlueskyProfiles } from "./blueskyProfiles";
 import { PostScoring, PostScoringProvider, usePostScoring, type ContentScore } from "./PostScoring";
 import "./SwarmNetwork.css";
 import { ConnectivityEvidence, ConnectivitySummary, isConnectivity, type ConnectivityPair, type ConnectivityResult } from "./AgentConnectivity";
@@ -646,7 +646,7 @@ function BlueskyImport({
       }
       if (!actors.length) {
         setError(
-          "Enter between 1 and 10 public Bluesky profiles, handles or post URLs, separated by newlines.",
+          `Enter between 1 and ${BLUESKY_MAX_SOURCES} public Bluesky profiles, handles or post URLs, separated by newlines.`,
         );
         return;
       }
@@ -753,7 +753,7 @@ function BlueskyImport({
         value={profiles}
         disabled={disabled || busy || !!jobId}
         rows={3}
-        maxLength={4000}
+        maxLength={BLUESKY_MAX_INPUT_LENGTH}
         spellCheck={false}
         placeholder={"https://bsky.app/profile/bsky.app\nhttps://bsky.app/profile/HANDLE/post/POST_ID"}
         onChange={(event) => onProfilesChange(event.target.value)}
@@ -761,7 +761,7 @@ function BlueskyImport({
         aria-describedby={`swarm-bluesky-help${inputConflict ? " swarm-input-conflict" : ""}`}
       />
       <p id="swarm-bluesky-help" className="swarm-muted">
-        Up to 10 unique sources per run. Profiles import at most 50 recent posts;
+        Up to {BLUESKY_MAX_SOURCES} unique sources per run. Profiles import at most 50 recent posts;
         post links import only the linked posts. Extra sources show an error.
       </p>
       <p className="swarm-collection-status" role="status" aria-live="polite">

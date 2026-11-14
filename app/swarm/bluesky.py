@@ -22,7 +22,8 @@ from app.swarm.engine import normalized_url
 
 PUBLIC_API = "https://public.api.bsky.app/xrpc"
 MAX_RESPONSE_BYTES = 2_000_000
-MAX_ACTORS = 10
+MAX_ACTORS = 50
+MAX_COLLECTION_POSTS = 5000
 MAX_POSTS_PER_ACTOR = 200
 MAX_PAGES_PER_ACTOR = 3
 COLLECTION_VERSION = "bluesky-public-inputs-v2"
@@ -64,6 +65,24 @@ def normalize_source(value):
             actor = normalize_actor(post[1])
             return f"https://bsky.app/profile/{actor}/post/{post[2]}"
     return normalize_actor(value)
+
+
+def prepare_collection_sources(actors, per_actor):
+    """Count normalized unique sources and reject oversized imports before fetching."""
+    if not actors:
+        raise ValueError(f"Supply between 1 and {MAX_ACTORS} public profiles, handles or post URLs")
+    selections = list(dict.fromkeys(normalize_source(actor) for actor in actors))
+    if len(selections) > MAX_ACTORS:
+        raise ValueError(f"Too many sources: {len(selections)} unique inputs. Maximum {MAX_ACTORS} per run.")
+    if type(per_actor) is not int or not 1 <= per_actor <= MAX_POSTS_PER_ACTOR:
+        raise ValueError(f"Posts per account must be between 1 and {MAX_POSTS_PER_ACTOR}")
+    requested_posts = sum(1 if source.startswith("https://") else per_actor for source in selections)
+    if requested_posts > MAX_COLLECTION_POSTS:
+        raise ValueError(
+            f"Collection could request {requested_posts:,} posts; maximum {MAX_COLLECTION_POSTS:,} per run. "
+            "Reduce the number of profiles or posts per profile (per_actor)."
+        )
+    return selections
 
 
 def _check_cancelled(cancellation):
@@ -184,13 +203,7 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
     This is not a keyword search, bot-labeled dataset, or complete network sample.
     The caller owns an injected HTTP client; default clients are always closed.
     """
-    if not actors or len(actors) > MAX_ACTORS or any(
-        not isinstance(actor, str) or not actor.strip() or len(actor) > 300 for actor in actors
-    ):
-        raise ValueError(f"Supply between 1 and {MAX_ACTORS} public profiles, handles or post URLs")
-    if type(per_actor) is not int or not 1 <= per_actor <= MAX_POSTS_PER_ACTOR:
-        raise ValueError(f"Posts per account must be between 1 and {MAX_POSTS_PER_ACTOR}")
-    selections = list(dict.fromkeys(normalize_source(actor) for actor in actors))
+    selections = prepare_collection_sources(actors, per_actor)
     post_urls = [value for value in selections if value.startswith("https://")]
     profile_count = len(selections) - len(post_urls)
     started = datetime.now(UTC).isoformat()
