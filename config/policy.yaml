@@ -1,0 +1,9 @@
+version: experimental-v0.1
+minimum_coverage: 0.80
+required_features: [emotional_manipulation, logical_manipulation, strategic_persuasion]
+indicator_threshold: 0.50
+strong_threshold: 0.75
+minimum_dimensions: 2
+highlight_yellow: 0.50
+highlight_red: 0.75
+top_three_diagnostic: false

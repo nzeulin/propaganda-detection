@@ -1,0 +1,9 @@
+[project]
+name = "veritasscope"
+version = "0.1.0"
+description = "Experimental, explainable manipulation-indicator screening"
+requires-python = ">=3.11"
+dependencies = ["fastapi", "uvicorn", "pydantic", "httpx", "aiohttp", "trafilatura", "pyyaml", "openai", "typesafe-sdk", "python-dotenv"]
+
+[tool.ruff]
+line-length = 110

@@ -1,0 +1,49 @@
+version: rubrics-v0.1
+relevance:
+  - No bearing on understanding the central narrative, its support or substantive rebuttal.
+  - Minor tangential detail that contributes little to understanding the narrative.
+  - Relevant context that helps explain the narrative without being important support or rebuttal.
+  - Important supporting claim or substantive rebuttal needed to evaluate the narrative.
+  - Essential central conclusion or indispensable premise without which the narrative cannot be understood.
+factual_manipulation:
+  - Retrieved trustworthy evidence supports the claim or establishes no factual distortion.
+  - Verified minor imprecision with little effect on the argument.
+  - Verified distortion materially changes a relevant detail.
+  - Verified major falsehood central to the argument.
+  - Verified pervasive fabrication or inversion of evidence on which the argument depends.
+selective_presentation:
+  - Relevant comparison coverage reveals no material omission or misleading framing.
+  - Comparison evidence shows a minor omission with little argumentative effect.
+  - A concrete omitted counterfact meaningfully skews interpretation.
+  - Multiple or central omissions demonstrably distort the narrative.
+  - Comparison evidence shows systematic exclusion or inversion of indispensable counterevidence.
+emotional_manipulation:
+  - No manipulative emotional appeal; emotion may be legitimate description.
+  - Isolated weak emotional cue with little effect on the argument.
+  - Clear emotional appeal reinforces an argument beyond its evidence.
+  - Strong emotional pressure is central to persuading the audience.
+  - The argument relies predominantly on intense fear, anger, guilt or comparable emotional pressure.
+logical_manipulation:
+  - Argument is coherent or descriptive; no misleading inferential move is established.
+  - Minor suggestive inference with little persuasive effect.
+  - Identifiable misleading inference materially strengthens the argument beyond its premises.
+  - A clear fallacy or unsupported inferential leap is central to the conclusion.
+  - The argument depends predominantly on an explicit false dilemma, contradiction or pervasive inferential distortion.
+authority_manipulation:
+  - No misleading appeal; legitimate expertise and ordinary citations may be present.
+  - Weak appeal to status that has little effect on evaluating the argument.
+  - Authority status substitutes for relevant reasons on an important point.
+  - Misleading appeal to irrelevant authority or purported consensus is central to persuasion.
+  - The argument relies almost entirely on inappropriate authority rather than relevant reasons; fabrication requires separate verification.
+repetition_amplification:
+  - No manipulative repetition within the material; necessary explanation and neutral quotation may recur.
+  - Occasional endorsed restatement with little persuasive pressure.
+  - Endorsed equivalent claims recur enough to substitute familiarity for additional support.
+  - Repeated endorsed claims prominently pressure acceptance across sections without additional reasons.
+  - Pervasive endorsed repetition dominates the material and substitutes saturation for evidence.
+strategic_persuasion:
+  - Informational reporting or ordinary advocacy without an established manipulative narrative pattern.
+  - Isolated weak manipulative framing without an organizing pattern.
+  - A clear manipulative device organizes part of the narrative beyond ordinary persuasion.
+  - Sustained manipulative pattern such as coercive identity pressure or delegitimizing rebuttal organizes the central argument.
+  - The narrative relies predominantly on coordinated coercive framing, suppression of alternatives or identity threats to pressure acceptance.

@@ -1,0 +1,9 @@
+version: v0.1
+features:
+  factual_manipulation: External trustworthy verification required.
+  selective_presentation: Comparison coverage and counterevidence required.
+  emotional_manipulation: Author-attributable emotional pressure beyond the evidence.
+  logical_manipulation: Author-attributable misleading argument structure.
+  authority_manipulation: Misleading appeal only; fabrication remains unassessed without verification.
+  repetition_amplification: Repeated canonical claims within this material only.
+  strategic_persuasion: Manipulative document-level persuasion, not ordinary advocacy.

@@ -1,0 +1,91 @@
+"""Typed extraction and public input contracts; offsets count Unicode code points."""
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class Entity(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class AnalyzeRequest(Entity):
+    text: str | None = Field(default=None, min_length=1, max_length=40000)
+    url: str | None = Field(default=None, min_length=1, max_length=2048)
+    example_id: str | None = None
+    title: str | None = Field(default=None, max_length=500)
+    mode: Literal["text_only"] = "text_only"
+    include_details: bool = True
+
+    @model_validator(mode="after")
+    def one_input(self):
+        if sum(value is not None for value in (self.text, self.url, self.example_id)) != 1:
+            raise ValueError("Supply exactly one of text, url, or example_id.")
+        if self.text is not None and not self.text.strip():
+            raise ValueError("Paste readable article text.")
+        return self
+
+
+class Span(Entity):
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    paragraph_id: str
+    excerpt: str
+
+
+class Narrative(Entity):
+    id: str
+    summary: str
+    kind: Literal["argumentative", "informational"]
+
+
+class Section(Entity):
+    id: str
+    title: str
+    paragraph_ids: list[str]
+
+
+class Statement(Entity):
+    id: str
+    canonical_claim_id: str
+    text: str
+    section_id: str
+    narrative_id: str
+    source_spans: list[Span]
+    context_excerpt: str
+    role: Literal["main_conclusion", "supporting_claim", "counterargument", "background", "other"]
+    speaker: Literal["author", "named_source", "unnamed_source", "other"]
+    speaker_name: str | None
+    stance: Literal["endorsed", "rejected", "neutrally_reported", "unclear"]
+    is_direct_quote: bool
+    author_attributable: bool
+
+
+class Pattern(Entity):
+    feature: Literal["repetition_amplification", "strategic_persuasion"]
+    description: str
+    statement_ids: list[str]
+
+
+class Extraction(Entity):
+    narratives: list[Narrative]
+    sections: list[Section]
+    statements: list[Statement]
+    patterns: list[Pattern]
+
+
+class Assessment(Entity):
+    raw_score: float = Field(ge=0, le=4)
+    probabilities: list[float] = Field(min_length=5, max_length=5)
+    confidence: float = Field(ge=0, le=1)
+    model: str
+
+    @model_validator(mode="after")
+    def valid_distribution(self):
+        if any(not 0 <= p <= 1 for p in self.probabilities) or abs(sum(self.probabilities) - 1) > 1e-5:
+            raise ValueError("Invalid rubric distribution")
+        return self
+
+    @property
+    def score(self):
+        return self.raw_score / 4

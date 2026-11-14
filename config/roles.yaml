@@ -1,0 +1,7 @@
+version: experimental-v0.1
+coefficients:
+  main_conclusion: 1.0
+  supporting_claim: 0.8
+  counterargument: 0.7
+  background: 0.3
+  other: 0.4

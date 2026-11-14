@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local frontend and internal validation
+node_modules/
+.copilot-cache/
+.tests/
+*.tsbuildinfo
