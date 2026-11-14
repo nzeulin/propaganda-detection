@@ -52,6 +52,20 @@ class ReferenceBatch(BaseModel):
     records: list[ReferenceLabel]
 
 
+def annotation_inputs(materials):
+    """Whitelist evidence fields; scenario descriptions can disclose generator intent."""
+    return [
+        {"id": str(index), **{key: material[key] for key in ("text", "reference_facts", "comparison_corpus")}}
+        for index, material in enumerate(materials)
+    ]
+
+
+def write_record(path, record):
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(record, ensure_ascii=False, indent=2))
+    temporary.replace(path)
+
+
 def specifications():
     families = [
         "none",
@@ -134,6 +148,7 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
     async def worker():
         while not queue.empty():
             batch = queue.get_nowait()
+            feedback = {}
             for attempt in range(4):
                 if not batch:
                     break
@@ -162,7 +177,11 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
                             "and fictional names; avoid recurring templates. Each variant must convey meaningfully distinct wording."
                         ),
                         input=json.dumps(
-                            {"specifications": batch, "fixed_scenarios_reuse_exactly": prior_scenarios}
+                            {
+                                "specifications": batch,
+                                "fixed_scenarios_reuse_exactly": prior_scenarios,
+                                "previous_annotation_feedback": feedback,
+                            }
                         ),
                     )
                     if not generated.output_parsed:
@@ -184,13 +203,26 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
                             "annotations, not human expert gold. Confidence must reflect ambiguity. Never search the web for fiction."
                         ),
                         # Hide intent-bearing IDs from the independent annotator.
-                        input=json.dumps([{**m, "id": str(i)} for i, m in enumerate(candidates)]),
+                        input=json.dumps(annotation_inputs(candidates)),
                     )
                     references = {r.id: r.model_dump() for r in annotation.output_parsed.records}
                     accepted = set()
                     for index, material in enumerate(candidates):
                         spec = next(s for s in batch if s["id"] == material["id"])
                         reference = references.get(str(index))
+                        feedback[spec["id"]] = reference
+                        with (directory.parent / "candidate-audit.jsonl").open("a") as audit:
+                            audit.write(
+                                json.dumps(
+                                    {
+                                        "material": material,
+                                        "intent": spec["intent"],
+                                        "reference": reference,
+                                        "attempt": attempt + 1,
+                                    }
+                                )
+                                + "\n"
+                            )
                         facts = {k: material[k] for k in ("scenario", "reference_facts", "comparison_corpus")}
                         if (
                             spec["scenario_id"] in prior_scenarios
@@ -218,7 +250,10 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
                         ):
                             continue
                         check = await jev.system_one(
-                            state={**material, "id": "opaque", "reference": {**reference, "id": "opaque"}},
+                            state={
+                                **annotation_inputs([material])[0],
+                                "reference": {**reference, "id": "opaque"},
+                            },
                             questions={
                                 "quality": Choice(
                                     instructions="Does the proposed annotation follow from the text and reference evidence, with exact source attribution?",
@@ -247,7 +282,9 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
                                 "generator": generated.model,
                                 "annotator": annotation.model,
                                 "quality_model": check.model,
-                                "protocol": "corpus-v1",
+                                "protocol": "corpus-v2-blinded",
+                                "generation_response_id": generated.id,
+                                "annotation_response_id": annotation.id,
                                 "generation_usage": generated.usage.model_dump() if generated.usage else None,
                                 "annotation_usage": annotation.usage.model_dump()
                                 if annotation.usage
@@ -256,9 +293,7 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
                             },
                             "text_sha256": hashlib.sha256(material["text"].encode()).hexdigest(),
                         }
-                        (directory / (spec["id"] + ".json")).write_text(
-                            json.dumps(record, ensure_ascii=False, indent=2)
-                        )
+                        write_record(directory / (spec["id"] + ".json"), record)
                         accepted.add(spec["id"])
                         prior_scenarios[spec["scenario_id"]] = facts
                         fixed_scenarios[spec["scenario_id"]] = facts
@@ -272,7 +307,10 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
                 except Exception as exc:  # noqa: BLE001 — batch boundary records failures and resumes missing IDs
                     # A batch failure never loses already accepted records or restarts another batch.
                     print(
-                        json.dumps({"batch_error": type(exc).__name__, "message": str(exc)[:300]}), flush=True
+                        json.dumps(
+                            {"batch_error": type(exc).__name__, "status": getattr(exc, "status_code", None)}
+                        ),
+                        flush=True,
                     )
                     await asyncio.sleep(2)
                     batch = [s for s in batch if not (directory / (s["id"] + ".json")).exists()]
@@ -287,7 +325,7 @@ async def generate_corpus(directory: Path, limit=1500, concurrency=3):
         json.loads(p.read_text()) for p in sorted(directory.glob("*.json")) if p.name != "manifest.json"
     ]
     manifest = {
-        "protocol": "corpus-v1",
+        "protocol": "corpus-v2-blinded",
         "accepted": len(records),
         "requested": limit,
         "complete": all((directory / (s["id"] + ".json")).exists() for s in specs),
