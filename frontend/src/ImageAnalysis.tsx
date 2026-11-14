@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type FormEvent,
+} from "react";
 import { createPortal } from "react-dom";
 
 type EvidenceSource = "visual" | "image_text" | "caption";
@@ -27,6 +33,7 @@ type ImageReport = {
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const imageExtension = /\.(jpe?g|png|webp)$/i;
 const statusLabels = {
   signals_found: "Possible persuasion techniques",
   needs_context: "More context needed",
@@ -139,8 +146,13 @@ function ImageResults({ report }: { report: ImageReport }) {
 
 export default function ImageAnalysis({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [selection, setSelection] = useState<{
+    file: File;
+    source: "file" | "clipboard";
+  } | null>(null);
+  const file = selection?.file;
   const [preview, setPreview] = useState("");
   const [caption, setCaption] = useState("");
   const [pending, setPending] = useState(false);
@@ -162,7 +174,10 @@ export default function ImageAnalysis({ onClose }: { onClose: () => void }) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  function selectFile(next: File | undefined) {
+  function selectFile(
+    next: File | undefined,
+    source: "file" | "clipboard" = "file",
+  ) {
     setReport(null);
     let message = "";
     if (next) {
@@ -170,7 +185,7 @@ export default function ImageAnalysis({ onClose }: { onClose: () => void }) {
         !imageTypes.has(next.type) &&
         !(
           (next.type === "" || next.type === "application/octet-stream") &&
-          /\.(jpe?g|png|webp)$/i.test(next.name)
+          imageExtension.test(next.name)
         )
       ) {
         message = "Choose a JPG, PNG or WebP image.";
@@ -181,8 +196,25 @@ export default function ImageAnalysis({ onClose }: { onClose: () => void }) {
       }
     }
     setError(message);
-    setFile(message ? null : (next ?? null));
+    setSelection(!message && next ? { file: next, source } : null);
     return !message;
+  }
+
+  function pasteImage(event: ClipboardEvent<HTMLDialogElement>) {
+    const { files, items } = event.clipboardData;
+    const image =
+      Array.from(files).find(
+        (entry) =>
+          entry.type.startsWith("image/") || imageExtension.test(entry.name),
+      ) ??
+      Array.from(items)
+        .find((item) => item.kind === "file" && item.type.startsWith("image/"))
+        ?.getAsFile();
+    if (!image) return;
+    event.preventDefault();
+    if (activeRequest.current) return;
+    if (fileInput.current) fileInput.current.value = "";
+    selectFile(image, "clipboard");
   }
 
   function close() {
@@ -226,6 +258,7 @@ export default function ImageAnalysis({ onClose }: { onClose: () => void }) {
       className="image-check-dialog"
       aria-labelledby="image-check-title"
       onClose={close}
+      onPaste={pasteImage}
     >
       <div className="image-check-heading">
         <h2 id="image-check-title">Analyze an image</h2>
@@ -243,6 +276,7 @@ export default function ImageAnalysis({ onClose }: { onClose: () => void }) {
           <label htmlFor="image-check-file">Image</label>
           <input
             id="image-check-file"
+            ref={fileInput}
             type="file"
             autoFocus
             accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
@@ -252,8 +286,12 @@ export default function ImageAnalysis({ onClose }: { onClose: () => void }) {
             }}
           />
           <p id="image-check-file-help" className="image-check-help">
-            JPG, PNG or WebP up to 5 MB.
+            Choose a JPG, PNG or WebP up to 5 MB, or paste an image here (Ctrl+V
+            / ⌘V).
           </p>
+          {selection?.source === "clipboard" && (
+            <p role="status">Image pasted.</p>
+          )}
           {preview && file && (
             <img
               className="image-check-preview"

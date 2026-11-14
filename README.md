@@ -56,10 +56,10 @@ The screen returns `indicators_detected`. Scores are illustrative fixtures, not 
 In local `.env`, set `IMAGE_ANALYSIS_ENABLED=true` and a server-side
 `OPENAI_API_KEY`. The default image model is `gpt-4.1-mini`. Override it
 using `IMAGE_ANALYSIS_MODEL`. Image analysis runs independently of TypeSafe.
-Restart the backend. In **Content analysis**, select **Add image**, choose a
-file and select **Analyze image**. You can add the caption from the original
-post or check the image on its own. The **Image analysis** section in `/docs`
-also exposes the endpoint directly.
+Restart the backend and open **Content analysis → Add image**. Choose a file
+or paste a copied image or screenshot with Ctrl+V or ⌘V. Add the original
+post caption if available, then select **Analyze image**. The **Image analysis**
+section in `/docs` also exposes the endpoint directly.
 
 ```bash
 curl -F "image=@poster.png" -F "caption=This poster is shown in a history lesson." http://127.0.0.1:8000/api/v1/images/analyze
