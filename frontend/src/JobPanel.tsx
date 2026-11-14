@@ -219,7 +219,7 @@ export function JobPanel({
       {content && (
         <>
           <Results result={content} />
-          {!verification && (
+          {!verification && !content.demo && (
             <p className="panel">
               Text indicators are available. Factual verification is{" "}
               {job.status === "running" ? "still running" : "incomplete"};

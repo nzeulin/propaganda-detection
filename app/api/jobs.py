@@ -5,10 +5,13 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
 from app.api.contracts import JobRecord
+from app.api.datasets import import_dataset
+from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
 from app.content.verification import verify_content
 from app.core.database import analyses, entities
+from app.core.ingestion import DatasetInput
 
 router = APIRouter(prefix="/api/v1")
 
@@ -25,19 +28,46 @@ def content_handler(state):
                 connection.execute(select(entities).where(entities.c.id == job["target_id"])).mappings().one()
             )
         data = node["data"]
+        example_id = job["payload"].get("example_id")
+        provider = DemoProvider(example_id) if example_id else state.live
         text, title, url = data["text"], None, data.get("url")
         if not text:
             text, title, url = await stage("ingestion", lambda: fetch_article(url), {"url": url})
         result = await stage(
             "content",
-            lambda: analyze_content(text, title, state.live, state.config, url, stage=stage),
+            lambda: analyze_content(
+                text, title, provider, state.config, url, demo=bool(example_id), stage=stage
+            ),
             {"content_id": node["id"]},
             "Luna / Jev",
         )
         result["original_url"] = data.get("url")
+        if example_id:
+            result["investigation_status"] = "offline_text_fixture"
+            result["warnings"].append(
+                "Labeled synthetic text fixture: provider scores are packaged examples, not live verification."
+            )
+            return result
         return await verify_content(result, state.live, state.config, stage)
 
     return handle
+
+
+@router.post("/demos/{example_id}", status_code=202, response_model=JobRecord)
+async def submit_demo(example_id: str, request: Request):
+    example = EXAMPLES.get(example_id)
+    if example is None:
+        raise HTTPException(404, "Unknown labeled demonstration")
+    dataset = await import_dataset(
+        DatasetInput(name="Synthetic demo: " + example["title"], text=example["text"]), request
+    )
+    with request.app.state.database.connect() as connection:
+        content_id = connection.execute(
+            select(entities.c.id).where(entities.c.dataset_id == dataset["id"], entities.c.kind == "content")
+        ).scalar_one()
+    return request.app.state.jobs.submit(
+        "content", content_id, {"example_id": example_id}, request.app.state.config.versions
+    )
 
 
 @router.post("/content/analyze", status_code=202, response_model=JobRecord)

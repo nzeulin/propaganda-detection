@@ -68,15 +68,9 @@ function Analyze() {
     setResult(null);
     try {
       if (example) {
-        setJobId("");
-        localStorage.removeItem("last-analysis-job");
-        setResult(
-          await api<Analysis>(
-            "/analyze",
-            { example_id: example, include_details: true },
-            controller.current.signal,
-          ),
-        );
+        const job = await api<Job>(`/api/v1/demos/${example}`, {}, controller.current.signal);
+        setJobId(job.id);
+        localStorage.setItem("last-analysis-job", job.id);
       } else {
         const dataset = await api<{ id: string }>(
           "/api/v1/datasets",
