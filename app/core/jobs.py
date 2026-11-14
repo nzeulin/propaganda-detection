@@ -6,6 +6,7 @@ import time
 from uuid import uuid4
 
 from fastapi import HTTPException
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 
 from app.core.database import analyses, jobs, utc_now
@@ -92,7 +93,7 @@ class JobRunner:
             started = time.monotonic()
             try:
                 value = await operation()
-                entry.update(status="completed", artifact=value)
+                entry.update(status="completed", artifact=jsonable_encoder(value))
                 return value
             except BaseException:
                 entry["status"] = "interrupted"

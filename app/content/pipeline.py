@@ -11,13 +11,25 @@ from app.content.policy import classify
 from app.content.validation import validate_and_group
 
 
-async def analyze_content(original: str, title: str | None, provider, config, source_url=None, demo=False):
+async def analyze_content(
+    original: str, title: str | None, provider, config, source_url=None, demo=False, stage=None
+):
+    async def execute(name, operation, inputs=None, provider="local"):
+        if stage:
+            return await stage(name, operation, inputs, provider)
+        return await operation()
+
     text, paragraphs = normalize(original)
     warnings, claims = [], []
     extraction = None
     for attempt in range(2):
         try:
-            extraction = await provider.extract(text, paragraphs, title, warnings if attempt else None)
+            extraction = await execute(
+                "extraction",
+                lambda attempt=attempt: provider.extract(text, paragraphs, title, warnings if attempt else None),
+                {"paragraphs": paragraphs},
+                provider.models["extractor"],
+            )
             claims, issues = validate_and_group(extraction, text, paragraphs)
             if not issues:
                 break
@@ -69,7 +81,11 @@ async def analyze_content(original: str, title: str | None, provider, config, so
                 assessments[key] = {}
                 warnings.append(f"Scoring unavailable for {key}: {getattr(exc, 'detail', str(exc))}")
 
-    await asyncio.gather(*(worker() for _ in range(min(4, len(jobs)))))
+    async def score_all():
+        await asyncio.gather(*(worker() for _ in range(min(4, len(jobs)))))
+        return {key: {k: v.model_dump() for k, v in values.items()} for key, values in assessments.items()}
+
+    await execute("scoring", score_all, {"validated_claims": claims}, provider.models["scorer"])
     features, metadata, diagnostics, math_warnings = aggregate(claims, sections, assessments, config)
     warnings.extend(math_warnings)
     review = len(narratives) != 1
