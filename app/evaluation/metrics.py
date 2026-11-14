@@ -21,9 +21,10 @@ def audit_corpus(records):
         tokens = re.findall(r"\w+", record["text"].casefold())
         digest = hashlib.sha256(" ".join(tokens).encode()).hexdigest()
         hashes[digest].append(record["id"])
-        evidence = record.get("reference_facts", "").strip()
-        if evidence:
-            evidence_groups[hashlib.sha256(evidence.encode()).hexdigest()].add(record["split"])
+        for field in ("reference_facts", "comparison_corpus"):
+            evidence = " ".join(record.get(field, "").casefold().split())
+            if evidence:
+                evidence_groups[hashlib.sha256(evidence.encode()).hexdigest()].add(record["split"])
         grams = {tuple(tokens[i : i + 4]) for i in range(len(tokens) - 3)}
         candidates = Counter(other for gram in grams for other in index[gram])
         for other, common in candidates.items():
