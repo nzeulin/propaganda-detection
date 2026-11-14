@@ -244,6 +244,9 @@ select {
 .analysis-screen {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+  align-items: stretch;
+  gap: 24px;
+  padding: clamp(28px, 3.5vw, 48px) max(32px, calc((100vw - 1360px) / 2));
 }
 .input-column,
 .results-column {
@@ -253,7 +256,13 @@ select {
 }
 .input-column {
   min-height: 0;
-  border-right: 1px solid #59534c;
+  border: 1px solid #4b443d;
+  background: #171615;
+}
+.results-column {
+  min-height: 0;
+  border: 1px solid #4b443d;
+  background: #171615;
 }
 .analysis-screen .section-title,
 .analysis-screen .input-meta {
@@ -271,7 +280,7 @@ select {
 .input-meta {
   display: flex;
   justify-content: space-between;
-  padding: 12px 15px;
+  padding: 15px 18px;
   font-size: 10px;
   color: #a49d93;
   border-bottom: 1px solid #34312e;
@@ -292,7 +301,7 @@ textarea {
   flex: 1;
   resize: none;
   border: 0;
-  padding: 25px 18px;
+  padding: 30px 24px;
   color: #f4efe6;
   background: #141414;
   outline: none;
@@ -304,7 +313,7 @@ textarea {
 .input-highlighter {
   flex: 1;
   overflow: auto;
-  padding: 25px 18px;
+  padding: 30px 24px;
   color: #f4efe6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -346,7 +355,7 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 15px;
+  padding: 18px 20px;
   gap: 15px;
 }
 .input-bottom p {
@@ -379,6 +388,9 @@ textarea {
 .analysis-screen textarea {
   min-height: 0;
 }
+.analysis-screen .section-title {
+  padding: 15px 18px;
+}
 .analysis-notice {
   padding: 15px;
   color: #a49d93;
@@ -400,8 +412,10 @@ textarea {
   overflow: auto;
 }
 .idea {
-  border-bottom: 1px solid #59534c;
-  padding: 15px;
+  margin: 18px 18px 0;
+  border: 1px solid #403a34;
+  padding: 20px;
+  background: #1b1917;
 }
 .idea p {
   margin: 8px 0 0;
@@ -412,9 +426,15 @@ textarea {
   max-width: 650px;
 }
 .statement {
-  border-bottom: 1px solid #59534c;
+  border: 1px solid #403a34;
+  background: #1b1917;
   scroll-margin: 12px;
   transition: background 160ms ease;
+}
+.results-list {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 20px;
 }
 .statement.selected-statement {
   background: #241b1b;
@@ -425,14 +445,14 @@ textarea {
 }
 .statement-text {
   margin: 0;
-  padding: 15px;
+  padding: 18px 20px;
   font:
     17px/1.45 Georgia,
     "Times New Roman",
     serif;
 }
 .tags {
-  padding: 0 15px 13px;
+  padding: 0 20px 18px;
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
@@ -553,11 +573,6 @@ textarea {
   color: #e8735e;
   font: 17px/1 Georgia, serif;
 }
-.briefing-identity-note {
-  color: #847d73;
-  font-size: 9px;
-  letter-spacing: 0.12em;
-}
 .briefing-content {
   display: grid;
   grid-template-columns: minmax(0, 1.03fr) minmax(360px, 0.97fr);
@@ -643,11 +658,6 @@ textarea {
 }
 .briefing-secondary-cta:hover {
   color: #fff7ef;
-}
-.briefing-trust-note {
-  margin: 19px 0 0;
-  color: #8d857a;
-  font: 11px/1.6 ui-sans-serif, system-ui, sans-serif;
 }
 .briefing-preview {
   width: 100%;
@@ -829,17 +839,24 @@ textarea {
   }
   .analysis-screen {
     grid-template-columns: 1fr;
-    overflow: auto;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
     scroll-snap-align: start;
+    gap: 16px;
+    padding: 18px 20px 24px;
   }
   .input-column {
-    height: 57vh;
-    border-right: 0;
-    border-bottom: 1px solid #59534c;
+    height: 58dvh;
+    min-height: 390px;
+    border: 1px solid #4b443d;
   }
   .results-column {
     min-height: 80vh;
     overflow: visible;
+  }
+  .results-list {
+    padding: 14px;
   }
   .feature-grid {
     grid-template-columns: 1fr;
@@ -863,11 +880,6 @@ textarea {
     overflow: visible;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 42px auto 46px;
-  }
-  .briefing-identity-note {
-    max-width: 145px;
-    text-align: right;
-    line-height: 1.5;
   }
   .briefing-content {
     grid-template-columns: minmax(0, 1fr);
@@ -924,5 +936,11 @@ textarea {
   }
   .briefing-bottomline {
     letter-spacing: 0.04em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .briefing-primary-cta {
+    transition: none;
   }
 }

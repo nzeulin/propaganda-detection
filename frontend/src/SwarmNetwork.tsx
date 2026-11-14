@@ -95,7 +95,7 @@ type SwarmResult = {
 type Job = {
   id: string;
   status:
-    "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
+  "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
   result: SwarmResult | null;
   error: unknown;
 };
@@ -664,18 +664,18 @@ function BlueskyImport({
       );
       const job = resume
         ? await request<CollectionJob>(
-            `/jobs/${encodeURIComponent(jobRef.current)}`,
-            {},
-            controller.signal,
-          )
+          `/jobs/${encodeURIComponent(jobRef.current)}`,
+          {},
+          controller.signal,
+        )
         : await request<CollectionJob>(
-            "/bluesky/collect",
-            {
-              method: "POST",
-              body: JSON.stringify({ actors, per_actor: limit }),
-            },
-            controller.signal,
-          );
+          "/bluesky/collect",
+          {
+            method: "POST",
+            body: JSON.stringify({ actors, per_actor: limit }),
+          },
+          controller.signal,
+        );
       if (!job?.id)
         throw new Error(
           "Collection returned no job reference. No automatic retry was made.",
@@ -955,11 +955,11 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
       </div>
       {(finding.evidence_truncated ||
         finding.episode_count > finding.episodes.length) && (
-        <p className="swarm-notice">
-          Showing {finding.episodes.length} of {finding.episode_count}{" "}
-          occasions. The score uses all counted occasions.
-        </p>
-      )}
+          <p className="swarm-notice">
+            Showing {finding.episodes.length} of {finding.episode_count}{" "}
+            occasions. The score uses all counted occasions.
+          </p>
+        )}
       <div className="swarm-episodes">
         {finding.episodes.map((episode, index) => (
           <details className="swarm-episode" key={`${episode.time}-${index}`} open={index === 0}>
@@ -1600,10 +1600,10 @@ export default function SwarmNetwork() {
       const dataset = useCollected
         ? { id: runCollected.dataset_id }
         : await request<{ id: string }>(
-            "/datasets",
-            { method: "POST", body: payload },
-            signal,
-          );
+          "/datasets",
+          { method: "POST", body: payload },
+          signal,
+        );
       if (!dataset?.id)
         throw new Error(
           "Import returned no dataset ID. No analysis was submitted.",
@@ -1710,7 +1710,7 @@ export default function SwarmNetwork() {
       setFormat(/\.csv$/i.test(file.name) ? "csv" : "json");
       setName(
         file.name.replace(/\.(csv|json)$/i, "").slice(0, 200) ||
-          "Uploaded investigation",
+        "Uploaded investigation",
       );
       setExampleId("");
       setExampleSource(null);
@@ -1751,16 +1751,25 @@ export default function SwarmNetwork() {
   const disabled = busy || reading || collecting || collectionPending;
   const activeCollection =
     collected &&
-    name === collected.name &&
-    format === "json" &&
-    input === JSON.stringify(collected.rows, null, 2)
+      name === collected.name &&
+      format === "json" &&
+      input === JSON.stringify(collected.rows, null, 2)
       ? collected
       : null;
   return (
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>03 / FOLLOW THE NETWORK</span><a href="#analysis">↑ CONTENT ANALYSIS</a></header>
-      <div className="swarm-intro"><div><p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p><h2 id="swarm-title">Find repeated posts across accounts.</h2></div><p>Find repeated posting patterns. A pattern is a lead to investigate, not proof of bots.</p></div>
-      {!snapshot && <p className="swarm-first-run">Paste Bluesky links, try a fictional example, or upload activity you already have. We’ll show the evidence behind any pattern we find.</p>}
+      <div className="swarm-intro">
+        <div>
+          <p className="swarm-kicker">SPOT THE SWARM / FOLLOW THE EVIDENCE</p>
+          <h2 id="swarm-title">Find repeated posts across accounts.</h2>
+        </div>
+      </div>
+      {!snapshot && (
+        <p className="swarm-first-run">
+          Paste Bluesky links, try a fictional example, or upload activity you already have. We’ll show the evidence behind any pattern we find.
+        </p>
+      )}
       <div className="swarm-layout">
         <div className="swarm-input-column">
           <form
@@ -1892,23 +1901,23 @@ export default function SwarmNetwork() {
             <details className="swarm-reading-guide"><summary>What does this check?</summary><p className="swarm-guide-note">It looks for repeated similar wording or shared links posted close together in time. A match is a reason to investigate, not proof that accounts are bots. Legitimate groups can show similar patterns too.</p></details></div> : <>
             <ResultSummary snapshot={snapshot} exportResult={exportResult} />
             <PostScoringProvider key={`${snapshot.datasetId}:${snapshot.jobId}`} initial={snapshot.graph.content_screenings}>
-            <div className="swarm-evidence-grid" id="swarm-evidence">
-              <section className="swarm-panel swarm-selection" aria-label="Select investigation evidence">
-                <header className="swarm-panel-heading">3 / FOLLOW THE EVIDENCE</header>
-                <div className="swarm-panel-body">
-                  <h4>Choose something to inspect</h4>
-                  <div className="swarm-groups">{snapshot.result.clusters.map((cluster) => <button type="button" key={cluster.id} aria-pressed={selection?.kind === "cluster" && selection.id === cluster.id} onClick={() => inspect({ kind: "cluster", id: cluster.id })}><span>{groupLabel(cluster.id, snapshot)} <span className="swarm-group-arrow">↗</span></span><span>{cluster.account_ids.length} connected accounts</span></button>)}</div>
-                  {!snapshot.result.clusters.length && <p className="swarm-muted">No account groups were found.</p>}
-                  <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => inspect({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
-                  {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)}</option>)}</select></details>}
-                  <details><summary>Browse individual agents &amp; posts</summary><label className="swarm-field" htmlFor="swarm-entity">ITEMS IN THE MAP / {snapshot.graph.nodes.length}</label>
-                    <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
-                  <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
-                </div>
-              </section>
-              {evidenceOpen ? <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={inspect} onClose={() => setEvidenceOpen(false)} /> : <aside className="swarm-panel swarm-evidence-closed"><div className="swarm-panel-body"><p className="swarm-kicker">EVIDENCE PANEL</p><h3>Keep the map clear.</h3><p className="swarm-muted">Select a group, pair, or item to open its evidence.</p>{selection && <button type="button" onClick={() => setEvidenceOpen(true)}>Open selected evidence →</button>}</div></aside>}
-            </div>
-            <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
+              <div className="swarm-evidence-grid" id="swarm-evidence">
+                <section className="swarm-panel swarm-selection" aria-label="Select investigation evidence">
+                  <header className="swarm-panel-heading">3 / FOLLOW THE EVIDENCE</header>
+                  <div className="swarm-panel-body">
+                    <h4>Choose something to inspect</h4>
+                    <div className="swarm-groups">{snapshot.result.clusters.map((cluster) => <button type="button" key={cluster.id} aria-pressed={selection?.kind === "cluster" && selection.id === cluster.id} onClick={() => inspect({ kind: "cluster", id: cluster.id })}><span>{groupLabel(cluster.id, snapshot)} <span className="swarm-group-arrow">↗</span></span><span>{cluster.account_ids.length} connected accounts</span></button>)}</div>
+                    {!snapshot.result.clusters.length && <p className="swarm-muted">No account groups were found.</p>}
+                    <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => inspect({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
+                    {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)}</option>)}</select></details>}
+                    <details><summary>Browse individual agents &amp; posts</summary><label className="swarm-field" htmlFor="swarm-entity">ITEMS IN THE MAP / {snapshot.graph.nodes.length}</label>
+                      <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
+                    <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
+                  </div>
+                </section>
+                {evidenceOpen ? <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={inspect} onClose={() => setEvidenceOpen(false)} /> : <aside className="swarm-panel swarm-evidence-closed"><div className="swarm-panel-body"><p className="swarm-kicker">EVIDENCE PANEL</p><h3>Keep the map clear.</h3><p className="swarm-muted">Select a group, pair, or item to open its evidence.</p>{selection && <button type="button" onClick={() => setEvidenceOpen(true)}>Open selected evidence →</button>}</div></aside>}
+              </div>
+              <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
             </PostScoringProvider>
           </>}
         </div>
