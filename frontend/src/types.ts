@@ -17,6 +17,20 @@ export const labels: Record<Feature, string> = {
   repetition_amplification: "Repetition & amplification",
   strategic_persuasion: "Strategic persuasion",
 };
+
+export function formatFeatureScore(
+  feature: Feature,
+  score: number | null | undefined,
+  unavailableLabel = "Unavailable",
+): string {
+  const formatted = score?.toFixed(2);
+  if (
+    feature !== "factual_manipulation" && feature !== "selective_presentation" &&
+    (formatted == null || formatted === "0.00")
+  ) return "Not detected";
+  return formatted ?? unavailableLabel;
+}
+
 export interface Assessment {
   raw_score: number;
   probabilities: number[];

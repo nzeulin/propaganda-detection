@@ -7,6 +7,7 @@ import SwarmNetwork from "./SwarmNetwork";
 import {
   api,
   features,
+  formatFeatureScore,
   labels,
   type Analysis as AnalysisResult,
   type Claim,
@@ -38,7 +39,7 @@ function Meter({
         >
           [i]
         </button>
-        <b>{score == null ? "Unavailable" : score.toFixed(2)}</b>
+        <b>{formatFeatureScore(name, score)}</b>
       </div>
       <div className="track">
         <i style={{ width: `${(score ?? 0) * 100}%` }} />

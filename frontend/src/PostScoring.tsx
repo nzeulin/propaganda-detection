@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, features, labels, type Analysis, type Feature } from "./types";
+import { api, features, formatFeatureScore, labels, type Analysis, type Feature } from "./types";
 
 type Screening = {
   label: "not_propaganda" | "requires_further_analysis" | "propaganda";
@@ -166,7 +166,7 @@ export function PostScoring({ contentId }: { contentId: string }) {
       <dl>{features.map(feature => {
         const value = result.features?.[feature];
         const detail = result.feature_details?.[feature];
-        return <div key={feature}><dt>{labels[feature]}</dt><dd>{value?.toFixed(2) ?? "Not assessed"}</dd>
+        return <div key={feature}><dt>{labels[feature]}</dt><dd>{formatFeatureScore(feature, value, "Not assessed")}</dd>
           {value == null && detail && <dd className="swarm-feature-reason">
             {detail.reason} Coverage: {(detail.coverage * 100).toFixed(0)}%.
           </dd>}
