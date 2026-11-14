@@ -2,7 +2,6 @@
   height: auto;
   min-height: 100dvh;
   overflow: visible;
-  scroll-snap-stop: normal;
   background: #141414;
   color: #f4efe6;
   --swarm-border: #59534c;
@@ -28,12 +27,6 @@
   max-width: 1700px;
   margin-inline: auto;
   padding: 42px clamp(24px, 6vw, 96px) 34px;
-}
-
-.swarm-workbench .swarm-kicker {
-  color: var(--swarm-red);
-  font-size: 10px;
-  letter-spacing: .09em;
 }
 
 .swarm-intro h2 {
@@ -1513,7 +1506,7 @@
 }
 
 .swarm-screen.swarm-workbench {
-  --swarm-gutter: clamp(32px, 7vw, 116px);
+  --swarm-gutter: clamp(24px, 6vw, 96px);
   --swarm-content-width: 1700px;
 }
 
@@ -1529,14 +1522,14 @@
   padding-block: 15px;
 }
 
-.swarm-first-run {
+.swarm-workbench .swarm-first-run {
   width: calc(100% - 2 * var(--swarm-gutter));
   max-width: calc(var(--swarm-content-width) - 2 * var(--swarm-gutter));
-  margin: 0 90px 10px;
-  padding: 16px 20px;
-  border-left: 3px solid #b72b27;
-  background: #211b18;
+  margin: 0 auto 10px;
+  padding: 14px 0;
   color: #e5d9cd;
+  font-size: 20px;
+  line-height: 1.65;
 }
 
 .swarm-layout {
@@ -1586,7 +1579,7 @@
 
 @media (max-width: 800px) {
   .swarm-screen.swarm-workbench {
-    --swarm-gutter: 24px;
+    --swarm-gutter: 20px;
   }
 
   .swarm-intro {
@@ -1636,10 +1629,11 @@
     padding: 18px;
   }
 
-  .swarm-first-run {
+  .swarm-workbench .swarm-first-run {
     width: calc(100% - 2 * var(--swarm-gutter));
     margin-bottom: 20px;
-    padding: 14px 16px;
+    padding: 12px 0;
+    font-size: 15px;
   }
 }
 

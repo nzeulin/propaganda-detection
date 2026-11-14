@@ -65,16 +65,8 @@ function StatementView({
     >
       <header>
         <span>
-          {statement.id} ·{" "}
-          {(statement.speaker_name || statement.speaker)
-            .replaceAll("_", " ")
-            .toUpperCase()}{" "}
-          · {statement.stance.replaceAll("_", " ").toUpperCase()}
-        </span>
-        <span>
-          {statement.source_spans
-            .map((span) => `${span.start}—${span.end}`)
-            .join(", ")}
+          {(statement.speaker_name || statement.speaker).replaceAll("_", " ")} ·{" "}
+          {statement.stance.replaceAll("_", " ")}
         </span>
       </header>
 
@@ -96,7 +88,7 @@ function StatementView({
       </div>
 
       <footer className="review">
-        <span>REVIEW CONTROL / {review}</span>
+        <span>Review status: {review.toLowerCase()}</span>
         <div>
           <button onClick={() => setReview("CONFIRMED")}>Confirm</button>
           <button onClick={() => setReview("FALSE POSITIVE")}>
@@ -121,6 +113,7 @@ function Analysis() {
   );
   const controller = useRef<AbortController | null>(null);
   const resultElements = useRef<Record<string, HTMLElement | null>>({});
+  const resultsColumn = useRef<HTMLDivElement | null>(null);
   const characterCount = Array.from(input).length;
 
   useEffect(() => () => controller.current?.abort(), []);
@@ -165,19 +158,24 @@ function Analysis() {
   function selectStatement(statementId: string) {
     setSelectedStatementId(statementId);
     requestAnimationFrame(() => {
-      resultElements.current[statementId]?.scrollIntoView({
+      const panel = resultsColumn.current;
+      const statement = resultElements.current[statementId];
+      if (!panel || !statement) return;
+      const panelBounds = panel.getBoundingClientRect();
+      const statementBounds = statement.getBoundingClientRect();
+      panel.scrollTo({
+        top: panel.scrollTop + statementBounds.top - panelBounds.top - 12,
         behavior: "smooth",
-        block: "nearest",
       });
     });
   }
 
   const segments = result
     ? segmentText(
-        result.normalized_text,
-        result.annotations,
-        result.highlight_thresholds,
-      )
+      result.normalized_text,
+      result.annotations,
+      result.highlight_thresholds,
+    )
     : [];
 
   return (
@@ -188,16 +186,14 @@ function Analysis() {
     >
       <div className="input-column">
         <header className="section-title">
-          <span>02 / NAME THE TECHNIQUE</span>
-          <span>CONTENT ANALYSIS</span>
+          <span>Text analysis</span>
         </header>
 
         <div className="input-meta">
-          <span>CONTENT_ID / {result?.material_id ?? "PENDING"}</span>
-          <span>{characterCount.toLocaleString()} / 40,000 CHARS</span>
+          <span>{characterCount.toLocaleString()} / 40,000 characters</span>
           {result && (
             <button className="edit-input" onClick={() => updateInput(input)}>
-              EDIT INPUT
+              Edit text
             </button>
           )}
         </div>
@@ -257,51 +253,51 @@ function Analysis() {
             onClick={() => void analyze()}
             disabled={loading || !input.trim() || characterCount > 40000}
           >
-            {loading ? "ANALYZING…" : "ANALYZE"} <span>→</span>
+            {loading ? "Analyzing…" : "Analyze"} <span>→</span>
           </button>
         </div>
       </div>
 
-      <div className="results-column">
+      <div className="results-column" ref={resultsColumn}>
         <header className="section-title">
+          <span>Results</span>
           <span>
-            RESULTS /{" "}
             {loading
-              ? "ANALYZING"
+              ? "Analyzing"
               : error
-                ? "FAILED"
+                ? "Analysis failed"
                 : result
-                  ? "COMPLETE"
-                  : "PENDING"}
-          </span>
-          <span>
-            {result
-              ? `MODELS: ${Object.values(result.model_versions).join(" / ")}`
-              : "AWAITING ANALYSIS"}
+                  ? "Complete"
+                  : "Waiting for text"}
           </span>
         </header>
 
-        {result ? (
+        {loading ? (
+          <div className="analysis-loader" role="status" aria-live="polite">
+            <span className="analysis-loader-spinner" aria-hidden="true" />
+            <p>Analyzing your text…</p>
+          </div>
+        ) : result ? (
           <>
             <div className="idea">
-              <label>MAIN IDEA</label>
+              <label>Main idea</label>
               <p>
                 {result.primary_narrative ?? "No main idea was identified."}
               </p>
             </div>
             <div className="idea">
-              <label>MATERIAL-LEVEL FEATURES</label>
+              <label>Overall assessment</label>
               <p>{result.classification.label.replaceAll("_", " ")}</p>
-            </div>
-            <div className="feature-grid">
-              {features.map((name) => (
-                <Meter
-                  key={name}
-                  name={name}
-                  score={result.features[name]}
-                  reason={result.feature_details[name].reason}
-                />
-              ))}
+              <div className="feature-grid overall-feature-grid">
+                {features.map((name) => (
+                  <Meter
+                    key={name}
+                    name={name}
+                    score={result.features[name]}
+                    reason={result.feature_details[name].reason}
+                  />
+                ))}
+              </div>
             </div>
             {result.warnings.length > 0 && (
               <details className="analysis-notice">
@@ -313,6 +309,11 @@ function Analysis() {
                 </ul>
               </details>
             )}
+            <details className="analysis-notice">
+              <summary>Analysis details</summary>
+              <p>Content ID: {result.material_id}</p>
+              <p>Models: {Object.values(result.model_versions).join(", ")}</p>
+            </details>
             <div className="results-list">
               {result.statements.map((statement) => (
                 <StatementView
@@ -338,9 +339,7 @@ function Analysis() {
             <div className="crosshair">+</div>
             <p>
               {error ||
-                (loading
-                  ? "Analyzing your text. This may take several minutes."
-                  : "Press ANALYZE to generate statement-level findings.")}
+                "Select Analyze to see statement-level findings."}
             </p>
           </div>
         )}
@@ -361,7 +360,6 @@ function Briefing() {
 
       <div className="briefing-content">
         <div className="briefing-copy">
-          <p className="briefing-index"><span /> UNDERSTAND THE MESSAGE. TRACE THE SPREAD.</p>
           <h1>See how persuasion works <em>and how it spreads.</em></h1>
           <p className="briefing-description">
             Veritascope helps you examine persuasive language and repeated posting patterns. Read the highlighted persuasion tactics, then inspect the posts and timing behind each coordination signal.
@@ -374,29 +372,22 @@ function Briefing() {
 
         <div className="briefing-preview" aria-label="Preview of a fictional content analysis">
           <div className="briefing-preview-topline">
-            <span><i /> SAMPLE ANALYSIS</span>
-            <span>FICTIONAL CONTENT</span>
+            <span><i /> Example analysis</span>
           </div>
           <div className="briefing-preview-body">
-            <div className="briefing-preview-meta"><span>CONTENT / PUBLIC STATEMENT</span><span>03 FINDINGS</span></div>
             <p className="briefing-preview-quote">“Anyone questioning the plan is <mark>putting public safety at risk</mark>.”</p>
             <div className="briefing-preview-divider" />
             <div className="briefing-preview-finding">
-              <span className="briefing-finding-index">01</span>
               <div><strong>Appeal to fear</strong><p>Frames disagreement as a threat to safety.</p></div>
               <span className="briefing-confidence">93%</span>
             </div>
             <div className="briefing-preview-finding briefing-network-finding">
-              <span className="briefing-finding-index">02</span>
               <div><strong>Repeated across accounts</strong><p>Compare timing and matching activity.</p></div>
               <span className="briefing-network-icon" aria-hidden="true"><i /><i /><i /><i /></span>
             </div>
           </div>
-          <div className="briefing-preview-footer"><span>LANGUAGE</span><b /> <span>NETWORK</span><span className="briefing-preview-open">OPEN THE EVIDENCE ↗</span></div>
         </div>
       </div>
-
-      <div className="briefing-bottomline"><span>CONTENT ANALYSIS <b>01</b></span><span>COORDINATION SIGNALS <b>02</b></span><span>HUMAN REVIEW <b>03</b></span></div>
     </section>
   );
 }
