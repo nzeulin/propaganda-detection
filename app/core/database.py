@@ -3,7 +3,21 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import JSON, Column, ForeignKey, Integer, MetaData, String, Table, create_engine, event, text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+    event,
+    text,
+)
 
 metadata = MetaData()
 revisions = Table("schema_revisions", metadata, Column("version", Integer, primary_key=True))
@@ -70,6 +84,28 @@ analyses = Table(
     Column("result", JSON, nullable=False),
 )
 
+embedding_cache = Table(
+    "embedding_cache", metadata,
+    Column("id", String, primary_key=True),
+    Column("model", String, nullable=False),
+    Column("dimensions", Integer, nullable=False),
+    Column("vector", JSON, nullable=False),
+    Column("created_at", String, nullable=False),
+)
+agent_pairs = Table(
+    "agent_pairs", metadata,
+    Column("job_id", ForeignKey("jobs.id"), primary_key=True),
+    Column("id", String, primary_key=True),
+    Column("source_id", ForeignKey("entities.id"), nullable=False),
+    Column("target_id", ForeignKey("entities.id"), nullable=False),
+    Column("mention", Boolean, nullable=False),
+    Column("similarity", Float, nullable=False),
+    Column("score", Float, nullable=False),
+    Column("weight", Float, nullable=False),
+    Column("evidence", JSON, nullable=False),
+)
+Index("agent_pairs_score", agent_pairs.c.job_id, agent_pairs.c.score)
+
 
 def utc_now():
     return datetime.now(UTC).isoformat()
@@ -87,14 +123,14 @@ def open_database(path: str):
     with engine.begin() as connection:
         revisions.create(connection, checkfirst=True)
         version = connection.execute(revisions.select()).scalar()
-        if version not in (None, 1, 2, 3):
+        if version not in (None, 1, 2, 3, 4):
             raise RuntimeError(f"Unsupported database schema revision {version}; migration required.")
-        # Revision 2 is additive: existing observations and reviews remain immutable.
+        # Revision 4 adds derived connectivity/cache tables without changing source records.
         metadata.create_all(connection)
         if version in (1, 2):
             connection.execute(
                 text("ALTER TABLE feedback ADD COLUMN analysis_id VARCHAR REFERENCES analyses(id)")
             )
         connection.execute(revisions.delete())
-        connection.execute(revisions.insert().values(version=3))
+        connection.execute(revisions.insert().values(version=4))
     return engine

@@ -1,7 +1,8 @@
-"""Independent CPU-only coordination jobs over immutable observations."""
+"""Agent connectivity and legacy temporal jobs over immutable observations."""
 
 import asyncio
 from threading import Event
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,6 +10,7 @@ from sqlalchemy import select
 
 from app.api.contracts import JobRecord
 from app.core.database import analyses, datasets, entities, observations
+from app.swarm.connectivity import prepare_agents
 from app.swarm.engine import VERSION, analyze_coordination
 from app.swarm.examples import swarm_examples
 
@@ -18,6 +20,8 @@ router = APIRouter(prefix="/api/v1")
 class SwarmInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     dataset_id: str = Field(min_length=1, max_length=200)
+    mode: Literal["temporal", "agent_connectivity"] = "temporal"
+    connectivity_threshold: float = Field(default=0.25, ge=0, lt=2)
 
 
 @router.get("/swarm/examples")
@@ -72,16 +76,32 @@ async def submit_swarm(body: SwarmInput, request: Request):
         found = connection.execute(select(datasets.c.id).where(datasets.c.id == body.dataset_id)).first()
     if not found:
         raise HTTPException(404, "Unknown dataset")
-    return request.app.state.jobs.submit("swarm", body.dataset_id, body.model_dump(), {"coordination": VERSION})
+    state = request.app.state
+    if body.mode == "agent_connectivity":
+        if state.agent_embedder is None:
+            raise HTTPException(503, "Agent connectivity requires a configured OPENAI_API_KEY.")
+        with state.database.connect() as connection:
+            nodes = [dict(row) for row in connection.execute(select(entities).where(
+                entities.c.dataset_id == body.dataset_id
+            )).mappings()]
+            events = [dict(row) for row in connection.execute(select(observations).where(
+                observations.c.dataset_id == body.dataset_id
+            )).mappings()]
+        try:
+            prepare_agents(nodes, events, state.agent_embedder.policy)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return state.jobs.submit("agent_connectivity", body.dataset_id, body.model_dump(), state.agent_embedder.policy)
+    return state.jobs.submit("swarm", body.dataset_id, {"dataset_id": body.dataset_id}, {"coordination": VERSION})
 
 
 @router.get("/swarm/{dataset_id}/analysis")
-async def swarm_analysis(dataset_id: str, request: Request):
+async def swarm_analysis(dataset_id: str, request: Request, mode: Literal["temporal", "agent_connectivity"] = "temporal"):
     with request.app.state.database.connect() as connection:
         record = (
             connection.execute(
                 select(analyses)
-                .where(analyses.c.kind == "swarm", analyses.c.target_id == dataset_id)
+                .where(analyses.c.kind == ("swarm" if mode == "temporal" else mode), analyses.c.target_id == dataset_id)
                 .order_by(analyses.c.created_at.desc())
                 .limit(1)
             )

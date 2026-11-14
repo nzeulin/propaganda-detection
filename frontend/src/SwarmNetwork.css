@@ -449,6 +449,13 @@
   border-top: 1px solid #38332f;
 }
 
+.swarm-legend .swarm-connectivity-key {
+  width: 22px;
+  height: 3px;
+  border-radius: 0;
+  background: #67b7ac;
+}
+
 .swarm-zoom {
   display: flex;
 }

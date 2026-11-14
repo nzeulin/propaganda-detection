@@ -21,11 +21,16 @@ class ImportRow(BaseModel):
     url: str | None = Field(default=None, max_length=2048)
     reply_to_content_id: str | None = Field(default=None, max_length=200)
     platform: str = Field(default="unknown", min_length=1, max_length=100)
+    mentioned_account_ids: list[str] | None = Field(default=None, max_length=300)
 
-    @field_validator("url", "reply_to_content_id", mode="before")
+    @field_validator("url", "reply_to_content_id", "mentioned_account_ids", mode="before")
     @classmethod
-    def empty_optional_field(cls, value):
-        return None if value == "" else value
+    def empty_optional_field(cls, value, info):
+        if value == "":
+            return None
+        if info.field_name == "mentioned_account_ids" and isinstance(value, str):
+            return json.loads(value)
+        return value
 
     @model_validator(mode="after")
     def validate_time_and_content(self):
@@ -54,6 +59,12 @@ class ImportRow(BaseModel):
                 raise ValueError("URL must be an absolute HTTP(S) URL with a valid host and port, without credentials") from exc
         if self.action == "created" and not (self.text.strip() or self.url):
             raise ValueError("Created content requires readable text or a URL")
+        if self.mentioned_account_ids is not None and (
+            self.action != "created" or any(
+                not value.strip() or len(value) > 200 for value in self.mentioned_account_ids
+            )
+        ):
+            raise ValueError("Mention IDs belong to created material and must contain 1–200 characters")
         return self
 
 
@@ -105,7 +116,11 @@ def prepare_dataset(body: DatasetInput):
     validated, errors = [], []
     for index, row in enumerate(rows, 1):
         try:
-            validated.append(ImportRow.model_validate(row).model_dump())
+            normalized = ImportRow.model_validate(row).model_dump()
+            # Preserve historical event IDs when the new optional field is absent.
+            if normalized["mentioned_account_ids"] is None:
+                normalized.pop("mentioned_account_ids")
+            validated.append(normalized)
         except ValidationError as exc:
             errors.append({"row": index, "msg": f"Row {index}: " + "; ".join(e["msg"] for e in exc.errors())})
     if errors:
@@ -134,6 +149,8 @@ def prepare_dataset(body: DatasetInput):
                 "created_at": row["timestamp"],
                 "reply_to_content_id": row["reply_to_content_id"],
             }
+            if "mentioned_account_ids" in row:
+                record["mentioned_account_ids"] = row["mentioned_account_ids"]
             if content in contents and contents[content] != record:
                 raise ValueError(f"Row {index}: conflicting content ID {row['content_id']}")
             contents[content] = record

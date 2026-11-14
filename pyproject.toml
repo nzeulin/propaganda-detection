@@ -3,7 +3,7 @@ name = "veritasscope"
 version = "0.1.0"
 description = "Experimental, explainable manipulation-indicator screening"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "pydantic", "httpx", "aiohttp", "trafilatura", "pyyaml", "openai", "typesafe-sdk", "python-dotenv", "sqlalchemy>=2,<3", "pillow", "python-multipart"]
+dependencies = ["fastapi", "uvicorn", "pydantic", "httpx", "aiohttp", "trafilatura", "pyyaml", "openai", "typesafe-sdk", "python-dotenv", "sqlalchemy>=2,<3", "pillow", "python-multipart", "tiktoken"]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]

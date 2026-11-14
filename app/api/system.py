@@ -89,6 +89,13 @@ async def system_description(request: Request):
             ["ingestion"],
         ),
         (
+            "agent_connectivity",
+            "Agent connectivity",
+            "Combine explicit mentions and authored-content embeddings into weighted connections and connected groups.",
+            "OpenAI embeddings",
+            ["ingestion"],
+        ),
+        (
             "review",
             "Human review",
             "Record append-only decisions. Model outputs do not establish intent.",

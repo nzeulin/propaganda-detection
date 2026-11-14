@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 
+from app.api.agent_connectivity import connectivity_handler
+from app.api.agent_connectivity import router as connectivity_router
 from app.api.bluesky import collection_handler
 from app.api.bluesky import router as bluesky_router
 from app.api.datasets import import_dataset
@@ -30,6 +32,7 @@ from app.core.database import entities, open_database
 from app.core.ingestion import DatasetInput
 from app.core.jobs import JobRunner
 from app.evaluation.runner import evaluation_handler
+from app.providers.embeddings import EmbeddingProvider
 from app.providers.image_vision import ImageAnalyzer
 
 
@@ -51,17 +54,22 @@ async def lifespan(app: FastAPI):
             "swarm": swarm_handler(app.state),
             "bluesky": collection_handler(app.state),
             "evaluation": evaluation_handler(app.state),
+            "agent_connectivity": connectivity_handler(app.state),
         },
     )
     app.state.slots = app.state.jobs.slots
     app.state.image_analyzer = None
+    app.state.agent_embedder = None
     try:
         app.state.image_analyzer = ImageAnalyzer.from_env()
+        app.state.agent_embedder = EmbeddingProvider.from_env(app.state.config.agent_connectivity)
         yield
     finally:
         await app.state.jobs.close()
         if app.state.image_analyzer is not None:
             await app.state.image_analyzer.close()
+        if app.state.agent_embedder is not None:
+            await app.state.agent_embedder.client.close()
         if app.state.live:
             await app.state.live.close()
         app.state.database.dispose()
@@ -77,6 +85,7 @@ app.include_router(bluesky_router)
 app.include_router(system_router)
 app.include_router(evaluations_router)
 app.include_router(images_router)
+app.include_router(connectivity_router)
 
 
 @app.get("/health")
@@ -85,6 +94,7 @@ async def health(request: Request):
         "status": "ok",
         "demo_available": True,
         "live_configured": request.app.state.live is not None,
+        "agent_connectivity_configured": request.app.state.agent_embedder is not None,
         "enabled_modes": ["text_only", "swarm"],
     }
 

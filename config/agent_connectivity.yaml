@@ -1,0 +1,6 @@
+version: agent-connectivity-v1
+model: text-embedding-3-small
+dimensions: 1536
+chunk_tokens: 2048
+batch_size: 128
+max_agents: 300

@@ -4,13 +4,14 @@ import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { parseBlueskyProfiles } from "./blueskyProfiles";
 import { PostScoring, PostScoringProvider, usePostScoring, type ContentScore } from "./PostScoring";
 import "./SwarmNetwork.css";
+import { ConnectivityEvidence, ConnectivitySummary, isConnectivity, type ConnectivityPair, type ConnectivityResult } from "./AgentConnectivity";
 
 type InputFormat = "json" | "csv";
 type InputRow = Record<string, unknown>;
 type Entity = {
   id: string;
   kind: "account" | "content";
-  data: { source_id: string; text?: string; url?: string; platform?: string; handle?: string; source_post_url?: string };
+  data: { source_id: string; text?: string; url?: string; platform?: string; handle?: string; source_post_url?: string; author_id?: string };
   x?: number;
   y?: number;
 };
@@ -21,8 +22,8 @@ type Edge = {
   action: string;
   timestamp?: string | null;
 };
-type Cluster = { id: string; account_ids: string[]; density: number };
-type Graph = { nodes: Entity[]; edges: Edge[]; hidden_nodes: number; clusters: Cluster[]; content_screenings?: Record<string, ContentScore> };
+type Cluster = { id: string; account_ids: string[]; density?: number };
+type Graph = { nodes: Entity[]; edges: Edge[]; hidden_nodes: number; clusters: Cluster[]; content_screenings?: Record<string, ContentScore>; connectivity_edges?: ConnectivityPair[] };
 type MatchedEvent = {
   event_id: string;
   account_id: string;
@@ -63,7 +64,8 @@ type Finding = {
     excess_fraction: number;
   };
 };
-type SwarmResult = {
+export type SwarmResult = {
+  mode?: "temporal";
   collection?: CollectionInfo;
   status: "complete" | "needs_review" | "insufficient_data";
   counts: {
@@ -89,7 +91,7 @@ type Job = {
   id: string;
   status:
   "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
-  result: SwarmResult | null;
+  result: SwarmResult | ConnectivityResult | null;
   error: unknown;
 };
 type RunContext = {
@@ -99,11 +101,11 @@ type RunContext = {
   revision: number;
 };
 type PendingJob = RunContext & { jobId: string };
-type Snapshot = PendingJob & { result: SwarmResult; graph: Graph };
-type Selection = { kind: "cluster" | "pair" | "entity"; id: string };
+export type Snapshot<R = SwarmResult | ConnectivityResult> = PendingJob & { result: R; graph: Graph };
+export type Selection = { kind: "cluster" | "pair" | "entity"; id: string; source_id?: string; target_id?: string };
 type Operation = { controller: AbortController; deadline: number; timedOut: boolean };
-type DisplayLink = { id: string; source: string; target: string };
-type CollectionInfo = {
+type DisplayLink = { id: string; source: string; target: string; connectivity?: ConnectivityPair };
+export type CollectionInfo = {
   requested_post_count?: number;
   method?: string;
   post_count: number;
@@ -162,7 +164,7 @@ function errorText(value: unknown): string {
 }
 
 // Every request has its own deadline as well as the operation's abort signal.
-async function request<T>(
+export async function request<T>(
   path: string,
   init: RequestInit = {},
   signal?: AbortSignal,
@@ -795,8 +797,8 @@ function defaultSelection(snapshot: Snapshot): Selection | null {
   const group = snapshot.result.clusters[0];
   if (group) return { kind: "cluster", id: group.id };
   const pair =
-    snapshot.result.findings.find((finding) => finding.strong) ||
-    snapshot.result.findings[0];
+    !isConnectivity(snapshot.result) && (snapshot.result.findings.find((finding) => finding.strong) ||
+    snapshot.result.findings[0]);
   if (pair) return { kind: "pair", id: pair.id };
   const entity =
     snapshot.graph.nodes.find((node) => node.kind === "account") ||
@@ -804,7 +806,7 @@ function defaultSelection(snapshot: Snapshot): Selection | null {
   return entity ? { kind: "entity", id: entity.id } : null;
 }
 
-function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Snapshot }) {
+function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Snapshot<SwarmResult> }) {
   const { scores } = usePostScoring();
   const { result } = snapshot;
   const strength = finding.contributions?.mean_signal_strength;
@@ -1016,7 +1018,7 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
   );
 }
 
-function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void; onClose: () => void }) {
+function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot: Snapshot<SwarmResult>; selection: Selection | null; select: (selection: Selection) => void; onClose: () => void }) {
   const { scores } = usePostScoring();
   const [pairId, setPairId] = useState("");
   const node = selection?.kind === "entity" ? snapshot.graph.nodes.find((entry) => entry.id === selection.id) : undefined;
@@ -1076,10 +1078,15 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   const graph = useMemo(() => {
     const contents = new Set(snapshot.graph.nodes.filter((node) => node.kind === "content").map((node) => node.id));
     const accounts = new Set(snapshot.graph.nodes.filter((node) => node.kind === "account").map((node) => node.id));
-    // Relationships come from the observed graph; detector findings stay in the evidence panels.
+    // Keep observed actions distinct from the derived agent connections.
     const links: DisplayLink[] = snapshot.graph.edges
       .filter((edge) => accounts.has(edge.source_id) && contents.has(edge.target_id))
       .map((edge) => ({ id: edge.id, source: edge.source_id, target: edge.target_id }));
+    for (const edge of snapshot.graph.connectivity_edges || []) {
+      if (edge.weight > 0 && accounts.has(edge.source_id) && accounts.has(edge.target_id)) {
+        links.push({ id: edge.id, source: edge.source_id, target: edge.target_id, connectivity: { ...edge } });
+      }
+    }
     // d3-force mutates positions and link endpoints. Never hand it the API snapshot.
     return {
       nodes: snapshot.graph.nodes.map((node) => ({
@@ -1096,6 +1103,10 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           ?.account_ids || [],
       );
     if (selection?.kind === "pair") {
+      if (isConnectivity(snapshot.result)) {
+        const pair = snapshot.graph.connectivity_edges?.find(edge => edge.id === selection.id);
+        return new Set([selection.source_id || pair?.source_id, selection.target_id || pair?.target_id].filter((id): id is string => !!id));
+      }
       const pair = snapshot.result.findings.find(
         (finding) => finding.id === selection.id,
       );
@@ -1169,7 +1180,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   }
   return (
     <section className="swarm-panel" id="swarm-map" aria-label="Observed network graph">
-      <header className="swarm-panel-heading"><span>Network map</span><span>{graph.nodes.length} items · {graph.links.length} actions</span></header>
+      <header className="swarm-panel-heading"><span>Network map</span><span>{graph.nodes.length} items · {graph.links.filter(link => !link.connectivity).length} actions{isConnectivity(snapshot.result) && <> · {graph.links.filter(link => link.connectivity).length} agent connections</>}</span></header>
       {snapshot.graph.hidden_nodes > 0 && <p className="swarm-notice swarm-graph-warning" role="note">Graph truncated: {number(snapshot.graph.hidden_nodes)} entities hidden; at most 300 are drawn. Counts and evidence below cover the full detector result, not just this view.</p>}
       <div className="swarm-canvas" ref={containerRef}>
         {size.width > 0 && size.height > 0 && <ForceGraph2D<Entity, DisplayLink>
@@ -1184,8 +1195,13 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           nodeCanvasObject={drawNode}
           nodeLabel={() => ""}
           onNodeClick={(node) => select({ kind: "entity", id: node.id })}
-          linkColor={() => "#60584e"}
-          linkWidth={0.8}
+          linkColor={link => link.connectivity ? "#67b7ac" : "#60584e"}
+          linkWidth={link => link.connectivity ? 4 * link.connectivity.weight : 0.8}
+          linkLabel={link => link.connectivity ? `Connectivity: ${link.connectivity.score.toFixed(3)} / 2` : ""}
+          onLinkClick={link => {
+            const pair = link.connectivity;
+            if (pair) select({ kind: "pair", id: pair.id, source_id: pair.source_id, target_id: pair.target_id });
+          }}
           enableZoomInteraction={(event) => {
             const enabled = event.type !== "wheel" || event.ctrlKey || event.metaKey;
             // Once the user takes control, late layout or engine updates must not refit the camera.
@@ -1216,6 +1232,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           </button>
         </div>
         <div className="swarm-legend" aria-label="Graph legend">
+          {isConnectivity(snapshot.result) && <span><i className="swarm-connectivity-key" />agent connection · thickness follows score</span>}
           <span>
             <i className="swarm-account-key" />
             agent
@@ -1234,7 +1251,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           </span>
         </div>
       </div>
-      <details className="swarm-graph-help"><summary>How to read this map</summary><p>Agents connect to posts through observed actions, including replies recorded in post metadata. Agents need attributed publishing or editing activity or declared capability. URLs appear in post details; coordination findings remain in the evidence panels and may cover accounts outside this map.</p><div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />agent</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-validation-key" />requires further analysis</span><span><i className="swarm-observed-key" />observed action</span></div><p className="swarm-graph-hint">Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom.</p></details>
+      <details className="swarm-graph-help"><summary>How to read this map</summary><p>Agents connect to posts through observed actions, including replies recorded in post metadata. Agents need attributed publishing or editing activity or declared capability. URLs appear in post details; pair evidence below the map can include agents outside the displayed subset.</p><div className="swarm-legend" aria-label="Graph legend"><span><i className="swarm-account-key" />agent</span><span><i className="swarm-content-key" />post</span><span><i className="swarm-validation-key" />requires further analysis</span><span><i className="swarm-observed-key" />observed action</span></div><p className="swarm-graph-hint">Drag to pan · use + / − or Ctrl/⌘ + scroll to zoom.</p></details>
     </section>
   );
 }
@@ -1243,7 +1260,7 @@ function ResultSummary({
   snapshot,
   exportResult,
 }: {
-  snapshot: Snapshot;
+  snapshot: Snapshot<SwarmResult>;
   exportResult: () => void;
 }) {
   const { result } = snapshot;
@@ -1353,6 +1370,7 @@ export default function SwarmNetwork() {
   const [name, setName] = useState("Untitled investigation");
   const [input, setInput] = useState("");
   const [format, setFormat] = useState<InputFormat>("json");
+  const [threshold, setThreshold] = useState("0.25");
   const [revision, setRevision] = useState(0);
   const [reading, setReading] = useState(false);
   const [collecting, setCollecting] = useState(false);
@@ -1385,7 +1403,7 @@ export default function SwarmNetwork() {
       operation?.controller.abort();
       if (operation) window.clearTimeout(operation.deadline);
       fileReaderRef.current?.abort();
-      // Stop the CPU job as well as local polling when this screen is unmounted.
+      // Stop the server job as well as local polling when this screen is unmounted.
       const job = pendingRef.current;
       if (job)
         void request(`/jobs/${encodeURIComponent(job.jobId)}/cancel`, {
@@ -1451,7 +1469,7 @@ export default function SwarmNetwork() {
         result.status,
       ) ||
       !result.counts ||
-      !Array.isArray(result.findings) ||
+      (!isConnectivity(result) && !Array.isArray(result.findings)) ||
       !Array.isArray(result.clusters) ||
       !result.parameters
     )
@@ -1459,9 +1477,9 @@ export default function SwarmNetwork() {
         "Job finished without a supported detector result. The previous graph has been preserved.",
       );
     setPhase("loading");
-    setActivity("Patterns checked. Preparing the evidence and network map…");
+    setActivity("Analysis finished. Preparing the evidence and network map…");
     const graph = await request<Graph>(
-      `/datasets/${encodeURIComponent(context.datasetId)}/graph?limit=300`,
+      `/datasets/${encodeURIComponent(context.datasetId)}/graph?limit=300${isConnectivity(result) ? `&connectivity_analysis_id=${encodeURIComponent(result.analysis_id)}` : ""}`,
       {},
       operation.controller.signal,
     );
@@ -1489,7 +1507,7 @@ export default function SwarmNetwork() {
       setActivity(
         job.status === "queued"
           ? "Your analysis is queued. It will start when a worker is available."
-          : "Looking for repeated wording, shared links and timing patterns…",
+          : "Generating authored-content embeddings and comparing agent connections…",
       );
       await pause(1500, operation.controller.signal);
       job = await request<Job>(
@@ -1512,7 +1530,8 @@ export default function SwarmNetwork() {
   }
 
   async function start(value?: CollectedPosts) {
-    if (!value && inputConflict) return;
+    if ((!value && inputConflict) || !thresholdValid) return;
+    const runThreshold = Number(threshold);
     const runName = value?.name ?? name;
     const runInput = value ? JSON.stringify(value.rows, null, 2) : input;
     const runFormat = value ? "json" : format;
@@ -1549,7 +1568,7 @@ export default function SwarmNetwork() {
       setActivity("Activity saved. Starting the account comparison…");
       const job = await request<Job>(
         "/swarm/analyze",
-        { method: "POST", body: JSON.stringify({ dataset_id: dataset.id }) },
+        { method: "POST", body: JSON.stringify({ dataset_id: dataset.id, mode: "agent_connectivity", connectivity_threshold: runThreshold }) },
         signal,
       );
       if (!job?.id)
@@ -1662,7 +1681,7 @@ export default function SwarmNetwork() {
     setEvidenceOpen(true);
   }
 
-  const pairs = useMemo(() => snapshot ? [...snapshot.result.findings].sort((a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score) : [], [snapshot]);
+  const pairs = useMemo(() => snapshot && !isConnectivity(snapshot.result) ? [...snapshot.result.findings].sort((a, b) => Number(b.strong) - Number(a.strong) || b.score - a.score) : [], [snapshot]);
   const disabled = busy || reading || collecting || collectionPending;
   const activeCollection =
     collected &&
@@ -1673,12 +1692,13 @@ export default function SwarmNetwork() {
       : null;
   const collectedInputMatches = !!collected && format === "json" && input === JSON.stringify(collected.rows, null, 2);
   const inputConflict = !!(profiles.trim() && input.trim() && !collectedInputMatches);
+  const thresholdValid = threshold.trim() !== "" && Number.isFinite(Number(threshold)) && Number(threshold) >= 0 && Number(threshold) < 2;
   return (
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
       <header className="section-title"><span>Network investigation</span><a href="#analysis">Text analysis</a></header>
       <div className="swarm-intro">
         <div>
-          <h2 id="swarm-title">Find repeated posts across accounts.</h2>
+          <h2 id="swarm-title">Explore connections between agents.</h2>
         </div>
       </div>
       <div className="swarm-layout">
@@ -1687,7 +1707,7 @@ export default function SwarmNetwork() {
             className="swarm-panel"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!disabled && !pending && !inputConflict) {
+              if (!disabled && !pending && !inputConflict && thresholdValid) {
                 if (profiles.trim()) void blueskyRef.current?.run();
                 else void start();
               }
@@ -1714,16 +1734,21 @@ export default function SwarmNetwork() {
               <input ref={fileInputRef} id="swarm-file" type="file" hidden aria-label="Upload activity file" accept=".json,.csv,application/json,text/csv" disabled={disabled} onChange={(event) => { upload(event.target.files?.[0]); event.target.value = ""; }} />
               <details className="swarm-advanced-input" open={editorOpen} onToggle={(event) => setEditorOpen(event.currentTarget.open)}>
                 <summary>{input ? "Review or edit activity data" : "Paste data or edit advanced options"}</summary>
+                <label className="swarm-field" htmlFor="swarm-connectivity-threshold">Minimum connectivity</label>
+                <input id="swarm-connectivity-threshold" type="number" min="0" max="2" step="any"
+                  value={threshold} disabled={disabled} aria-invalid={!thresholdValid}
+                  aria-describedby="swarm-connectivity-help" onChange={event => { setThreshold(event.target.value); setRevision(value => value + 1); }} />
+                <p id="swarm-connectivity-help" className="swarm-muted">A score above this threshold draws a connection and joins agents into connected groups. Range: 0 up to, but excluding, 2. Applies to the next run. Up to 300 agents per analysis.</p>
                 <label className="swarm-field" htmlFor="swarm-name">Investigation name</label>
                 <input id="swarm-name" value={name} maxLength={200} disabled={disabled} onChange={(event) => { setName(event.target.value); setRevision((value) => value + 1); }} />
                 <div className="swarm-editor-heading"><label htmlFor="swarm-input">Activity data</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setCollected(null); setFormat(event.target.value as InputFormat); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
                 <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-invalid={inputConflict || undefined} aria-describedby={`swarm-fields${inputConflict ? " swarm-input-conflict" : ""}`} placeholder={format === "json" ? "Paste a JSON array of event objects." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setCollected(null); setInput(event.target.value); setRevision((value) => value + 1); }} />
                 <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setCollected(null); setInput(""); setRevision((value) => value + 1); }}>Clear input</button></div>
-                <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform. JSON must be an array of objects; CSV needs a header row. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Missing timestamps and likes are excluded by the detector and may lead to insufficient data.</p><p>Created content needs text or a URL. Source validation on the server is authoritative.</p></details>
+                <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform, mentioned_account_ids. JSON must be an array of objects; CSV needs a header row. Mention IDs are an optional array of exact source account IDs on the same platform; encode them as a JSON array in CSV. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Timestamps are optional for connectivity. Embeddings use authored text; likes and reposts remain observed actions only.</p><p>Imports accept created content with text or a URL. Connectivity needs authored text for every agent; URL-only materials are not fetched or embedded. Source validation on the server is authoritative.</p></details>
               </details>
               {inputConflict && <div id="swarm-input-conflict" className="swarm-error" role="alert"><strong>Choose one input source</strong><p>Both Bluesky links and advanced activity data are filled. Clear one input before analyzing; neither source will be used until this is resolved.</p></div>}
-              <p className="swarm-muted swarm-privacy-note">Activity is stored on this server. Optional post scoring uses AI only when requested. Only upload data you have permission to use.</p>
-              <button type="submit" className="swarm-run" disabled={disabled || !!pending || inputConflict || (!input.trim() && !profiles.trim())}>{reading ? "Reading file…" : busy ? "Analyzing…" : collecting ? "Fetching posts…" : "Analyze activity"}</button>
+              <p className="swarm-muted swarm-privacy-note">Activity is stored on this server. Agent connectivity sends authored text to OpenAI for embeddings. Optional post scoring uses AI when requested. Only upload data you have permission to use.</p>
+              <button type="submit" className="swarm-run" disabled={disabled || !!pending || inputConflict || !thresholdValid || (!input.trim() && !profiles.trim())}>{reading ? "Reading file…" : busy ? "Analyzing…" : collecting ? "Fetching posts…" : "Analyze activity"}</button>
               {collected && !activeCollection && <p className="swarm-notice">The name or raw data was edited. This will be saved as user-provided input, without claiming server-verified Bluesky provenance.</p>}
               <InputPreview input={input} format={format} collected={activeCollection} />
               {activeCollection && <CollectionCoverage collection={activeCollection.collection} datasetId={activeCollection.dataset_id} />}
@@ -1756,7 +1781,7 @@ export default function SwarmNetwork() {
                     <li key={step} aria-current={phase === step ? "step" : undefined}>
                       <span>{index + 1}</span>
                       {step === "importing" ? "Check & save activity"
-                        : step === "analyzing" ? "Compare repeated patterns" : "Prepare evidence & map"}
+                        : step === "analyzing" ? "Embed authored text & compare agents" : "Prepare evidence & map"}
                     </li>
                   ))}
                 </ol>
@@ -1767,9 +1792,14 @@ export default function SwarmNetwork() {
           </div>
         </div>
         {snapshot && <div className="swarm-results-column">
-            <ResultSummary snapshot={snapshot} exportResult={exportResult} />
+            {isConnectivity(snapshot.result)
+              ? <ConnectivitySummary snapshot={{ ...snapshot, result: snapshot.result }} exportResult={exportResult}
+                  coverage={snapshot.result.collection && <CollectionCoverage collection={snapshot.result.collection} datasetId={snapshot.datasetId} />} />
+              : <ResultSummary snapshot={{ ...snapshot, result: snapshot.result }} exportResult={exportResult} />}
             <PostScoringProvider key={`${snapshot.datasetId}:${snapshot.jobId}`} initial={snapshot.graph.content_screenings}>
               <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
+              {isConnectivity(snapshot.result) ? <ConnectivityEvidence snapshot={{ ...snapshot, result: snapshot.result }}
+                selection={selection} select={inspect} open={evidenceOpen} onClose={() => setEvidenceOpen(false)} load={request} /> : <>
               <details className="swarm-panel swarm-selection swarm-evidence-picker" id="swarm-evidence">
                 <summary>Explore evidence</summary>
                 <div className="swarm-panel-body">
@@ -1784,7 +1814,8 @@ export default function SwarmNetwork() {
                   {selection && !evidenceOpen && <button type="button" onClick={() => setEvidenceOpen(true)}>Open selected evidence →</button>}
                 </div>
               </details>
-              {evidenceOpen && <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={snapshot} selection={selection} select={inspect} onClose={() => setEvidenceOpen(false)} />}
+              {evidenceOpen && <EvidenceInspector key={`${snapshot.jobId}:${selection?.kind}:${selection?.id}`} snapshot={{ ...snapshot, result: snapshot.result }} selection={selection} select={inspect} onClose={() => setEvidenceOpen(false)} />}
+              </>}
             </PostScoringProvider>
         </div>}
       </div>

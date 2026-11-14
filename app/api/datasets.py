@@ -9,8 +9,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
+from app.api.agent_connectivity import connectivity_record
 from app.content.screening import scoring_signature
-from app.core.database import analyses, datasets, entities, feedback, jobs, observations, utc_now
+from app.core.database import agent_pairs, analyses, datasets, entities, feedback, jobs, observations, utc_now
 from app.core.ingestion import DatasetInput, prepare_dataset
 from app.core.interactions import observed_graph
 
@@ -90,6 +91,7 @@ async def dataset_graph(
     cluster: str | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
+    connectivity_analysis_id: str | None = None,
 ):
     if any(value and value.tzinfo is None for value in (since, until)):
         raise HTTPException(422, "Time filters require a UTC offset")
@@ -114,6 +116,15 @@ async def dataset_graph(
             .order_by(analyses.c.created_at.desc())
             .limit(1)
         ).scalar()
+        connectivity = None
+        connectivity_edges = []
+        if connectivity_analysis_id:
+            connectivity = connectivity_record(connection, connectivity_analysis_id, dataset_id)
+            connectivity_edges = [dict(row) for row in connection.execute(select(
+                *(agent_pairs.c[key] for key in ("id", "source_id", "target_id", "mention", "similarity", "score", "weight"))
+            ).where(
+                agent_pairs.c.job_id == connectivity["job_id"], agent_pairs.c.weight > 0
+            )).mappings()]
         content_screenings = {}
         saved = connection.execute(
             select(
@@ -153,13 +164,17 @@ async def dataset_graph(
         ]
     clusters = [
         {**group, "account_ids": [agent for agent in group["account_ids"] if agent in nodes]}
-        for group in (swarm["clusters"] if swarm else [])
+        for group in (connectivity["result"]["clusters"] if connectivity else swarm["clusters"] if swarm else [])
     ]
-    clusters = [group for group in clusters if len(group["account_ids"]) >= 3]
+    clusters = [group for group in clusters if len(group["account_ids"]) >= (2 if connectivity else 3)]
     adjacency = {node: set() for node in nodes}
     for edge in edges:
         adjacency[edge["source_id"]].add(edge["target_id"])
         adjacency[edge["target_id"]].add(edge["source_id"])
+    for edge in connectivity_edges:
+        if edge["source_id"] in nodes and edge["target_id"] in nodes:
+            adjacency[edge["source_id"]].add(edge["target_id"])
+            adjacency[edge["target_id"]].add(edge["source_id"])
     if focus:
         seeds = [focus] if focus in nodes and (not (since or until) or adjacency[focus]) else []
     elif cluster:
@@ -184,7 +199,7 @@ async def dataset_graph(
         selected.append(node_id)
         pending.extend(sorted(adjacency[node_id] - seen))
     visible = set(selected)
-    return {
+    result = {
         "dataset_id": dataset_id,
         "nodes": [nodes[n] for n in selected],
         "edges": [e for e in edges if e["source_id"] in visible and e["target_id"] in visible],
@@ -194,6 +209,15 @@ async def dataset_graph(
         "time_filter_excludes_unknown": bool(since or until),
         "content_screenings": content_screenings,
     }
+    if connectivity:
+        result.update({
+            "connectivity_analysis_id": connectivity_analysis_id,
+            "connectivity_scope": "full_dataset",
+            "connectivity_edges": [
+                edge for edge in connectivity_edges if edge["source_id"] in visible and edge["target_id"] in visible
+            ],
+        })
+    return result
 
 
 @router.post("/feedback", status_code=201)

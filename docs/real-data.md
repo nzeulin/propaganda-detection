@@ -12,7 +12,9 @@ Bluesky's keyword-search endpoint returned HTTP 403 in this environment. Public 
 
 ## Use the existing UI — no downloads or terminal required
 
-Open **Follow the pattern** at [the main application](http://127.0.0.1:8000/#swarm), then:
+Open **Explore connections between agents** at [the main application](http://127.0.0.1:8000/#swarm), then:
+
+Collection itself uses no AI keys. The subsequent UI analysis requires `OPENAI_API_KEY` and sends authored text for embeddings; see [agent connectivity](agent-connectivity.md). Historical CPU-detector experiments below describe the legacy temporal API.
 
 1. Expand **Import real posts from Bluesky** in **Add activity**.
 2. Paste public profile URLs, handles or exact post URLs, one per line (copied lists and Markdown links also work). Profiles such as https://bsky.app/profile/bsky.app or `@atproto.com` fetch recent authored posts. A link shaped like `https://bsky.app/profile/HANDLE/post/POST_ID` imports only that exact post, not the author's feed, replies or reposts. Profile and post inputs may be mixed, up to ten inputs in total.
@@ -23,7 +25,7 @@ The same **Analyze activity** button handles uploaded files and raw activity dat
 
 Inputs accept up to ten explicit public handles, `did:plc` identities, or exact HTTPS profile/post URLs on `bsky.app`. Post record keys retain their original case. Article URLs, keywords, arbitrary websites, URL credentials, alternate ports, query strings and fragments are rejected. Only the fixed public API is contacted; submitted URLs, links and media are not fetched directly. Post authors resolve through `getProfile`; the exact DID-based AT URI is retrieved with `getPosts` and checked against the returned URI and author. Missing/deleted/unavailable or malformed explicitly requested posts fail the entire collection without a partial import or synthetic fallback.
 
-A single post can be collected and inspected, but cannot establish recurring cross-account coordination. A few exact posts will often produce `insufficient_data`; this is an expected abstention, not an import failure. Linked reply records retain their original text/record, but are imported as authored content without reconstructing the reply relationship. This feature does not discover participants or collect an amplification network.
+A single post can be collected and inspected, but cannot establish recurring cross-account coordination. The legacy temporal API may return `insufficient_data` for a few exact posts. Connectivity needs at least two attributed agents to compare a pair. Linked reply records retain their original text/record, but are imported as authored content without reconstructing the reply relationship. This feature does not discover participants or collect an amplification network.
 
 The collection job supports cancellation and explicit resume after a tracking error. A request already in flight can take up to 25 seconds to stop; its worker slot stays occupied until it stops. Failures preserve the previous input and completed result, and never activate synthetic fallback or automatic retries. Collection jobs share the existing two-worker limit, with at most four active/queued collection jobs. Original records are imported atomically after successful collection; cancellation or source failure before that point imports no partial snapshot.
 

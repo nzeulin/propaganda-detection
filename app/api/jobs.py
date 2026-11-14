@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.api.contracts import JobRecord
 from app.api.datasets import import_dataset
+from app.api.swarm import SwarmInput, submit_swarm
 from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
@@ -129,6 +130,8 @@ async def retry_job(job_id: str, request: Request):
         raise HTTPException(409, "Only failed, cancelled, or interrupted jobs can be retried.")
     if old["kind"] == "content" and old["payload"].get("verification") == "none":
         return await submit_content(ContentJobInput(content_id=old["target_id"], verification="none"), request)
+    if old["kind"] == "agent_connectivity":
+        return await submit_swarm(SwarmInput.model_validate(old["payload"]), request)
     configuration = {"coordination": SWARM_VERSION} if old["kind"] == "swarm" else state.config.versions
     if old["kind"] == "bluesky":
         configuration = {"bluesky": COLLECTION_VERSION}
