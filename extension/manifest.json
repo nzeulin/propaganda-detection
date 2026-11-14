@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Open in VeritasScope",
+  "version": "0.1.0",
+  "description": "Open VeritasScope with the text you select on a web page.",
+  "permissions": ["contextMenus", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://153.92.222.180/*"],
+      "js": ["prefill.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
