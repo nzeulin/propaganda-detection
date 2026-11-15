@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { PostScoring, usePostScoring } from "./PostScoring";
+import { entityLabel } from "./agentLabels";
 import type { CollectionInfo, Selection, Snapshot, SwarmResult, request as requestApi } from "./SwarmNetwork";
 
 export type ConnectivityPair = {
@@ -91,7 +92,7 @@ export function ConnectivityEvidence({ snapshot, selection, select, open, onClos
   const preview = materialOwner?.[1].previews.find(item => item.id === selection?.id);
   const authorId = node?.kind === "content" ? node.data.author_id : materialOwner?.[0];
   const agentId = selection?.kind === "entity" ? authorId || selection.id : undefined;
-  const label = (id: string) => result.account_labels[id] || snapshot.graph.nodes.find(item => item.id === id)?.data.source_id || id;
+  const label = (id: string, compact = false) => entityLabel(id, snapshot.labels, compact);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,15 +135,19 @@ export function ConnectivityEvidence({ snapshot, selection, select, open, onClos
         <select id="swarm-entity" value={selection?.kind === "entity" && node ? selection.id : ""}
           onChange={event => { if (event.target.value) select({ kind: "entity", id: event.target.value }); }}>
           <option value="">Select an item…</option>
-          {snapshot.graph.nodes.map(item => <option key={item.id} value={item.id}>{item.kind === "account" ? "agent" : "material"} / {label(item.id)}</option>)}
+          {snapshot.graph.nodes.map(item => <option key={item.id} value={item.id} title={label(item.id)}
+            aria-label={`${item.kind === "account" ? "agent" : "material"} / ${label(item.id)}`}>
+            {item.kind === "account" ? "agent" : "material"} / {label(item.id, true)}</option>)}
         </select>
         <h4>Pair scores</h4>
         {busy ? <p role="status">Loading agent pairs…</p> : <>
           <p className="swarm-muted">{page.total.toLocaleString()} pairs in this view. Zero-weight pairs are not drawn or used for grouping.</p>
           <div className="swarm-pair-list">{page.items.map(item => <button type="button" key={item.id}
             aria-pressed={selection?.kind === "pair" && selection.id === item.id}
+            title={`${label(item.source_id)} ↔ ${label(item.target_id)}`}
+            aria-label={`${label(item.source_id)} ↔ ${label(item.target_id)} · ${item.score.toFixed(3)} / 2`}
             onClick={() => select({ kind: "pair", id: item.id, source_id: item.source_id, target_id: item.target_id })}>
-            <span>{label(item.source_id)} ↔ {label(item.target_id)}</span><small>{item.score.toFixed(3)} / 2</small>
+            <span>{label(item.source_id, true)} ↔ {label(item.target_id, true)}</span><small>{item.score.toFixed(3)} / 2</small>
           </button>)}</div>
           <div className="swarm-actions">
             <button type="button" disabled={offset === 0} onClick={() => setPagination({ key, offset: Math.max(0, offset - 50) })}>Previous pairs</button>
@@ -157,7 +162,8 @@ export function ConnectivityEvidence({ snapshot, selection, select, open, onClos
       <header className="swarm-panel-heading"><span>Connection evidence</span><button type="button" aria-label="Close evidence panel" onClick={onClose}>Close ×</button></header>
       <div className="swarm-panel-body">
         {group && <><h3>Connected agent group</h3><p>{group.account_ids.length} agents connected through paths. This does not require a direct connection between every pair.</p>
-          <div className="swarm-members">{group.account_ids.map(id => <button type="button" key={id} onClick={() => select({ kind: "entity", id })}>{label(id)}</button>)}</div>
+          <div className="swarm-members">{group.account_ids.map(id => <button type="button" key={id}
+            title={label(id)} aria-label={label(id)} onClick={() => select({ kind: "entity", id })}>{label(id, true)}</button>)}</div>
           <p>Select a pair in Explore evidence to inspect its score.</p></>}
         {selection?.kind === "entity" && <>
           <h3>{label(selection.id)}</h3>
@@ -237,7 +243,7 @@ function ObservedActivity({ snapshot, entityId, hasPreview, select, load }: {
     {busy ? <p role="status">Loading saved activity…</p> : error ? <p role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Retry activity</button></p> : page && <>
       <p className="swarm-muted">Showing {page.items.length ? offset + 1 : 0}–{offset + page.items.length} of {page.total} saved actions across the full dataset. Gray actions do not add to embedding scores.</p>
       {page.items.map(edge => <div className="swarm-notice" key={edge.id}>
-        <p>{snapshot.result.account_labels[edge.source_id] || edge.account.data.handle || edge.account.data.source_id} · {edge.action.replaceAll("_", " ")} · {edge.timestamp ? new Date(edge.timestamp).toISOString() : "Time unknown"}</p>
+        <p>{entityLabel(edge.source_id, snapshot.labels)} · {edge.action.replaceAll("_", " ")} · {edge.timestamp ? new Date(edge.timestamp).toISOString() : "Time unknown"}</p>
         <button type="button" onClick={() => select({ kind: "entity", id: edge.target_id })}>Inspect {edge.action === "created" ? "authored" : "referenced"} post</button>
         {edge.content.data.source_post_url && <p><a href={edge.content.data.source_post_url} target="_blank" rel="noopener noreferrer">Open referenced post ↗</a></p>}
         {edge.response && <button type="button" onClick={() => select({ kind: "entity", id: edge.response!.id })}>Inspect {edge.action === "quoted" ? "quote" : "reply"} post</button>}

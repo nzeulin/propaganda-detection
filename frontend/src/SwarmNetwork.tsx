@@ -2,6 +2,7 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { BLUESKY_MAX_INPUT_LENGTH, BLUESKY_MAX_SOURCES, parseBlueskyProfiles } from "./blueskyProfiles";
+import { createEntityLabels, entityLabel, type EntityLabels } from "./agentLabels";
 import { PostScoring, PostScoringProvider, usePostScoring, type ContentScore } from "./PostScoring";
 import "./SwarmNetwork.css";
 import { ConnectivityEvidence, ConnectivitySummary, isConnectivity, type ConnectivityPair, type ConnectivityResult } from "./AgentConnectivity";
@@ -103,7 +104,7 @@ type RunContext = {
   revision: number;
 };
 type PendingJob = RunContext & { jobId: string };
-export type Snapshot<R = SwarmResult | ConnectivityResult> = PendingJob & { result: R; graph: Graph };
+export type Snapshot<R = SwarmResult | ConnectivityResult> = PendingJob & { result: R; graph: Graph; labels: EntityLabels };
 export type Selection = { kind: "cluster" | "pair" | "entity"; id: string; source_id?: string; target_id?: string };
 type Operation = { controller: AbortController; deadline: number; timedOut: boolean };
 type DisplayLink = { id: string; source: string; target: string; action?: string; connectivity?: ConnectivityPair };
@@ -398,15 +399,6 @@ function SourceLink({ url }: { url: string }) {
     </a>
   ) : (
     <span>{url}</span>
-  );
-}
-
-function entityLabel(id: string, snapshot: Snapshot): string {
-  const node = snapshot.graph.nodes.find((node) => node.id === id);
-  return (
-    snapshot.result.account_labels?.[id] ||
-    (node?.data.handle ? `@${node.data.handle}` : node?.data.source_id) ||
-    id
   );
 }
 
@@ -833,8 +825,8 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
   return (
     <article className="swarm-pair-evidence">
       <h4>
-        {entityLabel(finding.source_id, snapshot)} <span>↔</span>{" "}
-        {entityLabel(finding.target_id, snapshot)}
+        {entityLabel(finding.source_id, snapshot.labels)} <span>↔</span>{" "}
+        {entityLabel(finding.target_id, snapshot.labels)}
       </h4>
       <p
         className={`swarm-evidence-badge ${finding.strong ? "is-flagged" : ""}`}
@@ -970,7 +962,7 @@ function FindingEvidence({ finding, snapshot }: { finding: Finding; snapshot: Sn
               return (
                 <div className={`swarm-matched-event ${scores[event.content_id]?.screening?.label === "requires_further_analysis" ? "swarm-needs-validation" : ""}`} key={`${event.event_id}-${eventIndex}`}>
                   <span className="swarm-post-action">{activityLabel(event.action)}</span>
-                  <strong>{event.account_label || entityLabel(event.account_id, snapshot)}</strong>
+                  <strong>{entityLabel(event.account_id, snapshot.labels)}</strong>
                   <time>{timestamp(event.timestamp)}</time>
                   <p>{preview || "No text supplied for this event."}</p>
                   {event.action === "replied_to" && <p className="swarm-muted">This is the referenced post, not the reply’s own text.</p>}
@@ -1053,7 +1045,7 @@ function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot:
   const heading = cluster
     ? groupLabel(cluster.id, snapshot)
     : selection?.kind === "entity"
-      ? entityLabel(selection.id, snapshot)
+      ? entityLabel(selection.id, snapshot.labels)
       : "Two-account comparison";
   return (
     <aside className={`swarm-panel swarm-inspection ${node && scores[node.id]?.screening?.label === "requires_further_analysis" ? "swarm-needs-validation" : ""}`} aria-label="Swarm evidence inspector">
@@ -1063,7 +1055,9 @@ function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot:
           <h3>{heading}</h3>
           {cluster && <>
             <p><strong>{cluster.account_ids.length} accounts</strong> with a flagged connection between every pair. A group is also called a cluster; it is not proof of shared ownership or automation.</p>
-            <div className="swarm-members">{cluster.account_ids.map((id) => <button type="button" key={id} onClick={() => select({ kind: "entity", id })}>{entityLabel(id, snapshot)}</button>)}</div>
+            <div className="swarm-members">{cluster.account_ids.map((id) => <button type="button" key={id}
+              title={entityLabel(id, snapshot.labels)} aria-label={entityLabel(id, snapshot.labels)}
+              onClick={() => select({ kind: "entity", id })}>{entityLabel(id, snapshot.labels, true)}</button>)}</div>
             <p className="swarm-muted">Select a name to inspect that account, or compare a pair below.</p>
           </>}
           {selection.kind === "entity" && <>
@@ -1076,7 +1070,10 @@ function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot:
             {node?.kind === "content" && <PostScoring contentId={node.id} />}
           </>}
           {related.length > 1 && <label className="swarm-field">COMPARE TWO ACCOUNTS / {related.length} PAIRS
-            <select value={pair?.id || ""} onChange={(event) => setPairId(event.target.value)}>{related.map((finding) => <option key={finding.id} value={finding.id}>{entityLabel(finding.source_id, snapshot)} ↔ {entityLabel(finding.target_id, snapshot)}{finding.strong ? " · strong" : " · candidate"}</option>)}</select>
+            <select value={pair?.id || ""} onChange={(event) => setPairId(event.target.value)}>{related.map((finding) => <option key={finding.id} value={finding.id}
+              title={`${entityLabel(finding.source_id, snapshot.labels)} ↔ ${entityLabel(finding.target_id, snapshot.labels)}`}
+              aria-label={`${entityLabel(finding.source_id, snapshot.labels)} ↔ ${entityLabel(finding.target_id, snapshot.labels)}${finding.strong ? " · strong" : " · candidate"}`}>
+              {entityLabel(finding.source_id, snapshot.labels, true)} ↔ {entityLabel(finding.target_id, snapshot.labels, true)}{finding.strong ? " · strong" : " · candidate"}</option>)}</select>
           </label>}
           {pair ? <FindingEvidence key={pair.id} finding={pair} snapshot={snapshot} /> : <p className="swarm-muted">No pair-level coordination evidence was returned for this selection. This is not a safety verdict.</p>}
         </>}
@@ -1207,11 +1204,11 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
       context.stroke();
     }
     if (score?.pending || highlighted.has(node.id) || (scale > 1.3 && node.kind === "account")) {
-      const label = score?.pending ? "Scoring…" : entityLabel(node.id, snapshot);
+      const label = score?.pending ? "Scoring…" : entityLabel(node.id, snapshot.labels, node.kind === "account");
       context.font = `${11 / scale}px monospace`;
       context.fillStyle = score?.pending ? "#86b6d8" : "#f4efe6";
       context.fillText(
-        label.length > 30 ? `${label.slice(0, 29)}…` : label,
+        node.kind === "content" && label.length > 30 ? `${label.slice(0, 29)}…` : label,
         x + (score?.pending ? Math.max(radius + 5 / scale, 16 / scale) : radius + 5),
         y + 3 / scale,
       );
@@ -1245,7 +1242,11 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           minZoom={0.05}
           maxZoom={20}
           nodeCanvasObject={drawNode}
-          nodeLabel={() => ""}
+          nodeLabel={node => {
+            const tooltip = document.createElement("span");
+            tooltip.textContent = entityLabel(node.id, snapshot.labels);
+            return tooltip.innerHTML;
+          }}
           onNodeClick={(node) => select({ kind: "entity", id: node.id })}
           linkColor={link => link.connectivity ? "#67b7ac" : "#60584e"}
           linkWidth={link => link.connectivity ? 4 * link.connectivity.weight : 0.8}
@@ -1556,7 +1557,7 @@ export default function SwarmNetwork() {
       operation.controller.signal.aborted
     )
       return;
-    const next = { ...context, result, graph };
+    const next = { ...context, result, graph, labels: createEntityLabels(graph.nodes, result.account_labels) };
     setSnapshot(next); setSelection(defaultSelection(next)); setEvidenceOpen(false);
     setActivity(`Finished: ${result.status.replaceAll("_", " ")}. Showing ${context.name}.`);
   }
@@ -1865,10 +1866,20 @@ export default function SwarmNetwork() {
                   <h4>Choose something to inspect</h4>
                   <div className="swarm-groups">{snapshot.result.clusters.map((cluster) => <button type="button" key={cluster.id} aria-pressed={selection?.kind === "cluster" && selection.id === cluster.id} onClick={() => inspect({ kind: "cluster", id: cluster.id })}><span>{groupLabel(cluster.id, snapshot)} <span className="swarm-group-arrow">↗</span></span><span>{cluster.account_ids.length} connected accounts</span></button>)}</div>
                   {!snapshot.result.clusters.length && <p className="swarm-muted">No account groups were found.</p>}
-                  <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id} aria-pressed={selection?.kind === "pair" && selection.id === pair.id} onClick={() => inspect({ kind: "pair", id: pair.id })}><span>{entityLabel(pair.source_id, snapshot)} <b>↔</b> {entityLabel(pair.target_id, snapshot)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
-                  {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}>{entityLabel(pair.source_id, snapshot)} ↔ {entityLabel(pair.target_id, snapshot)}</option>)}</select></details>}
+                  <div className="swarm-pair-list">{pairs.slice(0, 3).map((pair) => <button type="button" key={pair.id}
+                    aria-pressed={selection?.kind === "pair" && selection.id === pair.id}
+                    title={`${entityLabel(pair.source_id, snapshot.labels)} ↔ ${entityLabel(pair.target_id, snapshot.labels)}`}
+                    aria-label={`${entityLabel(pair.source_id, snapshot.labels)} ↔ ${entityLabel(pair.target_id, snapshot.labels)} · ${pair.episode_count} matching occasions`}
+                    onClick={() => inspect({ kind: "pair", id: pair.id })}>
+                    <span>{entityLabel(pair.source_id, snapshot.labels, true)} <b>↔</b> {entityLabel(pair.target_id, snapshot.labels, true)}</span><small>{pair.episode_count} matching occasions</small></button>)}</div>
+                  {pairs.length > 3 && <details><summary>Choose another account pair ({pairs.length - 3} more)</summary><label className="swarm-field" htmlFor="swarm-pair">ACCOUNT PAIR</label><select id="swarm-pair" value={selection?.kind === "pair" ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "pair", id: event.target.value }); }}><option value="">Select pair evidence…</option>{pairs.map((pair) => <option key={pair.id} value={pair.id}
+                    title={`${entityLabel(pair.source_id, snapshot.labels)} ↔ ${entityLabel(pair.target_id, snapshot.labels)}`}
+                    aria-label={`${entityLabel(pair.source_id, snapshot.labels)} ↔ ${entityLabel(pair.target_id, snapshot.labels)}`}>
+                    {entityLabel(pair.source_id, snapshot.labels, true)} ↔ {entityLabel(pair.target_id, snapshot.labels, true)}</option>)}</select></details>}
                   <details><summary>Browse individual accounts &amp; posts</summary><label className="swarm-field" htmlFor="swarm-entity">Items on the map ({snapshot.graph.nodes.length})</label>
-                    <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}>{node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot)}</option>)}</select></details>
+                    <select id="swarm-entity" value={selection?.kind === "entity" && snapshot.graph.nodes.some((node) => node.id === selection.id) ? selection.id : ""} onChange={(event) => { if (event.target.value) inspect({ kind: "entity", id: event.target.value }); }}><option value="">Select an item…</option>{snapshot.graph.nodes.map((node) => <option key={node.id} value={node.id}
+                      title={entityLabel(node.id, snapshot.labels)} aria-label={`${node.kind === "content" ? "post" : node.kind} / ${entityLabel(node.id, snapshot.labels)}`}>
+                      {node.kind === "content" ? "post" : node.kind} / {entityLabel(node.id, snapshot.labels, true)}</option>)}</select></details>
                   <details><summary>Dataset &amp; job identifiers</summary><p>Dataset: {snapshot.datasetId}</p><p>Job: {snapshot.jobId}</p></details>
                   {selection && !evidenceOpen && <button type="button" onClick={() => setEvidenceOpen(true)}>Open selected evidence →</button>}
                 </div>
