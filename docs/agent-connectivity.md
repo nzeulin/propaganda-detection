@@ -14,11 +14,11 @@ weight = clamp((score - threshold) / (2 - threshold), 0, 1)
 
 The mention bonus is one if either agent explicitly mentions the other in authored material. Repeated and mutual mentions still add only one; self mentions add nothing. Matching uses platform mention metadata, exact handles, Bluesky profile URLs or imported `mentioned_account_ids`. Targets must belong to the same dataset and platform. Bare names and fuzzy matches do not count. JSON imports accept an array of source account IDs; CSV accepts a JSON array in that field, with normal CSV quoting.
 
-The threshold defaults to `0.25` and accepts `0 <= threshold < 2` in advanced options. It is frozen for each submitted run. Scores at or below it produce no connection. Positive connections are teal, with line width `4 * weight`; observed actions remain gray. Groups are connected components of two or more agents, so a chain forms a group without requiring every pair to connect. Isolated agents stay in the map. These signals do not establish coordination, shared ownership or bot identity; real-world quality has not been evaluated.
+The threshold defaults to `0.5` and accepts `0 <= threshold < 2` in advanced options. It is frozen for each submitted run. Scores at or below it produce no connection. Positive connections are teal, with line width `4 * weight`; observed actions remain gray. Groups are connected components of two or more agents, so a chain forms a group without requiring every pair to connect. Isolated agents stay in the map. These signals do not establish coordination, shared ownership or bot identity; real-world quality has not been evaluated.
 
 ## API and persistence
 
-- `POST /api/v1/swarm/analyze` with `{ "dataset_id": "...", "mode": "agent_connectivity", "connectivity_threshold": 0.25 }` submits a job. Omitting `mode` retains the existing CPU-only temporal API.
+- `POST /api/v1/swarm/analyze` with `{ "dataset_id": "...", "mode": "agent_connectivity", "connectivity_threshold": 0.5 }` submits a job. Omitting `mode` retains the existing CPU-only temporal API.
 - Poll `GET /api/v1/jobs/{job_id}`. Successful results contain `analysis_id`, groups, counts, parameters and authored-material previews.
 - `GET /api/v1/datasets/{dataset_id}/graph?connectivity_analysis_id={analysis_id}` overlays that completed revision's `connectivity_edges`. Grouping covers the full dataset before the existing 300-entity display cap.
 - `GET /api/v1/agent-connectivity/{analysis_id}/pairs` returns score-ordered evidence, 50 pairs per page by default (`offset`, `limit`, optional `agent_id`, `group_id`, `pair_id`, `connected_only`). Mention evidence includes up to 20 materials per pair and its full count.

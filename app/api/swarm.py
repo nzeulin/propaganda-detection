@@ -21,7 +21,7 @@ class SwarmInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     dataset_id: str = Field(min_length=1, max_length=200)
     mode: Literal["temporal", "agent_connectivity"] = "temporal"
-    connectivity_threshold: float = Field(default=0.25, ge=0, lt=2)
+    connectivity_threshold: float = Field(default=0.5, ge=0, lt=2)
 
 
 @router.get("/swarm/examples")

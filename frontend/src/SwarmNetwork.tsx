@@ -1370,7 +1370,7 @@ export default function SwarmNetwork() {
   const [name, setName] = useState("Untitled investigation");
   const [input, setInput] = useState("");
   const [format, setFormat] = useState<InputFormat>("json");
-  const [threshold, setThreshold] = useState("0.25");
+  const [threshold, setThreshold] = useState("0.5");
   const [revision, setRevision] = useState(0);
   const [reading, setReading] = useState(false);
   const [collecting, setCollecting] = useState(false);
