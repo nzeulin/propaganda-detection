@@ -229,7 +229,14 @@ function Analysis() {
       className="screen analysis-screen"
       id="analysis"
       aria-busy={loading}
+      aria-labelledby="analysis-title"
     >
+      <header className="analysis-intro">
+        <h2 id="analysis-title">Examine how language persuades.</h2>
+        <p>
+          Analyze a statement, post, or article for possible persuasion techniques. Scores are experimental text indicators; they do not establish truth or intent.
+        </p>
+      </header>
       <div className="input-column">
         <header className="section-title">
           <span>Text analysis</span>
@@ -433,18 +440,15 @@ function Briefing() {
 
         <div className="briefing-preview" aria-label="Preview of a fictional content analysis">
           <div className="briefing-preview-topline">
-            <span><i /> Example analysis</span>
+            <span><i /> Text analysis</span>
           </div>
           <div className="briefing-preview-body">
-            <p className="briefing-preview-quote">“Anyone questioning the plan is <mark>putting public safety at risk</mark>.”</p>
+            <div className="briefing-preview-attribution">Statement · author · endorsed</div>
+            <p className="briefing-preview-quote">“<mark>Anyone questioning the plan is accused of putting public safety at risk.</mark>”</p>
             <div className="briefing-preview-divider" />
             <div className="briefing-preview-finding">
-              <div><strong>Appeal to fear</strong><p>Frames disagreement as a threat to safety.</p></div>
-              <span className="briefing-confidence">93%</span>
-            </div>
-            <div className="briefing-preview-finding briefing-network-finding">
-              <div><strong>Repeated across accounts</strong><p>Compare timing and matching activity.</p></div>
-              <span className="briefing-network-icon" aria-hidden="true"><i /><i /><i /><i /></span>
+              <div><strong>Propaganda score</strong><p>Potential fear framing. Inspect the full context and evidence.</p></div>
+              <span className="briefing-feature-score">74/100</span>
             </div>
           </div>
         </div>
