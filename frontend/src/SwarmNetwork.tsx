@@ -1716,7 +1716,6 @@ export default function SwarmNetwork() {
   const thresholdValid = threshold.trim() !== "" && Number.isFinite(Number(threshold)) && Number(threshold) >= 0 && Number(threshold) < 2;
   return (
     <section className="screen swarm-screen swarm-workbench" id="swarm" aria-labelledby="swarm-title">
-      <header className="section-title"><span>Network investigation</span><a href="#analysis">Text analysis</a></header>
       <div className="swarm-intro">
         <div>
           <h2 id="swarm-title">Explore connections between agents.</h2>
