@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from app.api.agent_connectivity import connectivity_record
-from app.content.screening import scoring_signature
+from app.content.screening import scoring_signature, with_post_screening
 from app.core.database import agent_pairs, analyses, datasets, entities, feedback, jobs, observations, utc_now
 from app.core.ingestion import DatasetInput, prepare_dataset
 from app.core.interactions import observed_graph
@@ -196,7 +196,6 @@ async def dataset_graph(
                 jobs.c.id,
                 jobs.c.result["analysis_id"].label("analysis_id"),
                 jobs.c.result["features"].label("features"),
-                jobs.c.result["propaganda_screening"].label("screening"),
             )
             .select_from(jobs.join(entities, jobs.c.target_id == entities.c.id))
             .where(
@@ -210,11 +209,12 @@ async def dataset_graph(
             .order_by(jobs.c.created_at.desc(), jobs.c.id)
         ).mappings()
         for score in saved:
+            current = with_post_screening({"features": score["features"]}, request.app.state.config)
             content_screenings.setdefault(score["target_id"], {
                 "job_id": score["id"],
                 "analysis_id": score["analysis_id"],
-                "features": score["features"],
-                "screening": score["screening"],
+                "features": current["features"],
+                "screening": current["propaganda_screening"],
             })
     eligible, edges = observed_graph(nodes.values(), edges)
     nodes = {node["id"]: node for node in eligible}

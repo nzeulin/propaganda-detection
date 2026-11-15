@@ -12,7 +12,7 @@ from app.api.swarm import SwarmInput, submit_swarm
 from app.content.examples import EXAMPLES, DemoProvider
 from app.content.ingestion import fetch_article
 from app.content.pipeline import analyze_content
-from app.content.screening import scoring_signature, screen_content
+from app.content.screening import scoring_signature, with_post_screening
 from app.content.verification import verify_content
 from app.core.database import analyses, entities, jobs
 from app.core.ingestion import DatasetInput, canonical_id
@@ -26,6 +26,14 @@ class ContentJobInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     content_id: str
     verification: Literal["none", "sol"] = "sol"
+
+
+def post_job_record(record, config):
+    """Read completed post jobs using the current decision policy, leaving stored history intact."""
+    if (record["kind"] == "content" and record["status"] == "completed"
+            and record["payload"].get("verification") == "none"):
+        return {**record, "result": with_post_screening(record["result"], config)}
+    return record
 
 
 def content_handler(state):
@@ -56,8 +64,7 @@ def content_handler(state):
             )
             return result
         if job["payload"].get("verification") == "none":
-            result["propaganda_screening"] = screen_content(result, state.config)
-            return result
+            return with_post_screening(result, state.config)
         return await verify_content(result, state.live, state.config, stage)
 
     return handle
@@ -98,7 +105,6 @@ async def submit_content(body: ContentJobInput, request: Request):
                 .where(
                     jobs.c.fingerprint == fingerprint,
                     jobs.c.status == "completed",
-                    jobs.c.result["propaganda_screening"]["complete"].as_boolean().is_(True),
                 )
                 .order_by(jobs.c.created_at.desc())
                 .limit(1)
@@ -106,7 +112,7 @@ async def submit_content(body: ContentJobInput, request: Request):
     if node is None:
         raise HTTPException(404, "Unknown content")
     if cached:
-        return dict(cached)
+        return post_job_record(dict(cached), state.config)
     if state.live is None:
         raise HTTPException(503, "Live analysis requires OPENAI_API_KEY and TYPESAFE_API_KEY.")
     return state.jobs.submit("content", body.content_id, payload, state.config.versions)
@@ -114,12 +120,13 @@ async def submit_content(body: ContentJobInput, request: Request):
 
 @router.get("/jobs/{job_id}", response_model=JobRecord)
 async def get_job(job_id: str, request: Request):
-    return request.app.state.jobs.get(job_id)
+    return post_job_record(request.app.state.jobs.get(job_id), request.app.state.config)
 
 
 @router.post("/jobs/{job_id}/cancel", response_model=JobRecord)
 async def cancel_job(job_id: str, request: Request):
-    return await request.app.state.jobs.cancel(job_id)
+    record = await request.app.state.jobs.cancel(job_id)
+    return post_job_record(record, request.app.state.config)
 
 
 @router.post("/jobs/{job_id}/retry", status_code=202, response_model=JobRecord)
@@ -147,7 +154,10 @@ async def content_analysis(content_id: str, request: Request, revision: str | No
         record = connection.execute(query.order_by(analyses.c.created_at.desc()).limit(1)).mappings().first()
     if not record:
         raise HTTPException(404, "No saved analysis")
-    return dict(record)
+    record = dict(record)
+    if record["result"].get("propaganda_screening"):
+        record["result"] = with_post_screening(record["result"], request.app.state.config)
+    return record
 
 
 @router.get("/analyses/{analysis_id}/trace")
