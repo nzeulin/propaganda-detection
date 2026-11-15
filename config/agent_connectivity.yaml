@@ -1,4 +1,4 @@
-version: agent-connectivity-v1
+version: agent-connectivity-v2
 model: text-embedding-3-small
 dimensions: 1536
 chunk_tokens: 2048

@@ -12,6 +12,7 @@ from collections import Counter
 from contextlib import nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
+from time import monotonic
 from urllib.parse import quote, urlsplit
 
 import httpx
@@ -26,7 +27,7 @@ MAX_ACTORS = 50
 MAX_COLLECTION_POSTS = 5000
 MAX_POSTS_PER_ACTOR = 200
 MAX_PAGES_PER_ACTOR = 3
-COLLECTION_VERSION = "bluesky-public-inputs-v2"
+COLLECTION_VERSION = "bluesky-public-interactions-v3"
 
 
 def normalize_actor(value):
@@ -94,18 +95,21 @@ class CollectionError(RuntimeError):
     """A collection failure, never replaced with synthetic or scraped data."""
 
 
-def _read_json(client, method, params, *, cancellation=None):
+def _read_json(client, method, params, *, cancellation=None, deadline=None):
     _check_cancelled(cancellation)
     try:
-        with client.stream("GET", f"{PUBLIC_API}/{method}", params=params) as response:
+        options = {"timeout": max(0.01, min(25, deadline - monotonic()))} if deadline else {}
+        with client.stream("GET", f"{PUBLIC_API}/{method}", params=params, **options) as response:
             if response.status_code != 200:
                 raise CollectionError(
-                    f"{method} returned HTTP {response.status_code}. Collection stopped; "
+                    f"{method} returned HTTP {response.status_code}. Request stopped; "
                     "no automatic retries, alternate hosts, or synthetic fallback were used."
                 )
             content = bytearray()
             for chunk in response.iter_bytes():
                 _check_cancelled(cancellation)
+                if deadline is not None and monotonic() >= deadline:
+                    raise CollectionError("Public collection time budget reached")
                 content.extend(chunk)
                 if len(content) > MAX_RESPONSE_BYTES:
                     raise CollectionError("Public API response exceeded the 2 MB safety limit")
@@ -196,10 +200,10 @@ def normalize_authored_post(entry, did):
     return row, provenance, None
 
 
-def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=None):
+def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=None, include_interactions=False):
     """Collect capped public feeds and/or exact linked posts (legacy entry name).
 
-    A post URL imports only that post, not the author's feed or amplification.
+    Interaction discovery is opt-in; only original imported posts become seeds.
     This is not a keyword search, bot-labeled dataset, or complete network sample.
     The caller owns an injected HTTP client; default clients are always closed.
     """
@@ -207,6 +211,7 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
     post_urls = [value for value in selections if value.startswith("https://")]
     profile_count = len(selections) - len(post_urls)
     started = datetime.now(UTC).isoformat()
+    deadline = monotonic() + 450
     rows, sources, account_reports = [], {}, []
     accounts, seen = set(), set()
     requests = 0
@@ -219,14 +224,16 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
         for selection in selections:
             is_post = selection.startswith("https://")
             actor = selection.split("/")[4] if is_post else selection
-            profile = _read_json(transport, "app.bsky.actor.getProfile", {"actor": actor}, cancellation=cancellation)
+            profile = _read_json(transport, "app.bsky.actor.getProfile", {"actor": actor}, cancellation=cancellation,
+                                 deadline=deadline if include_interactions else None)
             requests += 1
             did, handle = profile.get("did"), profile.get("handle")
             if not isinstance(did, str) or not did.startswith("did:") or not isinstance(handle, str):
                 raise CollectionError("Public profile was missing its stable account ID or handle")
             if is_post:
                 uri = f"at://{did}/app.bsky.feed.post/{selection.rsplit('/', 1)[1]}"
-                data = _read_json(transport, "app.bsky.feed.getPosts", {"uris": [uri]}, cancellation=cancellation)
+                data = _read_json(transport, "app.bsky.feed.getPosts", {"uris": [uri]}, cancellation=cancellation,
+                                  deadline=deadline if include_interactions else None)
                 requests += 1
                 posts = data.get("posts")
                 if not isinstance(posts, list) or len(posts) != 1 or not isinstance(posts[0], dict) or posts[0].get("uri") != uri:
@@ -266,7 +273,8 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
                 }
                 if cursor:
                     params["cursor"] = cursor
-                data = _read_json(transport, "app.bsky.feed.getAuthorFeed", params, cancellation=cancellation)
+                data = _read_json(transport, "app.bsky.feed.getAuthorFeed", params, cancellation=cancellation,
+                                  deadline=deadline if include_interactions else None)
                 requests += 1
                 feed = data.get("feed")
                 if not isinstance(feed, list):
@@ -306,16 +314,28 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
             report["oldest_post_utc"] = min((row["timestamp"] for row in account_rows), default=None)
             report["newest_post_utc"] = max((row["timestamp"] for row in account_rows), default=None)
             account_reports.append(report)
-    rows.sort(key=lambda row: (row["timestamp"], row["content_id"]))
+        discovery, interactions = None, []
+        if include_interactions and rows:
+            from app.swarm.discovery import discover_interactions
+
+            discovery, discovered, interactions = discover_interactions(
+                transport, rows, sources, deadline=deadline, cancellation=cancellation,
+            )
+            requests += discovery["api_requests"]
+            account_reports.extend(discovered)
+    rows.sort(key=lambda row: (row.get("timestamp", ""), row["content_id"], row["action"], row["account_id"]))
+    authored = [row for row in rows if row["action"] == "created"]
     warnings = [
         "Selected public sources only, not a keyword search or representative platform sample.",
-        "Only authored posts are imported. Repost wrappers and reply relationships are not reconstructed.",
+        ("One-hop interaction discovery is capped; recent posts from discovered users never trigger further discovery."
+         if include_interactions else
+         "Only authored posts are imported. Repost wrappers and reply relationships are not reconstructed."),
         "Posting times come from author-provided createdAt; indexedAt is preserved separately, never substituted.",
         "No bot labels or independent ground truth are available; no detection accuracy can be inferred.",
     ]
     if profile_count:
         warnings.append("Per-account post/page caps and source API filtering can omit activity; account time ranges may differ.")
-    if post_urls:
+    if post_urls and not include_interactions:
         warnings.append(
             "Post URLs import only the exact linked posts, including a reply's text if explicitly linked. "
             "They do not expand author feeds or collect replies/reposts. A single post cannot establish recurring coordination."
@@ -328,6 +348,25 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
         )
     if not rows:
         warnings.append("No valid authored posts were collected. No detector-ready import can be created.")
+    if discovery:
+        warnings.append("Repost times are unknown. Replies and quotes use posting times; likes use their supplied creation times.")
+        if discovery["omitted_seed_posts"]:
+            warnings.append(f"Interaction discovery inspected 10 seed posts; {discovery['omitted_seed_posts']} imported posts were not expanded.")
+        if discovery["omitted_users"]:
+            warnings.append(f"Discovery limits omitted {discovery['omitted_users']} additional observed users.")
+        if discovery["failures"] or any(item["status"] != "collected" for item in discovery["coverage"]):
+            warnings.append("Some interaction requests failed or were unavailable; saved results have partial coverage. See discovery details.")
+        if any(item["truncated"] for item in discovery["coverage"]):
+            warnings.append("Interaction pages or reply lists were truncated; saved results are not a complete list of interacting users.")
+        if any(a.get("stop_reason") in {"failed", "invalid_response", "page_limit", "repeated_or_invalid_cursor"}
+               for a in discovered):
+            warnings.append("Some discovered users' recent feeds could not be fully collected within the two-page limit.")
+        if discovery["budget_exhausted"]:
+            warnings.append("The 450-second collection budget was reached; successfully collected results were retained.")
+        if discovery["skipped_entries"].get("event_limit"):
+            warnings.append("The 5,000-event import limit truncated interaction or recent-post collection.")
+        if discovery["skipped_entries"]:
+            warnings.append("Some discovery records were skipped; reasons and counts are preserved in discovery details.")
     manifest = {
         "source": "bluesky", "method": "public_mixed_sources" if post_urls and profile_count else
         "public_selected_posts" if post_urls else "public_author_feeds", "synthetic": False,
@@ -335,17 +374,23 @@ def collect_author_feeds(actors, per_actor=100, *, client=None, cancellation=Non
         "requested_sources": selections, "requested_profile_count": profile_count,
         "requested_post_count": len(post_urls),
         "per_account_post_limit": per_actor, "per_account_page_limit": MAX_PAGES_PER_ACTOR,
-        "api_requests": requests, "post_count": len(rows),
-        "accounts_with_posts": len({row["account_id"] for row in rows}),
+        "api_requests": requests, "post_count": len(authored), "event_count": len(rows),
+        "accounts_with_posts": len({row["account_id"] for row in authored}),
+        "observed_accounts": len({row["account_id"] for row in rows}),
         "accounts": account_reports, "warnings": warnings,
-        "oldest_post_utc": min((row["timestamp"] for row in rows), default=None),
-        "newest_post_utc": max((row["timestamp"] for row in rows), default=None),
+        "oldest_post_utc": min((row["timestamp"] for row in authored), default=None),
+        "newest_post_utc": max((row["timestamp"] for row in authored), default=None),
     }
+    if discovery:
+        manifest["discovery"] = discovery
     # Apply the same complete-import validation as the real dataset endpoint.
     _check_cancelled(cancellation)
     if rows:
         prepare_dataset(DatasetInput(name="Bluesky public source snapshot", rows=rows))
-    return rows, {"collection": manifest, "posts": sources}
+    provenance = {"collection": manifest, "posts": sources}
+    if include_interactions:
+        provenance["interactions"] = interactions
+    return rows, provenance
 
 
 def main(argv=None):
@@ -353,12 +398,13 @@ def main(argv=None):
     parser.add_argument("--actor", action="append", required=True, help="Public handle, DID, profile URL or exact post URL; repeatable")
     parser.add_argument("--per-actor", type=int, default=100, help="Maximum posts per profile (1–200); post URLs import one post each")
     parser.add_argument("--output-dir", type=Path, help="New output directory; defaults to ignored .local-data/bluesky")
+    parser.add_argument("--include-interactions", action="store_true", help="Discover up to 50 interacting users and five recent posts each")
     args = parser.parse_args(argv)
     output = args.output_dir or Path(".local-data/bluesky") / datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     if output.exists():
         parser.error("Output directory already exists; choose a new directory to avoid overwriting evidence")
     try:
-        rows, provenance = collect_author_feeds(args.actor, args.per_actor)
+        rows, provenance = collect_author_feeds(args.actor, args.per_actor, include_interactions=args.include_interactions)
     except (CollectionError, ValueError) as exc:
         parser.exit(1, f"Collection failed: {exc}\n")
     if not rows:

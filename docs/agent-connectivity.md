@@ -2,7 +2,7 @@
 
 The network UI's **Analyze activity** sends original authored text to OpenAI for embeddings. Set `OPENAI_API_KEY`; TypeSafe is needed only for optional post scoring. Configure the model with `AGENT_EMBEDDING_MODEL` (default `text-embedding-3-small`). Embedding defaults and resource limits live in `config/agent_connectivity.yaml`.
 
-Each material is split into nonoverlapping 2,048-token chunks. Its vector is the normalized, token-weighted average of chunk vectors. Each agent's vector is the normalized, equally weighted average of its authored material vectors. Reposts and likes do not contribute. Every eligible attributed agent needs authored text; URL-only material is not fetched or embedded. Runs accept at most 300 agents and reject larger datasets before embedding requests.
+Each material is split into nonoverlapping 2,048-token chunks. Its vector is the normalized, token-weighted average of chunk vectors. Each agent's vector is the normalized, equally weighted average of its authored material vectors. Reposts and likes do not contribute. Accounts without collected authored text remain visible with their actions and are excluded from pair comparisons; URL-only material is not fetched or embedded. Runs accept at most 300 agents and reject larger datasets before embedding requests.
 
 For each unordered pair:
 
@@ -23,7 +23,10 @@ The threshold defaults to `0.5` and accepts `0 <= threshold < 2` in advanced opt
 - `GET /api/v1/datasets/{dataset_id}/graph?connectivity_analysis_id={analysis_id}` overlays that completed revision's `connectivity_edges`. Grouping covers the full dataset before the existing 300-entity display cap.
 - `GET /api/v1/agent-connectivity/{analysis_id}/pairs` returns score-ordered evidence, 50 pairs per page by default (`offset`, `limit`, optional `agent_id`, `group_id`, `pair_id`, `connected_only`). Mention evidence includes up to 20 materials per pair and its full count.
 - `GET /api/v1/swarm/{dataset_id}/analysis?mode=agent_connectivity` retrieves the latest successful revision.
+- `GET /api/v1/datasets/{dataset_id}/activity?entity_id={entity_id}` returns paginated saved actions, referenced posts and reply/quote material beyond the graph display cap (`offset`, `limit`, default 50).
+
+Results distinguish observed accounts, compared accounts and accounts without collected text. With fewer than two text-bearing accounts, the graph remains inspectable and pair comparisons are unavailable. No embedding API request is made when there is no authored text. Interaction edges do not increase connectivity scores.
 
 SQLite stores material vectors by original text, requested model, dimensions and policy version. Identical text can reuse a cached vector across materials and runs; threshold changes reuse embeddings. The result records the response-reported model. Concurrent jobs share a cache-generation lock. Completed material vectors survive later failures; incomplete materials are retried explicitly. Raw vectors are not included in job traces or evidence responses.
 
-Missing credentials, authored text, invalid vectors or provider failures withhold the new result and preserve the previous graph. Jobs support cancellation and explicit retry. Reading graphs, evidence or saved analyses never calls a model. The legacy temporal detector and its API remain available; its groups and scores are separate from connectivity results.
+Missing credentials, invalid vectors or provider failures withhold the new result and preserve the previous graph. Jobs support cancellation and explicit retry. Reading graphs, evidence or saved analyses never calls a model. The legacy temporal detector and its API remain available; its groups and scores are separate from connectivity results.

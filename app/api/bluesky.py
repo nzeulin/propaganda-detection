@@ -26,6 +26,7 @@ class CollectionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     actors: list[str] = Field(min_length=1, description=f"Up to {MAX_ACTORS} unique profiles or post URLs")
     per_actor: int = Field(default=50, ge=1, le=200, strict=True)
+    include_interactions: bool = False
 
     @model_validator(mode="after")
     def collection_limits(self):
@@ -43,6 +44,7 @@ def collection_handler(state):
             worker = asyncio.create_task(asyncio.to_thread(
                 collect_author_feeds, job["payload"]["actors"], job["payload"]["per_actor"],
                 cancellation=cancellation,
+                include_interactions=job["payload"].get("include_interactions", False),
             ))
             try:
                 return await asyncio.shield(worker)

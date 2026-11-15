@@ -11,7 +11,8 @@ type InputRow = Record<string, unknown>;
 type Entity = {
   id: string;
   kind: "account" | "content";
-  data: { source_id: string; text?: string; url?: string; platform?: string; handle?: string; source_post_url?: string; author_id?: string };
+  data: { source_id: string; text?: string; url?: string; platform?: string; handle?: string; source_post_url?: string; author_id?: string;
+    discovery_origins?: { seed_post_id?: string; action?: string; kind?: string; account_did?: string }[] };
   x?: number;
   y?: number;
 };
@@ -21,6 +22,7 @@ type Edge = {
   target_id: string;
   action: string;
   timestamp?: string | null;
+  data?: { response_content_id?: string | null; source_post_url?: string | null };
 };
 type Cluster = { id: string; account_ids: string[]; density?: number };
 type Graph = { nodes: Entity[]; edges: Edge[]; hidden_nodes: number; clusters: Cluster[]; content_screenings?: Record<string, ContentScore>; connectivity_edges?: ConnectivityPair[] };
@@ -104,12 +106,17 @@ type PendingJob = RunContext & { jobId: string };
 export type Snapshot<R = SwarmResult | ConnectivityResult> = PendingJob & { result: R; graph: Graph };
 export type Selection = { kind: "cluster" | "pair" | "entity"; id: string; source_id?: string; target_id?: string };
 type Operation = { controller: AbortController; deadline: number; timedOut: boolean };
-type DisplayLink = { id: string; source: string; target: string; connectivity?: ConnectivityPair };
+type DisplayLink = { id: string; source: string; target: string; action?: string; connectivity?: ConnectivityPair };
 export type CollectionInfo = {
   requested_post_count?: number;
   method?: string;
   post_count: number;
   accounts_with_posts: number;
+  observed_accounts?: number;
+  event_count?: number;
+  discovery?: { seed_post_ids: string[]; new_users: number; interaction_count: number;
+    omitted_seed_posts: number; omitted_users: number; budget_exhausted: boolean;
+    coverage: { seed_post_id: string; action: string; received: number; status: string; truncated: boolean }[] };
   started_at_utc: string;
   oldest_post_utc: string | null;
   newest_post_utc: string | null;
@@ -117,7 +124,7 @@ export type CollectionInfo = {
   accounts: {
     did: string;
     handle?: string;
-    source_type?: "profile" | "post";
+    source_type?: "profile" | "post" | "discovered";
     posts_collected?: number;
     stop_reason: string;
     skipped_entries?: Record<string, number>;
@@ -328,11 +335,11 @@ function validateInput(
         fail(`${key} must be a nonempty string.`);
     }
     if (
-      !["created", "reposted", "replied_to", "liked"].includes(
+      !["created", "reposted", "replied_to", "liked", "quoted"].includes(
         String(row.action),
       )
     )
-      fail("action must be created, reposted, replied_to, or liked.");
+      fail("action must be created, reposted, replied_to, liked, or quoted.");
     if (row.timestamp != null && row.timestamp !== "") {
       const timestamp = row.timestamp;
       if (
@@ -415,7 +422,8 @@ function activityLabel(action?: string): string {
       ? "Reposted this post"
       : action === "replied_to"
         ? "Replied to this post"
-        : "Recorded activity";
+        : action === "liked" ? "Liked this post"
+          : action === "quoted" ? "Quoted this post" : "Recorded activity";
 }
 
 function Metric({
@@ -474,8 +482,8 @@ function InputPreview({ input, format, collected }: { input: string; format: Inp
     {preview.rows.slice(0, 3).map((row, index) => {
       const source = collected?.posts[String(row.content_id)];
       return <div className="swarm-preview-row" key={index}>
-        <strong>{source?.author_handle_at_collection ? `@${source.author_handle_at_collection}` : String(row.account_id || "Account not supplied")}</strong><span>{row.timestamp ? timestamp(String(row.timestamp)) : "Time not supplied"}</span>
-        <p>{String(row.text || row.url || "No post text supplied").slice(0, 150)}</p>
+        <strong>{row.action === "created" && source?.author_handle_at_collection ? `@${source.author_handle_at_collection}` : String(row.account_id || "Account not supplied")}</strong><span>{row.timestamp ? timestamp(String(row.timestamp)) : "Time not supplied"}</span>
+        <p>{activityLabel(String(row.action))} · {String(row.text || row.url || row.content_id || "No post text supplied").slice(0, 150)}</p>
         {source && <a className="swarm-source-post" href={source.source_post_url} target="_blank" rel="noopener noreferrer">Open original on Bluesky ↗</a>}
       </div>;
     })}
@@ -493,10 +501,12 @@ function CollectionCoverage({
     <details className="swarm-collection-coverage">
       <summary>
         Bluesky collection coverage · {number(collection.post_count)} posts ·{" "}
-        {number(collection.accounts_with_posts)} accounts
+        {number(collection.observed_accounts ?? collection.accounts_with_posts)} accounts
       </summary>
       <p>
-        {collection.requested_post_count
+        {collection.discovery
+          ? `One-hop discovery inspected ${collection.discovery.seed_post_ids.length} seed posts and found ${collection.discovery.new_users} new users through ${collection.discovery.interaction_count} collected interactions. Up to five recent authored posts per discovered user were added. Added posts do not trigger further discovery.`
+          : collection.requested_post_count
           ? "Post links import only the exact selected posts; profile links collect capped feeds. Accounts are their authors—not newly discovered accounts. No threads or repost chains were collected."
           : "These are multiple posts per selected account—not newly discovered accounts. Feed caps can omit activity; no topic search or repost chains were collected."}
       </p>
@@ -509,7 +519,7 @@ function CollectionCoverage({
         {collection.accounts.map((account, index) => (
           <li key={`${account.did}-${index}`}>
             <strong>@{account.handle || account.did}</strong>:{" "}
-            {number(account.posts_collected || 0)} {account.source_type === "post" ? "linked posts" : "authored posts"} ·{" "}
+            {number(account.posts_collected || 0)} {account.source_type === "post" ? "linked posts" : account.source_type === "discovered" ? "recent posts · discovered user" : "authored posts"} ·{" "}
             {account.stop_reason.replaceAll("_", " ")}
             {account.skipped_entries?.repost_not_collected
               ? ` · ${account.skipped_entries.repost_not_collected} repost wrappers skipped`
@@ -517,6 +527,11 @@ function CollectionCoverage({
           </li>
         ))}
       </ul>
+      {collection.discovery && <details><summary>Interaction coverage by seed post</summary>
+        <ul>{collection.discovery.coverage.map((item, index) => <li key={index}>
+          {item.action.replaceAll("_", " ")} · {item.seed_post_id} · {item.received} returned · {item.status.replaceAll("_", " ")}{item.truncated ? " · truncated" : ""}
+        </li>)}</ul>
+      </details>}
       <ul>
         {collection.warnings.map((warning, index) => (
           <li key={index}>{warning}</li>
@@ -589,7 +604,7 @@ function BlueskyImport({
       setMessage(
         job.status === "queued"
           ? "Collection queued. Waiting for a worker…"
-          : "Fetching selected profiles and exact linked posts from Bluesky. No repost discovery…",
+          : "Collecting selected posts, one-hop interactions and discovered users’ recent posts…",
       );
       await pause(1500, signal);
       job = await request<CollectionJob>(
@@ -627,7 +642,7 @@ function BlueskyImport({
       );
     if (signal.aborted) return;
     setMessage(
-      `Fetched ${number(value.rows.length)} real authored posts from ${number(value.collection.accounts_with_posts)} accounts. Analysis progress and results are shown below.`,
+      `Fetched ${number(value.collection.post_count)} authored posts and ${number(value.collection.discovery?.interaction_count || 0)} interactions from ${number(value.collection.observed_accounts ?? value.collection.accounts_with_posts)} accounts. Analysis progress and results are shown below.`,
     );
     await onLoad(value);
   }
@@ -664,7 +679,7 @@ function BlueskyImport({
       setMessage(
         resume
           ? "Checking the saved collection job…"
-          : "Requesting a bounded public collection…",
+          : "Collecting public posts, one-hop interactions and discovered users’ recent posts…",
       );
       const job = resume
         ? await request<CollectionJob>(
@@ -676,7 +691,7 @@ function BlueskyImport({
           "/bluesky/collect",
           {
             method: "POST",
-            body: JSON.stringify({ actors }),
+            body: JSON.stringify({ actors, include_interactions: true }),
           },
           controller.signal,
         );
@@ -742,8 +757,8 @@ function BlueskyImport({
     <details className="swarm-bluesky-import">
       <summary>Import real posts from Bluesky ↗</summary>
       <p>
-        Paste public profile links to fetch recent posts, or post links to import
-        only those exact posts. You can mix both in the same collection.
+        Paste public profile or post links. Discover users who replied, liked,
+        reposted or quoted the imported posts, then add up to five recent authored posts per discovered user.
       </p>
       <label className="swarm-field" htmlFor="swarm-bluesky-profiles">
         Bluesky profiles or post links
@@ -762,7 +777,8 @@ function BlueskyImport({
       />
       <p id="swarm-bluesky-help" className="swarm-muted">
         Up to {BLUESKY_MAX_SOURCES} unique sources per run. Profiles import at most 50 recent posts;
-        post links import only the linked posts. Extra sources show an error.
+        post links select the linked posts. Discovery inspects up to 10 seed posts and adds
+        up to 50 new users. Added posts do not expand the search. Collection limits and failures appear with the results.
       </p>
       <p className="swarm-collection-status" role="status" aria-live="polite">
         {message}
@@ -1053,7 +1069,7 @@ function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot:
           {selection.kind === "entity" && <>
             <p className="swarm-muted">{node?.kind === "content" ? "Post" : "Account"}{node?.data.platform ? ` on ${node.data.platform}` : ""}</p>
             <p className="swarm-muted">{node?.kind === "content" ? "This is one post, not an account. Identical wording can appear in other posts." : "This is an account that performed recorded actions. Its name is not evidence that it is a bot."}</p>
-            {!node && <p className="swarm-notice">This account is outside the displayed graph. The map includes only attributed agents with publishing or editing activity or declared capability; at most 300 entities are drawn.</p>}
+            {!node && <p className="swarm-notice">This account is outside the displayed graph. The map includes attributed accounts with recorded activity; at most 300 entities are drawn.</p>}
             {node?.data.text && <div className="swarm-entity-text"><p>{node.data.text.slice(0, 1200)}</p>{node.data.text.length > 1200 && <p className="swarm-notice">Text preview truncated.</p>}</div>}
             {node?.data.url && <p><SourceLink url={node.data.url} /></p>}
             {node?.data.source_post_url && <p className="swarm-original-link">Open original on Bluesky: <SourceLink url={node.data.source_post_url} /></p>}
@@ -1081,7 +1097,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
     // Keep observed actions distinct from the derived agent connections.
     const links: DisplayLink[] = snapshot.graph.edges
       .filter((edge) => accounts.has(edge.source_id) && contents.has(edge.target_id))
-      .map((edge) => ({ id: edge.id, source: edge.source_id, target: edge.target_id }));
+      .map((edge) => ({ id: edge.id, source: edge.source_id, target: edge.target_id, action: edge.action }));
     for (const edge of snapshot.graph.connectivity_edges || []) {
       if (edge.weight > 0 && accounts.has(edge.source_id) && accounts.has(edge.target_id)) {
         links.push({ id: edge.id, source: edge.source_id, target: edge.target_id, connectivity: { ...edge } });
@@ -1181,7 +1197,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   return (
     <section className="swarm-panel" id="swarm-map" aria-label="Observed network graph">
       <header className="swarm-panel-heading"><span>Network map</span><span>{graph.nodes.length} items · {graph.links.filter(link => !link.connectivity).length} actions{isConnectivity(snapshot.result) && <> · {graph.links.filter(link => link.connectivity).length} agent connections</>}</span></header>
-      {snapshot.graph.hidden_nodes > 0 && <p className="swarm-notice swarm-graph-warning" role="note">Graph truncated: {number(snapshot.graph.hidden_nodes)} entities hidden; at most 300 are drawn. Counts and evidence below cover the full detector result, not just this view.</p>}
+      {snapshot.graph.hidden_nodes > 0 && <p className="swarm-notice swarm-graph-warning" role="note">Graph truncated: {number(snapshot.graph.hidden_nodes)} entities hidden; at most 300 are drawn. Analysis counts cover the full dataset. Saved source provenance includes the full collection.</p>}
       <div className="swarm-canvas" ref={containerRef}>
         {size.width > 0 && size.height > 0 && <ForceGraph2D<Entity, DisplayLink>
           ref={graphRef}
@@ -1197,10 +1213,15 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           onNodeClick={(node) => select({ kind: "entity", id: node.id })}
           linkColor={link => link.connectivity ? "#67b7ac" : "#60584e"}
           linkWidth={link => link.connectivity ? 4 * link.connectivity.weight : 0.8}
-          linkLabel={link => link.connectivity ? `Connectivity: ${link.connectivity.score.toFixed(3)} / 2` : ""}
+          linkLabel={link => link.connectivity ? `Connectivity: ${link.connectivity.score.toFixed(3)} / 2` : activityLabel(link.action)}
           onLinkClick={link => {
             const pair = link.connectivity;
             if (pair) select({ kind: "pair", id: pair.id, source_id: pair.source_id, target_id: pair.target_id });
+            else {
+              // d3 replaces link endpoints with node objects during layout.
+              const target = link.target as unknown as Entity | string;
+              select({ kind: "entity", id: typeof target === "string" ? target : target.id });
+            }
           }}
           enableZoomInteraction={(event) => {
             const enabled = event.type !== "wheel" || event.ctrlKey || event.metaKey;
@@ -1744,7 +1765,7 @@ export default function SwarmNetwork() {
                 <div className="swarm-editor-heading"><label htmlFor="swarm-input">Activity data</label><select aria-label="Input format" value={format} disabled={disabled} onChange={(event) => { setCollected(null); setFormat(event.target.value as InputFormat); setRevision((value) => value + 1); }}><option value="json">JSON array</option><option value="csv">CSV</option></select></div>
                 <textarea id="swarm-input" value={input} disabled={disabled} spellCheck={false} aria-invalid={inputConflict || undefined} aria-describedby={`swarm-fields${inputConflict ? " swarm-input-conflict" : ""}`} placeholder={format === "json" ? "Paste a JSON array of event objects." : "account_id,content_id,action,timestamp,text,url,platform"} onChange={(event) => { setCollected(null); setInput(event.target.value); setRevision((value) => value + 1); }} />
                 <div className="swarm-editor-meta"><span>{number(new Blob([input]).size)} bytes</span><button type="button" disabled={disabled || !input} onClick={() => { setCollected(null); setInput(""); setRevision((value) => value + 1); }}>Clear input</button></div>
-                <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform, mentioned_account_ids. JSON must be an array of objects; CSV needs a header row. Mention IDs are an optional array of exact source account IDs on the same platform; encode them as a JSON array in CSV. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Timestamps are optional for connectivity. Embeddings use authored text; likes and reposts remain observed actions only.</p><p>Imports accept created content with text or a URL. Connectivity needs authored text for every agent; URL-only materials are not fetched or embedded. Source validation on the server is authoritative.</p></details>
+                <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform, mentioned_account_ids. JSON must be an array of objects; CSV needs a header row. Mention IDs are an optional array of exact source account IDs on the same platform; encode them as a JSON array in CSV. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked, quoted. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Timestamps are optional for connectivity. Embeddings use authored text; likes and reposts remain observed actions only.</p><p>Imports accept created content with text or a URL. Connectivity compares accounts with collected authored text; other interacting accounts remain visible. URL-only materials are not fetched or embedded. Source validation on the server is authoritative.</p></details>
               </details>
               {inputConflict && <div id="swarm-input-conflict" className="swarm-error" role="alert"><strong>Choose one input source</strong><p>Both Bluesky links and advanced activity data are filled. Clear one input before analyzing; neither source will be used until this is resolved.</p></div>}
               <p className="swarm-muted swarm-privacy-note">Activity is stored on this server. Agent connectivity sends authored text to OpenAI for embeddings. Optional post scoring uses AI when requested. Only upload data you have permission to use.</p>

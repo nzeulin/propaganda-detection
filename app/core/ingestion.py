@@ -15,7 +15,7 @@ class ImportRow(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account_id: str = Field(min_length=1, max_length=200)
     content_id: str = Field(min_length=1, max_length=200)
-    action: Literal["created", "reposted", "replied_to", "liked"]
+    action: Literal["created", "reposted", "replied_to", "liked", "quoted"]
     timestamp: str | None = None
     text: str = Field(default="", max_length=40000)
     url: str | None = Field(default=None, max_length=2048)

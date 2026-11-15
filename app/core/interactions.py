@@ -4,9 +4,9 @@ from app.core.ingestion import canonical_id
 
 
 def observed_graph(nodes, observations):
-    """Port agent eligibility from perf/api-speed and project replies from source metadata."""
+    """Include attributed interacting accounts and project collected reply/quote material."""
     nodes = {node["id"]: node for node in nodes}
-    actions = {"created", "modified", "reposted", "replied_to", "liked"}
+    actions = {"created", "modified", "reposted", "replied_to", "liked", "quoted"}
     events = [
         event
         for event in observations
@@ -15,40 +15,31 @@ def observed_graph(nodes, observations):
         and nodes.get(event["target_id"], {}).get("kind") == "content"
         and nodes[event["source_id"]]["data"].get("attribution_known", True)
     ]
-    capable = {
-        node["id"]
-        for node in nodes.values()
-        if node["kind"] == "account" and (node["data"].get("can_publish") or node["data"].get("can_edit"))
-    }
-    capable.update(event["source_id"] for event in events if event["action"] in ("created", "modified"))
-    events = [event for event in events if event["source_id"] in capable]
     contents = {node["data"]["source_id"]: node for node in nodes.values() if node["kind"] == "content"}
-    replies = {
-        (event["source_id"], event["target_id"], event["timestamp"])
+    relations = {
+        (event["source_id"], event["target_id"], event["action"], event["timestamp"])
         for event in events
-        if event["action"] == "replied_to"
+        if event["action"] in {"replied_to", "quoted"}
     }
     for content in contents.values():
         record = content["data"]
         author = record.get("author_id")
-        parent = contents.get(record.get("reply_to_content_id"))
-        if (
-            author not in capable
-            or not nodes[author]["data"].get("attribution_known", True)
-            or parent is None
-            or (author, parent["id"], record.get("created_at")) in replies
-        ):
+        if author not in nodes or not nodes[author]["data"].get("attribution_known", True):
             continue
-        events.append(
-            {
-                "id": canonical_id(content["id"], "replied_to", parent["id"]),
+        for action, field in (("replied_to", "reply_to_content_id"), ("quoted", "quote_to_content_id")):
+            parent = contents.get(record.get(field))
+            if parent is None or (author, parent["id"], action, record.get("created_at")) in relations:
+                continue
+            events.append({
+                "id": canonical_id(content["id"], action, parent["id"]),
                 "dataset_id": content["dataset_id"],
                 "source_id": author,
                 "target_id": parent["id"],
-                "action": "replied_to",
+                "action": action,
                 "timestamp": record.get("created_at"),
-                "data": {"reply_content_id": content["id"], "observed_reply_to": record["reply_to_content_id"]},
-            }
-        )
+                "data": {"response_content_id": content["id"],
+                         **({"reply_content_id": content["id"], "observed_reply_to": record[field]}
+                            if action == "replied_to" else {"observed_quote_to": record[field]})},
+            })
     agents = {event["source_id"] for event in events}
     return [node for node in nodes.values() if node["kind"] == "content" or node["id"] in agents], events

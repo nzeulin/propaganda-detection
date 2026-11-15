@@ -25,7 +25,8 @@ export type ConnectivityResult = {
   account_labels: Record<string, string>;
   agent_features: Record<string, { material_count: number; material_ids: string[];
     previews: { id: string; text: string; url: string | null }[] }>;
-  counts: { accounts: number; materials: number; pair_comparisons: number; connected_pairs: number; isolated_agents: number };
+  counts: { accounts: number; compared_accounts?: number; accounts_without_text?: number;
+    materials: number; pair_comparisons: number; connected_pairs: number; isolated_agents: number };
   parameters: { threshold: number; model: string; dimensions: number; version: string };
   formula: string;
   warnings: string[];
@@ -50,11 +51,12 @@ export function ConnectivitySummary({ snapshot, exportResult, coverage }: {
         : "No connected agent groups at this threshold."}</p>
       <dl className="swarm-metrics swarm-counts">
         {[
-          ["Agents", result.counts.accounts], ["Authored materials", result.counts.materials],
-          ["Connected pairs", result.counts.connected_pairs], ["Isolated agents", result.counts.isolated_agents],
+          ["Observed accounts", result.counts.accounts], ["Compared accounts", result.counts.compared_accounts ?? result.counts.accounts],
+          ["Authored materials", result.counts.materials], ["Connected pairs", result.counts.connected_pairs],
+          ["Isolated compared accounts", result.counts.isolated_agents],
         ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value.toLocaleString()}</dd></div>)}
       </dl>
-      {result.status === "insufficient_data" && <p className="swarm-notice">Add another attributed agent to compare connections.</p>}
+      {result.status === "insufficient_data" && <p className="swarm-notice">At least two accounts with collected authored text are needed for embedding comparisons. Observed interactions remain available in the map.</p>}
       {result.warnings.map((warning, index) => <p className="swarm-notice" key={index}>{warning}</p>)}
       <details className="swarm-result-details"><summary>Result details</summary>
         <p>Connections combine an explicit mention bonus with similarity between agents’ authored content. A connected chain forms a group; every pair in that group need not be directly connected.</p>
@@ -84,10 +86,10 @@ export function ConnectivityEvidence({ snapshot, selection, select, open, onClos
   const key = `${selection?.kind}:${selection?.id}`;
   const offset = pagination.key === key ? pagination.offset : 0;
   const node = selection?.kind === "entity" ? snapshot.graph.nodes.find(item => item.id === selection.id) : undefined;
-  const previewOwner = selection?.kind === "entity" ? Object.entries(result.agent_features)
-    .find(([, feature]) => feature.previews.some(item => item.id === selection.id)) : undefined;
-  const preview = previewOwner?.[1].previews.find(item => item.id === selection?.id);
-  const authorId = node?.kind === "content" ? node.data.author_id : previewOwner?.[0];
+  const materialOwner = selection?.kind === "entity" ? Object.entries(result.agent_features)
+    .find(([, feature]) => feature.material_ids.includes(selection.id)) : undefined;
+  const preview = materialOwner?.[1].previews.find(item => item.id === selection?.id);
+  const authorId = node?.kind === "content" ? node.data.author_id : materialOwner?.[0];
   const agentId = selection?.kind === "entity" ? authorId || selection.id : undefined;
   const label = (id: string) => result.account_labels[id] || snapshot.graph.nodes.find(item => item.id === id)?.data.source_id || id;
 
@@ -159,6 +161,8 @@ export function ConnectivityEvidence({ snapshot, selection, select, open, onClos
           <p>Select a pair in Explore evidence to inspect its score.</p></>}
         {selection?.kind === "entity" && <>
           <h3>{label(selection.id)}</h3>
+          {node?.kind === "account" && !result.agent_features[selection.id] && <p className="swarm-notice">No collected authored text is available for this account. Its observed interactions are shown; it has no embedding comparisons.</p>}
+          {node?.data.discovery_origins?.length && <p className="swarm-muted">{node.kind === "account" ? "Discovered through" : "Collected through"}: {Array.from(new Set(node.data.discovery_origins.map(origin => origin.action?.replaceAll("_", " ") || origin.kind?.replaceAll("_", " ")))).join(", ")}.</p>}
           {(node?.data.text || preview?.text) && <p className="swarm-entity-text">{node?.data.text || preview?.text}</p>}
           {(node?.kind === "content" || preview) && <PostScoring contentId={selection.id} />}
           {node?.data.source_post_url && <p><a href={node.data.source_post_url} target="_blank" rel="noopener noreferrer">Open original material ↗</a></p>}
@@ -166,6 +170,7 @@ export function ConnectivityEvidence({ snapshot, selection, select, open, onClos
             <p>{result.agent_features[selection.id].material_count} authored materials contributed to this agent’s vector. Reposts and likes are excluded.</p>
             <MaterialPreviews features={result.agent_features[selection.id]} select={select} />
           </>}
+          <ObservedActivity key={selection.id} snapshot={snapshot} entityId={selection.id} hasPreview={!!preview} select={select} load={load} />
         </>}
         {selection?.kind === "pair" && (pair ? <>
           <h3>{label(pair.source_id)} ↔ {label(pair.target_id)}</h3>
@@ -192,6 +197,59 @@ export function ConnectivityEvidence({ snapshot, selection, select, open, onClos
       </div>
     </aside>}
   </>;
+}
+
+type SavedEntity = Snapshot["graph"]["nodes"][number];
+type ActivityPage = { entity: SavedEntity; total: number; items: (Snapshot["graph"]["edges"][number] & {
+  account: SavedEntity; content: SavedEntity; response: SavedEntity | null;
+})[] };
+
+function ObservedActivity({ snapshot, entityId, hasPreview, select, load }: {
+  snapshot: Snapshot<ConnectivityResult>; entityId: string; hasPreview: boolean;
+  select: (value: Selection) => void; load: typeof requestApi;
+}) {
+  const [page, setPage] = useState<ActivityPage | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({ entity_id: entityId, offset: String(offset), limit: "50" });
+    setBusy(true);
+    setError("");
+    load<ActivityPage>(`/datasets/${encodeURIComponent(snapshot.datasetId)}/activity?${params}`, {}, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setPage(value); })
+      .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load activity."); })
+      .finally(() => { if (!controller.signal.aborted) setBusy(false); });
+    return () => controller.abort();
+  }, [snapshot.datasetId, entityId, offset, retry, load]);
+  const hidden = !snapshot.graph.nodes.some(node => node.id === entityId);
+  return <section aria-label="Observed activity">
+    {hidden && page && <>
+      {!hasPreview && <>
+        {page.entity.data.text && <p className="swarm-entity-text">{page.entity.data.text}</p>}
+        {page.entity.kind === "content" && <PostScoring contentId={entityId} />}
+      </>}
+      {page.entity.data.source_post_url && <p><a href={page.entity.data.source_post_url} target="_blank" rel="noopener noreferrer">Open original material ↗</a></p>}
+    </>}
+    <h4>Observed activity</h4>
+    {busy ? <p role="status">Loading saved activity…</p> : error ? <p role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Retry activity</button></p> : page && <>
+      <p className="swarm-muted">Showing {page.items.length ? offset + 1 : 0}–{offset + page.items.length} of {page.total} saved actions across the full dataset. Gray actions do not add to embedding scores.</p>
+      {page.items.map(edge => <div className="swarm-notice" key={edge.id}>
+        <p>{snapshot.result.account_labels[edge.source_id] || edge.account.data.handle || edge.account.data.source_id} · {edge.action.replaceAll("_", " ")} · {edge.timestamp ? new Date(edge.timestamp).toISOString() : "Time unknown"}</p>
+        <button type="button" onClick={() => select({ kind: "entity", id: edge.target_id })}>Inspect {edge.action === "created" ? "authored" : "referenced"} post</button>
+        {edge.content.data.source_post_url && <p><a href={edge.content.data.source_post_url} target="_blank" rel="noopener noreferrer">Open referenced post ↗</a></p>}
+        {edge.response && <button type="button" onClick={() => select({ kind: "entity", id: edge.response!.id })}>Inspect {edge.action === "quoted" ? "quote" : "reply"} post</button>}
+        {edge.data?.source_post_url && <p><a href={edge.data.source_post_url} target="_blank" rel="noopener noreferrer">Open response post ↗</a></p>}
+      </div>)}
+      <div className="swarm-actions">
+        <button type="button" disabled={!offset} onClick={() => setOffset(value => Math.max(0, value - 50))}>Previous actions</button>
+        <button type="button" disabled={offset + page.items.length >= page.total} onClick={() => setOffset(value => value + 50)}>Next actions</button>
+      </div>
+    </>}
+    {snapshot.result.collection && <p><a href={`/api/v1/datasets/${encodeURIComponent(snapshot.datasetId)}/provenance`} target="_blank" rel="noopener noreferrer">View full saved source evidence ↗</a></p>}
+  </section>;
 }
 
 function MaterialPreviews({ features, select }: {

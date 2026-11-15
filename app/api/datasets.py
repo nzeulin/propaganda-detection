@@ -35,12 +35,48 @@ def persist_dataset(database, body: DatasetInput, *, bluesky=None):
     if bluesky is not None:
         source["bluesky"] = bluesky
         accounts = {a["did"]: a["handle"] for a in bluesky["collection"]["accounts"] if "handle" in a}
+        content_ids = {node["data"]["source_id"]: node["id"] for node in nodes if node["kind"] == "content"}
+        interactions = {
+            (item["account_id"], item["content_id"], item["action"], item.get("timestamp")): item
+            for item in bluesky.get("interactions", [])
+        }
+        origins = {}
+        for item in interactions.values():
+            origins.setdefault(item["account_id"], []).append({
+                "seed_post_id": item["content_id"], "action": item["action"],
+            })
         for node in nodes:
             if node["kind"] == "account":
                 node["data"]["handle"] = accounts.get(node["data"]["source_id"])
+                if node["data"]["source_id"] in origins:
+                    node["data"]["discovery_origins"] = origins[node["data"]["source_id"]]
             elif node["kind"] == "content":
                 original = bluesky["posts"].get(node["data"]["source_id"], {})
                 node["data"]["source_post_url"] = original.get("source_post_url")
+                record = original.get("original_record", {})
+                reply = record.get("reply", {})
+                parent = reply.get("parent", {}) if isinstance(reply, dict) else {}
+                embed = record.get("embed", {})
+                quoted = embed.get("record", {}) if isinstance(embed, dict) else {}
+                if isinstance(quoted, dict) and "record" in quoted:
+                    quoted = quoted["record"]
+                for field, target in (("reply_to_content_id", parent), ("quote_to_content_id", quoted)):
+                    if isinstance(target, dict) and target.get("uri") in content_ids:
+                        node["data"][field] = target["uri"]
+                if original.get("discovery_origins"):
+                    node["data"]["discovery_origins"] = original["discovery_origins"]
+        for event in events:
+            row = event["data"].get("normalized", {})
+            evidence = interactions.get((row.get("account_id"), row.get("content_id"),
+                                         row.get("action"), row.get("timestamp")))
+            if evidence:
+                response = content_ids.get(evidence.get("response_content_id"))
+                event["data"]["response_content_id"] = response
+                if event["action"] == "replied_to":
+                    event["data"]["reply_content_id"] = response
+                event["data"]["source_post_url"] = bluesky["posts"].get(
+                    evidence.get("response_content_id"), {}
+                ).get("source_post_url")
     with database.begin() as connection:
         existing = connection.execute(select(datasets).where(datasets.c.id == dataset_id)).mappings().first()
         if existing:
@@ -79,6 +115,34 @@ async def list_datasets(request: Request, offset: int = Query(0, ge=0), limit: i
             .limit(limit)
         ).mappings()
         return [dict(record) for record in records]
+
+
+@router.get("/datasets/{dataset_id}/activity")
+async def entity_activity(
+    dataset_id: str, request: Request, entity_id: str,
+    offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100),
+):
+    """Inspect saved actions and response material beyond the graph's display cap."""
+    with request.app.state.database.connect() as connection:
+        nodes = {row["id"]: dict(row) for row in connection.execute(select(entities).where(
+            entities.c.dataset_id == dataset_id
+        )).mappings()}
+        if entity_id not in nodes:
+            raise HTTPException(404, "Unknown entity for this dataset")
+        events = [dict(row) for row in connection.execute(select(observations).where(
+            observations.c.dataset_id == dataset_id
+        )).mappings()]
+    _, events = observed_graph(nodes.values(), events)
+    related = [event for event in events if entity_id in (
+        event["source_id"], event["target_id"], event["data"].get("response_content_id"),
+    )]
+    related.sort(key=lambda event: (event.get("timestamp") or "", event["id"]), reverse=True)
+    return {
+        "entity": nodes[entity_id], "total": len(related), "offset": offset, "limit": limit,
+        "items": [{**event, "account": nodes[event["source_id"]], "content": nodes[event["target_id"]],
+                   "response": nodes.get(event["data"].get("response_content_id"))}
+                  for event in related[offset:offset + limit]],
+    }
 
 
 @router.get("/datasets/{dataset_id}/graph")

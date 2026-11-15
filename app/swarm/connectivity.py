@@ -22,10 +22,6 @@ def prepare_agents(nodes, observations, policy):
         node["id"]: node for node in eligible
         if node["kind"] == "content" and node["data"].get("author_id") in agents
     }
-    authored = {material["data"]["author_id"] for material in materials.values() if material["data"].get("text", "").strip()}
-    missing = sorted(agents.keys() - authored)
-    if missing:
-        raise ValueError(f"{len(missing)} agents have no authored text. Supply text; URL-only material is not embedded.")
     return agents, {key: node for key, node in materials.items() if node["data"].get("text", "").strip()}
 
 
@@ -107,7 +103,7 @@ def compute_connectivity(database, job, agents, materials, embedding_info, menti
             )).mappings():
                 vectors[row["id"]] = unit_vector(row["vector"], embedding_info["dimensions"])
                 models.add(row["model"])
-    if len(models) != 1:
+    if len(models) > 1:
         raise ValueError("Agent vectors must use the same response-reported embedding model.")
     by_author = defaultdict(list)
     for material_id, material in materials.items():
@@ -127,8 +123,8 @@ def compute_connectivity(database, job, agents, materials, embedding_info, menti
                          for mid in sorted(material_ids)[:3]],
         }
     rows = []
-    adjacency = {author: set() for author in agents}
-    for left, right in combinations(sorted(agents), 2):
+    adjacency = {author: set() for author in centroids}
+    for left, right in combinations(sorted(centroids), 2):
         check_cancelled()
         pair_id = canonical_id("agent-pair", left, right)
         evidence = mentions.get(pair_id, [])
@@ -143,7 +139,7 @@ def compute_connectivity(database, job, agents, materials, embedding_info, menti
             adjacency[left].add(right)
             adjacency[right].add(left)
     groups, seen = [], set()
-    for author in sorted(agents):
+    for author in sorted(centroids):
         if author in seen:
             continue
         pending, members = [author], set()
@@ -163,14 +159,19 @@ def compute_connectivity(database, job, agents, materials, embedding_info, menti
     labels = {key: ("@" + node["data"]["handle"] if node["data"].get("handle") else node["data"]["source_id"])
               for key, node in agents.items()}
     return {
-        "mode": "agent_connectivity", "status": "complete" if len(agents) >= 2 else "insufficient_data",
+        "mode": "agent_connectivity", "status": "complete" if len(centroids) >= 2 else "insufficient_data",
         "clusters": groups, "account_labels": labels, "agent_features": features,
-        "counts": {"accounts": len(agents), "materials": len(materials), "pair_comparisons": len(rows),
+        "counts": {"accounts": len(agents), "compared_accounts": len(centroids),
+                   "accounts_without_text": len(agents) - len(centroids),
+                   "materials": len(materials), "pair_comparisons": len(rows),
                    "connected_pairs": sum(row["weight"] > 0 for row in rows),
                    "isolated_agents": sum(not neighbors for neighbors in adjacency.values())},
-        "parameters": {"threshold": threshold, "model": next(iter(models)),
+        "parameters": {"threshold": threshold, "model": next(iter(models), embedding_info["model"]),
                        "dimensions": embedding_info["dimensions"], "version": embedding_info["version"]},
         "embedding_cache": {key: value for key, value in embedding_info.items() if key != "material_keys"},
         "formula": "binary mention + max(0, cosine of normalized authored-material averages)",
-        "warnings": [], "limitations": ["Connections describe content similarity and references, not verified coordination or bot identity."],
+        "warnings": ([(f"{len(agents) - len(centroids)} observed accounts have no collected authored text; "
+                       "they remain in the graph but are excluded from embedding comparisons.")]
+                     if len(agents) > len(centroids) else []),
+        "limitations": ["Connections describe content similarity and references, not verified coordination or bot identity."],
     }
