@@ -3,7 +3,7 @@ import { api, features, formatFeatureScore, labels, type Analysis, type Feature 
 
 type Screening = {
   label: "not_propaganda" | "requires_further_analysis" | "propaganda";
-  weighted_score: number;
+  weighted_score: number | null;
   complete: boolean;
   reason: string;
   thresholds: { review: number; propaganda: number };

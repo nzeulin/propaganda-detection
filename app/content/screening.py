@@ -1,9 +1,8 @@
 """Heuristic post screening, independent of coordination and external verification."""
 
 import os
-from math import fsum
 
-from app.content.policy import weighted_contributions
+from app.content.policy import assessed_features, material_score
 from app.core.ingestion import canonical_id
 
 
@@ -20,23 +19,26 @@ def scoring_signature(config):
 
 
 def screen_content(result, config):
-    """Classify completed post scores, defaulting missing text indicators to zero."""
+    """Use the same evidence requirements and score as material text analysis."""
     policy = config.policy["weighted_scoring"]
-    score = fsum(weighted_contributions(result["features"], policy["weights"], normalize=False).values())
-    if score >= policy["propaganda_threshold"]:
-        label = "propaganda"
-        reason = f"Meets the propaganda threshold ({policy['propaganda_threshold'] * 100:g}/100)."
-    elif score >= policy["review_threshold"]:
-        label = "requires_further_analysis"
-        reason = f"Meets the review threshold ({policy['review_threshold'] * 100:g}/100)."
-    else:
-        label = "not_propaganda"
-        reason = f"Below the review threshold ({policy['review_threshold'] * 100:g}/100)."
+    blocked_reason = None
+    if result.get("review_required"):
+        blocked_reason = "Combined material score withheld: narrative review required."
+    elif "statements" in result and not result["statements"]:
+        blocked_reason = "No valid statements were extracted."
+    assessment = material_score(assessed_features(result), config, blocked_reason=blocked_reason)
+    label = {
+        "not_suspicious": "not_propaganda",
+        "suspicious": "requires_further_analysis",
+        "requires_review": "requires_further_analysis",
+        "not_assessed": "requires_further_analysis",
+        "propaganda": "propaganda",
+    }[assessment["label"]]
     return {
         "label": label,
-        "weighted_score": score,
-        "complete": True,
-        "reason": f"Weighted indicator score: {score * 100:.1f}/100. {reason} Missing scores count as zero.",
+        "weighted_score": assessment["value"],
+        "complete": assessment["status"] == "assessed",
+        "reason": assessment["reason"],
         "thresholds": {"review": policy["review_threshold"], "propaganda": policy["propaganda_threshold"]},
         "policy_version": config.policy["version"],
         "experimental": True,
@@ -44,12 +46,9 @@ def screen_content(result, config):
 
 
 def with_post_screening(result, config):
-    """Project current post defaults without changing saved assessments or scoring cache identity."""
-    features = dict(result["features"])
-    features.update({key: features.get(key) or 0.0
-                     for key in config.policy["weighted_scoring"]["weights"]})
+    """Preserve unknown assessments when projecting current post decisions."""
     return {
         **result,
-        "features": features,
-        "propaganda_screening": screen_content({"features": features}, config),
+        "features": assessed_features(result),
+        "propaganda_screening": screen_content(result, config),
     }

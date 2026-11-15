@@ -21,12 +21,12 @@ export const labels: Record<Feature, string> = {
 export function formatFeatureScore(
   feature: Feature,
   score: number | null | undefined,
-  unavailableLabel = "Unavailable",
+  unavailableLabel = "Not assessed",
 ): string {
   const formatted = score?.toFixed(2);
   if (
     feature !== "factual_manipulation" && feature !== "selective_presentation" &&
-    (formatted == null || formatted === "0.00")
+    formatted === "0.00"
   ) return "Not detected";
   return formatted ?? unavailableLabel;
 }

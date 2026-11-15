@@ -266,19 +266,21 @@ Let `x_i,k in [0,1]` be the score for criterion `k` on statement `i`, **only whe
 
 ### 6.1 Statement-derived criterion
 
-For a criterion `k` assessed on eligible author-attributable statements `E_k`:
+For a criterion `k`, let `U_k` be eligible author-attributable, endorsed statements and `E_k` their assessed subset:
 
 ```text
-coverage_k = sum_{i in E_k} w_i
-A_k = (sum_{i in E_k} w_i * x_i,k) / coverage_k
+assessed_weight_k = sum_{i in E_k} w_i
+applicable_weight_k = sum_{i in U_k} w_i
+coverage_k = assessed_weight_k / applicable_weight_k
+A_k = (sum_{i in E_k} w_i * x_i,k) / assessed_weight_k
 ```
 
-`A_k` remains in `[0,1]`. If `coverage_k == 0`, set `A_k = null`. Define a configurable minimum coverage threshold (initial exploratory default **0.80**); below it, set published `A_k = null` but retain diagnostic partial estimates and coverage. This avoids giving a high-confidence score when most relevant claims were unassessed.
+`A_k` remains in `[0,1]`. With no eligible weight, coverage is zero and `A_k` is `null`. Below the configurable minimum coverage threshold (initial exploratory default **0.80**), publish `A_k = null` but retain diagnostic estimates, coverage and applicable weight. Neutral/rejected reporting is ineligible and does not count as an assessment failure.
 
 The exact contribution of eligible statement `i` to an assessed statement-derived feature is:
 
 ```text
-C_i,k = (w_i * x_i,k) / coverage_k
+C_i,k = (w_i * x_i,k) / assessed_weight_k
 A_k = sum_{i in E_k} C_i,k
 ```
 
@@ -330,7 +332,7 @@ Two output modes:
 - **`text_only`**: return available features and `classification` (`suspicious | propaganda | no_strong_text_indicators | inconclusive`). These are experimental screening labels. Historical `indicators_detected` records remain readable.
 - **`evidence_enriched`**: when sufficient relevant verification is present, a separately configurable, versioned policy can return a **provisional** `propaganda_indicators_detected | no_significant_indicators | inconclusive`. The policy needs validation against human labels.
 
-The text assessment and material score share the weights in `config/policy.yaml`: logical 30%, strategic 30%, emotional 20%, authority 15%, repetition 5%. Text excludes missing optional dimensions and normalizes remaining weights; missing required emotional/logical/strategic evidence or narrative review withholds classification. Post screening uses the same weights with missing dimensions set to zero. Statement scoring retains separate weights and 50/75 cutoffs.
+Text assessment, material scores and post screening share the policy in `config/policy.yaml`: logical 30%, strategic 30%, emotional 20%, authority 15%, repetition 5%. Missing optional dimensions are excluded and remaining weights normalized; missing required emotional/logical/strategic evidence, empty extraction or narrative review withholds the score and requires review. Missing evidence never counts as zero. Statement scoring retains separate weights and 50/75 cutoffs.
 
 ```text
 weighted_score = sum_k alpha_k * F_k   # alpha_k >= 0; sum_k alpha_k = 1

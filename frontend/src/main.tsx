@@ -17,7 +17,10 @@ import {
 import { segmentText } from "./highlights";
 
 const article =
-  "Officials insist the proposal is the only responsible path, despite independent reporting that documents unresolved costs. Anyone questioning the plan is accused of putting public safety at risk. The same warning appeared repeatedly across coordinated accounts before the committee vote.";
+  "Several local families have reported rising energy bills, adding to concerns about household costs. " +
+  "The Bright Future campaign has highlighted their experiences and presented a plan that it says has support from energy specialists. " +
+  "Anyone who opposes this plan is putting corporate profits ahead of our children’s future. " +
+  "Organizers say growing public support shows that the town is ready for their approach.";
 
 function Meter({
   name,
@@ -68,7 +71,7 @@ function PropagandaScoreView({ score }: { score: PropagandaScore }) {
         <span title="Experimental weighted indicator score, not a probability. Missing features are excluded; assessed zeroes count.">
           Propaganda score
         </span>
-        <strong>{score.value == null ? "Not detected" : `${Math.round(score.value * 100)}/100`}</strong>
+        <strong>{score.value == null ? "Not assessed" : `${Math.round(score.value * 100)}/100`}</strong>
         <span className={`score-label score-${score.label}`}>{scoreLabels[score.label]}</span>
         {score.status === "partial" && <span className="score-partial">Partial</span>}
       </div>

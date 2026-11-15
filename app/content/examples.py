@@ -5,6 +5,19 @@ from fastapi import HTTPException
 from app.content.schemas import Assessment, Extraction
 
 EXAMPLES = {
+    "bright-future": {
+        "id": "bright-future",
+        "title": "Bright Future energy campaign",
+        "label": "Synthetic · attribution example",
+        "text": (
+            "Several local families have reported rising energy bills, adding to concerns about household costs. "
+            "The Bright Future campaign has highlighted their experiences and presented a plan that it says "
+            "has support from energy specialists. "
+            "Anyone who opposes this plan is putting corporate profits ahead of our children’s future. "
+            "Organizers say growing public support shows that the town is ready for their approach."
+        ),
+        "narrative": "Support the campaign's energy plan; opposing it is framed as choosing profits over children.",
+    },
     "town-hall": {
         "id": "town-hall",
         "title": "A town hall under pressure",
@@ -61,6 +74,17 @@ class DemoProvider:
                 ("The plan puts everything we love at risk.", "pressure", "supporting_claim", "endorsed"),
                 ("Only traitors would ask for more time.", "reported", "counterargument", "rejected"),
             ]
+        elif self.example_id == "bright-future":
+            specs = [
+                ("Several local families have reported rising energy bills, adding to concerns about household costs.",
+                 "costs", "background", "endorsed"),
+                (("The Bright Future campaign has highlighted their experiences and presented a plan that it says "
+                  "has support from energy specialists."), "specialists", "supporting_claim", "neutrally_reported"),
+                ("Anyone who opposes this plan is putting corporate profits ahead of our children’s future.",
+                 "pressure", "main_conclusion", "endorsed"),
+                ("Organizers say growing public support shows that the town is ready for their approach.",
+                 "support", "supporting_claim", "neutrally_reported"),
+            ]
         else:
             specs = [
                 (sentence, f"claim{i}", "background", "endorsed")
@@ -78,8 +102,11 @@ class DemoProvider:
             while (start := text.find(phrase, start)) >= 0:
                 paragraph = next(p for p in paragraphs if p["start"] <= start < p["end"])
                 # The same wording in neutral/rejected reporting remains a separate occurrence/group.
-                is_report = paragraph["id"] == "p4" and self.example_id == "town-hall"
-                if is_report != (stance == "rejected"):
+                is_report = (
+                    paragraph["id"] == "p4" and self.example_id == "town-hall"
+                    or self.example_id == "bright-future" and stance == "neutrally_reported"
+                )
+                if is_report != (stance in ("rejected", "neutrally_reported")):
                     start += len(phrase)
                     continue
                 section = next(s for s in sections if paragraph["id"] in s["paragraph_ids"])
@@ -101,53 +128,58 @@ class DemoProvider:
                         "context_excerpt": paragraph["text"],
                         "role": role,
                         "speaker": "named_source" if is_report else "author",
-                        "speaker_name": "Town hall speaker" if is_report else None,
+                        "speaker_name": (
+                            "Campaign organizers" if self.example_id == "bright-future" else "Town hall speaker"
+                        ) if is_report else None,
                         "stance": stance,
-                        "is_direct_quote": is_report,
+                        "is_direct_quote": is_report and self.example_id == "town-hall",
                         "author_attributable": not is_report,
                     }
                 )
                 start += len(phrase)
+        patterns = []
+        if self.example_id == "town-hall":
+            patterns = [
+                {"feature": feature, "description": description,
+                 "statement_ids": [s["id"] for s in statements if s["canonical_claim_id"] == group]}
+                for feature, description, group in (
+                    ("repetition_amplification", "The central threat recurs verbatim.", "fear"),
+                    ("strategic_persuasion", "Identity pressure discourages scrutiny.", "loyalty"),
+                )
+            ]
+        elif self.example_id == "bright-future":
+            patterns = [{
+                "feature": "strategic_persuasion",
+                "description": "Opposition is framed as choosing corporate profits over children's futures.",
+                "statement_ids": [s["id"] for s in statements if s["canonical_claim_id"] == "pressure"],
+            }]
         return Extraction.model_validate(
             {
                 "narratives": [
                     {
                         "id": "n1",
                         "summary": example["narrative"],
-                        "kind": "argumentative" if self.example_id == "town-hall" else "informational",
+                        "kind": "informational" if self.example_id == "public-notice" else "argumentative",
                     }
                 ],
                 "sections": sections,
                 "statements": statements,
-                "patterns": (
-                    [
-                        {
-                            "feature": "repetition_amplification",
-                            "description": "The central threat recurs verbatim.",
-                            "statement_ids": [
-                                s["id"] for s in statements if s["canonical_claim_id"] == "fear"
-                            ],
-                        },
-                        {
-                            "feature": "strategic_persuasion",
-                            "description": "Identity pressure discourages scrutiny.",
-                            "statement_ids": [
-                                s["id"] for s in statements if s["canonical_claim_id"] == "loyalty"
-                            ],
-                        },
-                    ]
-                    if self.example_id == "town-hall"
-                    else []
-                ),
+                "patterns": patterns,
             }
         )
 
     async def score(self, state, questions):
-        target = state.get("target", {})
+        target = state.get("target") or {}
         result = {}
         for key in questions:
             if key == "relevance":
                 level = 1 if target.get("stance") == "rejected" else 4
+            elif self.example_id == "bright-future":
+                # Illustrative rubric levels, not predictions from a live model.
+                level = 3 if key == "strategic_persuasion" or (
+                    "Anyone who opposes" in target.get("text", "")
+                    and key in ("emotional_manipulation", "logical_manipulation")
+                ) else 0
             elif self.example_id == "public-notice" or key == "authority_manipulation":
                 level = 0
             elif key == "repetition_amplification":

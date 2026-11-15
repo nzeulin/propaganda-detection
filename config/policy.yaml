@@ -1,4 +1,4 @@
-version: experimental-weighted-v1
+version: experimental-weighted-v2
 minimum_coverage: 0.80
 required_features: [emotional_manipulation, logical_manipulation, strategic_persuasion]
 indicator_threshold: 0.50

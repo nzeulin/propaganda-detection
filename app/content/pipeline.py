@@ -47,6 +47,22 @@ async def analyze_content(
         raise HTTPException(502, "Extraction returned no usable result.")
     sections = [s.model_dump() for s in extraction.sections]
     narratives = [n.model_dump() for n in extraction.narratives]
+    patterns, unsupported = [], set()
+    for pattern in extraction.patterns:
+        grounded = []
+        for claim in claims:
+            if not claim["author_attributable"] or claim["stance"] != "endorsed":
+                continue
+            occurrences = [o["id"] for o in claim["occurrences"] if o["id"] in pattern.statement_ids]
+            # Repetition requires actual occurrences of the same claim in this material.
+            if pattern.feature != "repetition_amplification" or len(occurrences) >= 2:
+                grounded.extend(occurrences)
+        if grounded:
+            patterns.append(pattern.model_copy(update={"statement_ids": grounded}))
+        else:
+            unsupported.add(pattern.feature)
+            warnings.append(f"Omitted {pattern.feature} pattern without eligible source occurrences.")
+    unsupported.difference_update(pattern.feature for pattern in patterns)
     context = {
         "article": text,
         "title": title,
@@ -54,7 +70,7 @@ async def analyze_content(
         "canonical_claims": claims,
         "paragraphs": paragraphs,
         "sections": sections,
-        "patterns": [p.model_dump() for p in extraction.patterns],
+        "patterns": [p.model_dump() for p in patterns],
     }
     jobs = []
     for section in sections:
@@ -81,6 +97,11 @@ async def analyze_content(
     assessments = await execute(
         "scoring", score_all, {"validated_claims": claims, "target_count": len(jobs)}, provider.models["scorer"]
     )
+    for feature in unsupported:
+        record = assessments.get("material", {}).get(feature)
+        if record is not None and record.score > 0:
+            assessments["material"].pop(feature)
+            warnings.append(f"Withheld {feature}: the extracted pattern lacked attributable source evidence.")
     features, metadata, diagnostics, math_warnings = await execute(
         "aggregation", lambda: aggregate(claims, sections, assessments, config)
     )
@@ -103,7 +124,7 @@ async def analyze_content(
         for value in metadata.values():
             value.update(status="not_assessed", reason="No valid extracted statements.")
     findings = []
-    for pattern in extraction.patterns:
+    for pattern in patterns:
         record = assessments.get("material", {}).get(pattern.feature)
         if record is None:
             continue

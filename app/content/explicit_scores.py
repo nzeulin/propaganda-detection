@@ -2,15 +2,16 @@
 
 from math import fsum
 
-from app.content.policy import classify, weighted_contributions
+from app.content.policy import assessed_features, classify, material_score, weighted_contributions
 
 
 def feature_score(features, weights, config, *, statement=False, blocked_reason=None):
     """Normalize over assessed dimensions, retaining real zeroes and marking partial evidence."""
+    if not statement:
+        return material_score(features, config, blocked_reason=blocked_reason)
     contributions = weighted_contributions(features, weights)
-    thresholds = config.policy if statement else config.policy["weighted_scoring"]
-    review = thresholds["indicator_threshold"] if statement else thresholds["review_threshold"]
-    strong = thresholds["strong_threshold"] if statement else thresholds["propaganda_threshold"]
+    review = config.policy["indicator_threshold"]
+    strong = config.policy["strong_threshold"]
     value, status, label = None, "not_assessed", "not_assessed"
     reason = blocked_reason or "No eligible feature assessments are available."
     if contributions and not blocked_reason:
@@ -18,9 +19,7 @@ def feature_score(features, weights, config, *, statement=False, blocked_reason=
         status = "assessed" if len(contributions) == len(weights) else "partial"
         if status == "assessed" and value >= strong:
             label = "propaganda"
-        elif (statement and max(features[key] for key in contributions) >= review) or (
-            status == "assessed" and value >= review
-        ):
+        elif max(features[key] for key in contributions) >= review:
             label = "suspicious"
         else:
             label = "requires_review" if status == "partial" else "not_suspicious"
@@ -37,7 +36,7 @@ def feature_score(features, weights, config, *, statement=False, blocked_reason=
         "status": status,
         "label": label,
         "reason": reason,
-        "policy_version": config.explicit_scores["version"] if statement else config.policy["version"],
+        "policy_version": config.explicit_scores["version"],
     }
 
 
@@ -45,11 +44,7 @@ def with_explicit_scores(result, config):
     """Enrich /analyze responses without mutating cached jobs, features or statement weights."""
     weights = config.policy["weighted_scoring"]["weights"]
     local_weights = config.explicit_scores["statement_weights"]
-    # Saved post responses zero-fill missing features; restore text evidence from its original status.
-    features = {
-        key: None if result["feature_details"][key]["status"] == "not_assessed" else value
-        for key, value in result["features"].items()
-    }
+    features = assessed_features(result)
     statements = []
     for claim in result["statements"]:
         eligible = claim["author_attributable"] and claim["stance"] == "endorsed"

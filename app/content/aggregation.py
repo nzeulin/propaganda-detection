@@ -45,6 +45,11 @@ def aggregate(claims: list[dict], sections: list[dict], assessments: dict, confi
                     else 1 / len(local)
                 )
                 claim["weight"] = section["weight"] * claim["local_weight"]
+    # Completeness measures assessed eligible evidence, not the share of reported speech.
+    applicable_weight = fsum(
+        c["weight"] for c in claims
+        if weights_ready and c["author_attributable"] and c["stance"] == "endorsed"
+    )
     features = dict.fromkeys(config.features)
     metadata, diagnostic = {}, {}
     for feature in config.features:
@@ -62,10 +67,11 @@ def aggregate(claims: list[dict], sections: list[dict], assessments: dict, confi
                 )
                 if record and attributable and weights_ready:
                     eligible.append(claim)
-            coverage = fsum(c["weight"] for c in eligible)
-            if coverage:
+            assessed_weight = fsum(c["weight"] for c in eligible)
+            coverage = assessed_weight / applicable_weight if applicable_weight else 0.0
+            if assessed_weight:
                 for claim in eligible:
-                    claim["contributions"][feature] = claim["weight"] * claim["features"][feature] / coverage
+                    claim["contributions"][feature] = claim["weight"] * claim["features"][feature] / assessed_weight
                 estimate = fsum(c["contributions"][feature] for c in eligible)
                 if coverage + 1e-12 >= config.policy["minimum_coverage"]:
                     features[feature] = estimate
@@ -91,6 +97,8 @@ def aggregate(claims: list[dict], sections: list[dict], assessments: dict, confi
             ),
         }
         diagnostic[feature] = {"partial_estimate": estimate, "coverage": coverage}
+        if feature in config.statement_features:
+            diagnostic[feature]["applicable_weight"] = applicable_weight
         if config.policy["top_three_diagnostic"] and feature in config.statement_features:
             ranked = sorted(
                 (c for c in claims if c["features"].get(feature) is not None and c["weight"] is not None),
