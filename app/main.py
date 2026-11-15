@@ -16,7 +16,6 @@ from app.api.bluesky import router as bluesky_router
 from app.api.datasets import import_dataset
 from app.api.datasets import router as datasets_router
 from app.api.evaluations import router as evaluations_router
-from app.api.images import router as images_router
 from app.api.jobs import ContentJobInput, content_handler, submit_content
 from app.api.jobs import router as jobs_router
 from app.api.swarm import router as swarm_router
@@ -33,7 +32,6 @@ from app.core.ingestion import DatasetInput
 from app.core.jobs import JobRunner
 from app.evaluation.runner import evaluation_handler
 from app.providers.embeddings import EmbeddingProvider
-from app.providers.image_vision import ImageAnalyzer
 
 
 @asynccontextmanager
@@ -58,16 +56,12 @@ async def lifespan(app: FastAPI):
         },
     )
     app.state.slots = app.state.jobs.slots
-    app.state.image_analyzer = None
     app.state.agent_embedder = None
     try:
-        app.state.image_analyzer = ImageAnalyzer.from_env()
         app.state.agent_embedder = EmbeddingProvider.from_env(app.state.config.agent_connectivity)
         yield
     finally:
         await app.state.jobs.close()
-        if app.state.image_analyzer is not None:
-            await app.state.image_analyzer.close()
         if app.state.agent_embedder is not None:
             await app.state.agent_embedder.client.close()
         if app.state.live:
@@ -84,7 +78,6 @@ app.include_router(swarm_router)
 app.include_router(bluesky_router)
 app.include_router(system_router)
 app.include_router(evaluations_router)
-app.include_router(images_router)
 app.include_router(connectivity_router)
 
 

@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-import { ImageAnalysisButton } from "./ImageAnalysisButton";
 import SwarmNetwork from "./SwarmNetwork";
 import {
   api,
@@ -243,7 +242,6 @@ function Analysis() {
       <div className="input-column">
         <header className="section-title">
           <span>Text analysis</span>
-          <ImageAnalysisButton />
         </header>
 
         <div className="input-meta">
