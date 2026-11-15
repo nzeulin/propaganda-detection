@@ -453,12 +453,58 @@ function Briefing() {
   );
 }
 
+function ScoringExplanation() {
+  return (
+    <section className="scoring-explanation" aria-labelledby="scoring-explanation-title">
+      <h2 id="scoring-explanation-title">How propaganda detection works</h2>
+      <div className="scoring-explanation-grid">
+        <div>
+          <h3>Detecting persuasion</h3>
+          <p>
+            AI identifies statements and persuasion techniques, then scores emotional
+            pressure, misleading logic, misleading appeals to authority, repetition
+            within the text, and strategic persuasion from 0 to 1. Statement-level
+            scoring considers claims attributed to and endorsed by the author;
+            repetition and strategy are assessed across the whole text.
+          </p>
+        </div>
+        <div>
+          <h3>Calculating text scores</h3>
+          <p>
+            The experimental score out of 100 combines logical and strategic
+            indicators at 30% each, emotional indicators at 20%, and authority and
+            repetition at 10% each. Statement scores use only emotional, logical,
+            and authority indicators. Missing assessments are excluded and the
+            remaining weights adjusted; assessed zeroes count. Partial results are
+            marked. Scores describe signal strength, not probability.
+          </p>
+        </div>
+        <div>
+          <h3>Reading detection labels</h3>
+          <p>
+            With required assessments available, the overall text assessment flags
+            indicators when two or more dimensions reach 0.50 and at least one
+            reaches 0.75. Post screening uses a separate rule: two dimensions at
+            0.75 or above trigger “Propaganda”; otherwise, any dimension at 0.50 or
+            above triggers “Requires further analysis”. Lower scores receive “Not
+            propaganda”. Missing post scores currently count as zero.
+          </p>
+        </div>
+      </div>
+      <p className="scoring-explanation-note">
+        Text analysis does not independently verify facts or establish intent.
+      </p>
+    </section>
+  );
+}
+
 function App() {
   return (
     <main className="app-shell">
       <Briefing />
       <Analysis />
       <SwarmNetwork />
+      <ScoringExplanation />
     </main>
   );
 }
