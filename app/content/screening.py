@@ -1,7 +1,9 @@
 """Heuristic post screening, independent of coordination and external verification."""
 
 import os
+from math import fsum
 
+from app.content.policy import weighted_contributions
 from app.core.ingestion import canonical_id
 
 
@@ -19,23 +21,24 @@ def scoring_signature(config):
 
 def screen_content(result, config):
     """Classify completed post scores, defaulting missing text indicators to zero."""
-    policy = config.policy["propaganda_screening"]
-    values = [result["features"].get(key) or 0.0 for key in policy["required_features"]]
-    if sum(value >= policy["propaganda_threshold"] for value in values) >= policy["minimum_strong_features"]:
+    policy = config.policy["weighted_scoring"]
+    score = fsum(weighted_contributions(result["features"], policy["weights"], normalize=False).values())
+    if score >= policy["propaganda_threshold"]:
         label = "propaganda"
-        reason = "At least two text features meet the strong threshold."
-    elif any(value >= policy["review_threshold"] for value in values):
+        reason = f"Meets the propaganda threshold ({policy['propaganda_threshold'] * 100:g}/100)."
+    elif score >= policy["review_threshold"]:
         label = "requires_further_analysis"
-        reason = "Elevated text features need further validation."
+        reason = f"Meets the review threshold ({policy['review_threshold'] * 100:g}/100)."
     else:
         label = "not_propaganda"
-        reason = "All five text features are below the review threshold; missing scores count as zero."
+        reason = f"Below the review threshold ({policy['review_threshold'] * 100:g}/100)."
     return {
         "label": label,
+        "weighted_score": score,
         "complete": True,
-        "reason": reason,
+        "reason": f"Weighted indicator score: {score * 100:.1f}/100. {reason} Missing scores count as zero.",
         "thresholds": {"review": policy["review_threshold"], "propaganda": policy["propaganda_threshold"]},
-        "policy_version": policy["version"] + "-zero-defaults",
+        "policy_version": config.policy["version"],
         "experimental": True,
     }
 
@@ -44,7 +47,7 @@ def with_post_screening(result, config):
     """Project current post defaults without changing saved assessments or scoring cache identity."""
     features = dict(result["features"])
     features.update({key: features.get(key) or 0.0
-                     for key in config.policy["propaganda_screening"]["required_features"]})
+                     for key in config.policy["weighted_scoring"]["weights"]})
     return {
         **result,
         "features": features,

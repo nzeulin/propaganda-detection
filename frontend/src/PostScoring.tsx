@@ -3,6 +3,7 @@ import { api, features, formatFeatureScore, labels, type Analysis, type Feature 
 
 type Screening = {
   label: "not_propaganda" | "requires_further_analysis" | "propaganda";
+  weighted_score: number;
   complete: boolean;
   reason: string;
   thresholds: { review: number; propaganda: number };
@@ -171,8 +172,9 @@ export function PostScoring({ contentId }: { contentId: string }) {
   const label = screening?.label === "propaganda" ? "Propaganda"
     : screening?.label === "not_propaganda" ? "Not propaganda" : "Requires further analysis";
   return <div className="swarm-content-scoring">
-    <p role="status" title={screening ? `${screening.reason} Heuristic thresholds: ${screening.thresholds.review} / ${screening.thresholds.propaganda}.` : undefined}>
-      {result?.pending ? "Scoring post…" : queued ? "Queued for scoring" : result?.error ? "Scoring unavailable" : screening ? label : "Not scored"}
+    <p role="status" title={screening ? `${screening.reason} Review at ${screening.thresholds.review * 100}/100; propaganda at ${screening.thresholds.propaganda * 100}/100.` : undefined}>
+      {result?.pending ? "Scoring post…" : queued ? "Queued for scoring" : result?.error ? "Scoring unavailable" : screening
+        ? `${label}${screening.weighted_score == null ? "" : ` · ${Math.round(screening.weighted_score * 100)}/100`}` : "Not scored"}
     </p>
     {(!screening?.complete || result?.error) && <button type="button" disabled={result?.pending || queued}
       title="Uses configured AI models to score this post. External validation is not run."

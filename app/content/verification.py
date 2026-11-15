@@ -26,18 +26,20 @@ def escalation_reasons(result, report, config):
             reasons.append("Evidence disagrees with preliminary text assessment")
         if (
             relation.get("choice") == "supported"
-            and result["classification"]["label"] == "indicators_detected"
+            and result["classification"]["label"] in ("suspicious", "propaganda", "indicators_detected")
         ):
             reasons.append("Text indicators coexist with supported factual claims")
     if any(
         result["coverage"][k] < config.policy["minimum_coverage"] for k in config.policy["required_features"]
     ):
         reasons.append("Insufficient text coverage")
-    if any(
+    score = result["classification"].get("weighted_score")
+    if score is not None and any(
         abs(score - boundary) <= 0.10
-        for score in result["features"].values()
-        if score is not None
-        for boundary in (config.policy["indicator_threshold"], config.policy["strong_threshold"])
+        for boundary in (
+            config.policy["weighted_scoring"]["review_threshold"],
+            config.policy["weighted_scoring"]["propaganda_threshold"],
+        )
     ):
         reasons.append("Score near an experimental policy boundary")
     return list(dict.fromkeys(reasons))

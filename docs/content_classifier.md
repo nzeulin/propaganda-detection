@@ -327,16 +327,17 @@ The weighted mean is **the required baseline**. It can dilute one powerful centr
 
 Two output modes:
 
-- **`text_only`**: return available features and **`manipulation_indicator_screen`** (`indicators_detected | no_strong_text_indicators | inconclusive`). This is *not* a verified propaganda verdict.
+- **`text_only`**: return available features and `classification` (`suspicious | propaganda | no_strong_text_indicators | inconclusive`). These are experimental screening labels. Historical `indicators_detected` records remain readable.
 - **`evidence_enriched`**: when sufficient relevant verification is present, a separately configurable, versioned policy can return a **provisional** `propaganda_indicators_detected | no_significant_indicators | inconclusive`. The policy needs validation against human labels.
 
-If an overall numeric score is required, use a documented baseline such as a weighted mean over **all required and assessed dimensions**:
+The text assessment and material score share the weights in `config/policy.yaml`: logical 30%, strategic 30%, emotional 20%, authority 15%, repetition 5%. Text excludes missing optional dimensions and normalizes remaining weights; missing required emotional/logical/strategic evidence or narrative review withholds classification. Post screening uses the same weights with missing dimensions set to zero. Statement scoring retains separate weights and 50/75 cutoffs.
 
 ```text
-risk_score = sum_k alpha_k * F_k       # alpha_k >= 0; sum_k alpha_k = 1
+weighted_score = sum_k alpha_k * F_k   # alpha_k >= 0; sum_k alpha_k = 1
+# < 0.35: no strong indicators; >= 0.35: suspicious/review; >= 0.50: propaganda
 ```
 
-Return `risk_score = null` when required dimensions are missing. Never present it as calibrated `P(propaganda)`. Do **not** hard-code an arbitrary production threshold; put thresholds in `config/policy.yaml` and label the default policy `experimental`. For a demo, an indicator threshold can be tuned on a small annotated validation set and clearly labeled as a screening heuristic.
+Return `classification.weighted_score = null` when classification is withheld; `risk_score` remains `null` throughout. Never present the weighted score as calibrated `P(propaganda)`. The configurable weights and thresholds are experimental policy choices requiring validation against human labels.
 
 A more expressive downstream classifier can be trained later on the feature vectors; **that is not required for this MVP**.
 
@@ -396,9 +397,10 @@ Illustrative response shape (scores below are examples only):
   },
   "classification": {
     "mode": "text_only",
-    "label": "indicators_detected",
+    "label": "propaganda",
+    "weighted_score": 0.60,
     "risk_score": null,
-    "policy_version": "experimental-v0.1"
+    "policy_version": "experimental-weighted-v1"
   },
   "sections": [],
   "statements": [

@@ -462,8 +462,8 @@ function ScoringExplanation() {
     ["logical_manipulation", 30],
     ["strategic_persuasion", 30],
     ["emotional_manipulation", 20],
-    ["authority_manipulation", 10],
-    ["repetition_amplification", 10],
+    ["authority_manipulation", 15],
+    ["repetition_amplification", 5],
   ] as const;
 
   return (
@@ -476,7 +476,7 @@ function ScoringExplanation() {
       </ol>
 
       <div className="scoring-schema-connector" aria-hidden="true">↓</div>
-      <p className="scoring-schema-caption">Five indicators · weights for the combined text score</p>
+      <p className="scoring-schema-caption">Five indicators · shared weights for text assessment and post screening</p>
       <dl className="scoring-schema-features">
         {weightedFeatures.map(([feature, weight]) => (
           <div key={feature}>
@@ -487,35 +487,38 @@ function ScoringExplanation() {
       </dl>
 
       <div className="scoring-schema-connector" aria-hidden="true">↓</div>
-      <p className="scoring-schema-caption">The indicators feed three separate results</p>
+      <p className="scoring-schema-caption">Shared weights, separate text and post decisions</p>
       <div className="scoring-schema-outputs">
         <section className="scoring-schema-output" aria-labelledby="schema-text-score">
           <h3 id="schema-text-score">Text score</h3>
-          <p className="scoring-schema-formula">Weighted average × 100</p>
+          <p className="scoring-schema-formula">Σ(weight × indicator) × 100</p>
           <dl className="scoring-schema-rules">
-            <div><dt>75–100</dt><dd>Propaganda</dd></div>
-            <div><dt>50–&lt;75</dt><dd>Suspicious</dd></div>
-            <div><dt>0–&lt;50</dt><dd>No strong indicators</dd></div>
+            <div><dt>50–100</dt><dd>Propaganda</dd></div>
+            <div><dt>35–&lt;50</dt><dd>Suspicious</dd></div>
+            <div><dt>0–&lt;35</dt><dd>No strong indicators</dd></div>
           </dl>
           <p>These ranges apply to fully assessed scores. Missing indicators are excluded; weights are adjusted and partial results marked. Assessed zeroes count.</p>
-          <p>Statement scores use emotional, logical, and authority indicators only. Any local indicator ≥ 0.50 can also flag a statement as suspicious.</p>
+          <p>Statement scoring stays separate: emotional, logical, and authority weights of 20:30:10, normalized. Suspicious from 50/100 or any local indicator ≥ 0.50; propaganda from 75/100 with all three assessed.</p>
         </section>
         <section className="scoring-schema-output" aria-labelledby="schema-text-assessment">
           <h3 id="schema-text-assessment">Overall text assessment</h3>
+          <p className="scoring-schema-formula">Weighted sum × 100</p>
           <dl className="scoring-schema-rules">
-            <div><dt>At least two indicators ≥ 0.50<br />and at least one ≥ 0.75</dt><dd>Indicators detected</dd></div>
-            <div><dt>Otherwise</dt><dd>No strong text indicators</dd></div>
+            <div><dt>50–100</dt><dd>Propaganda</dd></div>
+            <div><dt>35–&lt;50</dt><dd>Suspicious</dd></div>
+            <div><dt>0–&lt;35</dt><dd>No strong text indicators</dd></div>
           </dl>
-          <p>Requires emotional, logical, and strategic assessments. Missing required evidence or narrative review → Inconclusive.</p>
+          <p>Requires emotional, logical, and strategic assessments. Available weights are normalized if optional indicators are missing. Missing required evidence or narrative review → Inconclusive.</p>
         </section>
         <section className="scoring-schema-output" aria-labelledby="schema-post-screening">
           <h3 id="schema-post-screening">Post screening</h3>
+          <p className="scoring-schema-formula">Weighted sum × 100</p>
           <dl className="scoring-schema-rules">
-            <div><dt>At least two indicators ≥ 0.75</dt><dd>Propaganda</dd></div>
-            <div><dt>Otherwise, any indicator ≥ 0.50</dt><dd>Requires further analysis</dd></div>
-            <div><dt>Otherwise</dt><dd>Not propaganda</dd></div>
+            <div><dt>50–100</dt><dd>Propaganda</dd></div>
+            <div><dt>35–&lt;50</dt><dd>Requires further analysis</dd></div>
+            <div><dt>0–&lt;35</dt><dd>Not propaganda</dd></div>
           </dl>
-          <p>Uses the five indicators directly. Missing post scores count as zero.</p>
+          <p>Uses the same five weights. Missing post scores count as zero, with no weight adjustment.</p>
         </section>
       </div>
     </section>

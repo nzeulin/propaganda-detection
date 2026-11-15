@@ -98,7 +98,8 @@ export interface Analysis {
     { status: string; coverage: number; reason: string; scope: string }
   >;
   classification: {
-    label: string;
+    label: "suspicious" | "propaganda" | "indicators_detected" | "no_strong_text_indicators" | "inconclusive";
+    weighted_score: number | null;
     policy_version: string;
     trigger_features: Feature[];
   };

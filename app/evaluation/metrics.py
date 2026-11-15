@@ -74,7 +74,7 @@ def evaluate_predictions(records, predictions, features):
             output_tokens += sum(item.get("usage", {}).get("output_tokens", 0) or 0 for item in usage)
         truth = reference["dominant_family"] != "none"
         label = result["classification"]["label"]
-        verdict = None if label == "inconclusive" else label == "indicators_detected"
+        verdict = None if label == "inconclusive" else label in ("suspicious", "propaganda", "indicators_detected")
         confusion[
             "abstained"
             if verdict is None

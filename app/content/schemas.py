@@ -138,7 +138,8 @@ class FeatureDetail(Entity):
 
 class Classification(Entity):
     mode: Literal["text_only"]
-    label: Literal["indicators_detected", "no_strong_text_indicators", "inconclusive"]
+    label: Literal["suspicious", "propaganda", "indicators_detected", "no_strong_text_indicators", "inconclusive"]
+    weighted_score: float | None = Field(default=None, ge=0, le=1)
     risk_score: None
     policy_version: str
     experimental: Literal[True]

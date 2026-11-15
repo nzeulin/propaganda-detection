@@ -16,6 +16,6 @@ class Configuration:
             name: getattr(self, name)["version"]
             for name in ("taxonomy", "rubrics", "roles", "policy", "prompts")
         }
-        # Response-only scoring has its own version and does not invalidate provider caches.
+        # Statement response scoring has its own version and does not invalidate provider caches.
         self.explicit_scores = yaml.safe_load((root / "explicit_scores.yaml").read_text())
         self.agent_connectivity = yaml.safe_load((root / "agent_connectivity.yaml").read_text())

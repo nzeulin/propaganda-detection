@@ -2,21 +2,24 @@
 
 from math import fsum
 
+from app.content.policy import classify, weighted_contributions
+
 
 def feature_score(features, weights, config, *, statement=False, blocked_reason=None):
     """Normalize over assessed dimensions, retaining real zeroes and marking partial evidence."""
-    available = {key: features[key] for key in weights if features.get(key) is not None}
+    contributions = weighted_contributions(features, weights)
+    thresholds = config.policy if statement else config.policy["weighted_scoring"]
+    review = thresholds["indicator_threshold"] if statement else thresholds["review_threshold"]
+    strong = thresholds["strong_threshold"] if statement else thresholds["propaganda_threshold"]
     value, status, label = None, "not_assessed", "not_assessed"
     reason = blocked_reason or "No eligible feature assessments are available."
-    if available and not blocked_reason:
-        total = fsum(weights[key] for key in available)
-        contributions = {key: weights[key] * score / total for key, score in available.items()}
+    if contributions and not blocked_reason:
         value = fsum(contributions.values())
-        status = "assessed" if len(available) == len(weights) else "partial"
-        if status == "assessed" and value >= config.policy["strong_threshold"]:
+        status = "assessed" if len(contributions) == len(weights) else "partial"
+        if status == "assessed" and value >= strong:
             label = "propaganda"
-        elif (statement and max(available.values()) >= config.policy["indicator_threshold"]) or (
-            status == "assessed" and value >= config.policy["indicator_threshold"]
+        elif (statement and max(features[key] for key in contributions) >= review) or (
+            status == "assessed" and value >= review
         ):
             label = "suspicious"
         else:
@@ -28,20 +31,25 @@ def feature_score(features, weights, config, *, statement=False, blocked_reason=
             if drivers else "No manipulation signals in the assessed features."
         )
         if status == "partial":
-            reason = reason[:-1] + f"; partial assessment ({len(available)}/{len(weights)} features)."
+            reason = reason[:-1] + f"; partial assessment ({len(contributions)}/{len(weights)} features)."
     return {
         "value": value,
         "status": status,
         "label": label,
         "reason": reason,
-        "policy_version": config.explicit_scores["version"],
+        "policy_version": config.explicit_scores["version"] if statement else config.policy["version"],
     }
 
 
 def with_explicit_scores(result, config):
     """Enrich /analyze responses without mutating cached jobs, features or statement weights."""
-    weights = config.explicit_scores["weights"]
-    local_weights = {key: weights[key] for key in config.statement_features}
+    weights = config.policy["weighted_scoring"]["weights"]
+    local_weights = config.explicit_scores["statement_weights"]
+    # Saved post responses zero-fill missing features; restore text evidence from its original status.
+    features = {
+        key: None if result["feature_details"][key]["status"] == "not_assessed" else value
+        for key, value in result["features"].items()
+    }
     statements = []
     for claim in result["statements"]:
         eligible = claim["author_attributable"] and claim["stance"] == "endorsed"
@@ -59,6 +67,8 @@ def with_explicit_scores(result, config):
         blocked_reason = "No valid statements were extracted."
     return {
         **result,
+        "features": features,
         "statements": statements,
-        "propaganda_score": feature_score(result["features"], weights, config, blocked_reason=blocked_reason),
+        "classification": classify(features, config, result["review_required"] or not statements),
+        "propaganda_score": feature_score(features, weights, config, blocked_reason=blocked_reason),
     }
