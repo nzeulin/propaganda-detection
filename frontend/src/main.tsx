@@ -454,46 +454,66 @@ function Briefing() {
 }
 
 function ScoringExplanation() {
+  const weightedFeatures = [
+    ["logical_manipulation", 30],
+    ["strategic_persuasion", 30],
+    ["emotional_manipulation", 20],
+    ["authority_manipulation", 10],
+    ["repetition_amplification", 10],
+  ] as const;
+
   return (
     <section className="scoring-explanation" aria-labelledby="scoring-explanation-title">
       <h2 id="scoring-explanation-title">How propaganda detection works</h2>
-      <div className="scoring-explanation-grid">
-        <div>
-          <h3>Detecting persuasion</h3>
-          <p>
-            AI identifies statements and persuasion techniques, then scores emotional
-            pressure, misleading logic, misleading appeals to authority, repetition
-            within the text, and strategic persuasion from 0 to 1. Statement-level
-            scoring considers claims attributed to and endorsed by the author;
-            repetition and strategy are assessed across the whole text.
-          </p>
-        </div>
-        <div>
-          <h3>Calculating text scores</h3>
-          <p>
-            The experimental score out of 100 combines logical and strategic
-            indicators at 30% each, emotional indicators at 20%, and authority and
-            repetition at 10% each. Statement scores use only emotional, logical,
-            and authority indicators. Missing assessments are excluded and the
-            remaining weights adjusted; assessed zeroes count. Partial results are
-            marked. Scores describe signal strength, not probability.
-          </p>
-        </div>
-        <div>
-          <h3>Reading detection labels</h3>
-          <p>
-            With required assessments available, the overall text assessment flags
-            indicators when two or more dimensions reach 0.50 and at least one
-            reaches 0.75. Post screening uses a separate rule: two dimensions at
-            0.75 or above trigger “Propaganda”; otherwise, any dimension at 0.50 or
-            above triggers “Requires further analysis”. Lower scores receive “Not
-            propaganda”. Missing post scores currently count as zero.
-          </p>
-        </div>
+      <ol className="scoring-schema-steps" aria-label="Detection process">
+        <li><span>01</span><div><h3>Submit text</h3><p>An article, statement, or post</p></div></li>
+        <li><span>02</span><div><h3>Identify statements</h3><p>AI separates claims, speakers, and stance</p></div></li>
+        <li><span>03</span><div><h3>Score indicators</h3><p>Assess signal strength from 0 to 1</p></div></li>
+      </ol>
+
+      <div className="scoring-schema-connector" aria-hidden="true">↓</div>
+      <p className="scoring-schema-caption">Five indicators · weights for the combined text score</p>
+      <dl className="scoring-schema-features">
+        {weightedFeatures.map(([feature, weight]) => (
+          <div key={feature}>
+            <dt>{labels[feature]}</dt>
+            <dd>{weight}%<span className="scoring-schema-weight" aria-hidden="true"><i style={{ width: `${weight}%` }} /></span></dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="scoring-schema-connector" aria-hidden="true">↓</div>
+      <p className="scoring-schema-caption">The indicators feed three separate results</p>
+      <div className="scoring-schema-outputs">
+        <section className="scoring-schema-output" aria-labelledby="schema-text-score">
+          <h3 id="schema-text-score">Text score</h3>
+          <p className="scoring-schema-formula">Weighted average × 100</p>
+          <dl className="scoring-schema-rules">
+            <div><dt>75–100</dt><dd>Propaganda</dd></div>
+            <div><dt>50–&lt;75</dt><dd>Suspicious</dd></div>
+            <div><dt>0–&lt;50</dt><dd>No strong indicators</dd></div>
+          </dl>
+          <p>These ranges apply to fully assessed scores. Missing indicators are excluded; weights are adjusted and partial results marked. Assessed zeroes count.</p>
+          <p>Statement scores use emotional, logical, and authority indicators only. Any local indicator ≥ 0.50 can also flag a statement as suspicious.</p>
+        </section>
+        <section className="scoring-schema-output" aria-labelledby="schema-text-assessment">
+          <h3 id="schema-text-assessment">Overall text assessment</h3>
+          <dl className="scoring-schema-rules">
+            <div><dt>At least two indicators ≥ 0.50<br />and at least one ≥ 0.75</dt><dd>Indicators detected</dd></div>
+            <div><dt>Otherwise</dt><dd>No strong text indicators</dd></div>
+          </dl>
+          <p>Requires emotional, logical, and strategic assessments. Missing required evidence or narrative review → Inconclusive.</p>
+        </section>
+        <section className="scoring-schema-output" aria-labelledby="schema-post-screening">
+          <h3 id="schema-post-screening">Post screening</h3>
+          <dl className="scoring-schema-rules">
+            <div><dt>At least two indicators ≥ 0.75</dt><dd>Propaganda</dd></div>
+            <div><dt>Otherwise, any indicator ≥ 0.50</dt><dd>Requires further analysis</dd></div>
+            <div><dt>Otherwise</dt><dd>Not propaganda</dd></div>
+          </dl>
+          <p>Uses the five indicators directly. Missing post scores count as zero.</p>
+        </section>
       </div>
-      <p className="scoring-explanation-note">
-        Text analysis does not independently verify facts or establish intent.
-      </p>
     </section>
   );
 }

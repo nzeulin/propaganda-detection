@@ -1004,16 +1004,51 @@ textarea {
   line-height: 1.25;
 }
 
-.scoring-explanation-grid {
+.scoring-schema-steps,
+.scoring-schema-features,
+.scoring-schema-outputs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 28px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scoring-schema-steps li,
+.scoring-schema-features > div,
+.scoring-schema-output {
+  min-width: 0;
+  border: 1px solid #59534c;
+  padding: 20px;
+  background: #191817;
+}
+
+.scoring-schema-steps li {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+}
+
+.scoring-schema-steps li > span {
+  color: #c2a46f;
+  font-size: 12px;
+}
+
+.scoring-schema-steps li:not(:last-child)::after {
+  position: absolute;
+  left: calc(100% + 1px);
+  top: 50%;
+  width: 24px;
+  transform: translateY(-50%);
+  color: #c2a46f;
+  text-align: center;
+  content: "→";
 }
 
 .scoring-explanation h3 {
-  margin: 0 0 14px;
-  padding-top: 18px;
-  border-top: 1px solid #59534c;
+  margin: 0 0 12px;
   color: #e6d8ca;
   font-size: 15px;
   font-weight: 500;
@@ -1026,8 +1061,102 @@ textarea {
   line-height: 1.8;
 }
 
-.scoring-explanation .scoring-explanation-note {
-  margin-top: 28px;
+.scoring-schema-connector {
+  padding: 14px 0;
+  color: #c2a46f;
+  font-size: 24px;
+  text-align: center;
+}
+
+.scoring-explanation .scoring-schema-caption {
+  margin-bottom: 16px;
+  color: #e6d8ca;
+}
+
+.scoring-schema-features {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 12px;
+}
+
+.scoring-schema-features > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.scoring-schema-features dt {
+  flex: 1;
+  color: #e6d8ca;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.scoring-schema-features dd {
+  margin: 12px 0 0;
+  color: #c2a46f;
+  font-size: 24px;
+}
+
+.scoring-schema-weight {
+  display: block;
+  height: 4px;
+  margin-top: 12px;
+  background: #39352f;
+}
+
+.scoring-schema-weight i {
+  display: block;
+  height: 100%;
+  background: #c2a46f;
+}
+
+.scoring-explanation .scoring-schema-formula {
+  color: #c2a46f;
+}
+
+.scoring-schema-rules {
+  margin: 20px 0;
+}
+
+.scoring-schema-rules > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid #39352f;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.scoring-schema-rules dt {
+  color: #a49d93;
+}
+
+.scoring-schema-rules dd {
+  margin: 0;
+  color: #e6d8ca;
+}
+
+.scoring-schema-rules dd::before {
+  color: #c2a46f;
+  content: "→ ";
+}
+
+.scoring-schema-output p + p {
+  margin-top: 12px;
+}
+
+@media (max-width: 1000px) {
+  .scoring-schema-steps,
+  .scoring-schema-outputs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scoring-schema-steps li:not(:last-child)::after {
+    left: 50%;
+    top: 100%;
+    transform: translateX(-50%);
+    line-height: 24px;
+    content: "↓";
+  }
 }
 
 @media (max-width: 760px) {
