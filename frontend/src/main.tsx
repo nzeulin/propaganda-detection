@@ -68,7 +68,7 @@ function PropagandaScoreView({ score }: { score: PropagandaScore }) {
         <span title="Experimental weighted indicator score, not a probability. Missing features are excluded; assessed zeroes count.">
           Propaganda score
         </span>
-        <strong>{score.value == null ? "Unavailable" : `${Math.round(score.value * 100)}/100`}</strong>
+        <strong>{score.value == null ? "Not detected" : `${Math.round(score.value * 100)}/100`}</strong>
         <span className={`score-label score-${score.label}`}>{scoreLabels[score.label]}</span>
         {score.status === "partial" && <span className="score-partial">Partial</span>}
       </div>
