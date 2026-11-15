@@ -1086,10 +1086,11 @@ function EvidenceInspector({ snapshot, selection, select, onClose }: { snapshot:
 }
 
 function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot; selection: Selection | null; select: (selection: Selection) => void }) {
-  const { scores } = usePostScoring();
+  const { scores, queue } = usePostScoring();
   const graphRef = useRef<ForceGraphMethods<Entity, DisplayLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const fitted = useRef(false);
   const graph = useMemo(() => {
     const contents = new Set(snapshot.graph.nodes.filter((node) => node.kind === "content").map((node) => node.id));
@@ -1112,6 +1113,18 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
       links,
     };
   }, [snapshot]);
+  const posts = graph.nodes.filter(node => node.kind === "content");
+  const checking = posts.filter(node => scores[node.id]?.pending).length;
+  const queued = posts.filter(node => queue.includes(node.id) && !scores[node.id]?.pending).length;
+  const completed = posts.filter(node => !queue.includes(node.id) && !scores[node.id]?.error && scores[node.id]?.screening).length;
+  const failed = posts.filter(node => !queue.includes(node.id) && scores[node.id]?.error).length;
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(preference.matches);
+    preference.addEventListener("change", update);
+    return () => preference.removeEventListener("change", update);
+  }, []);
   const highlighted = useMemo(() => {
     if (selection?.kind === "cluster")
       return new Set(
@@ -1162,11 +1175,30 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
     const x = node.x ?? 0,
       y = node.y ?? 0;
     const radius = node.kind === "account" ? 4.5 : 3.5;
+    const score = node.kind === "content" ? scores[node.id] : undefined;
+    const pulse = score?.pending && !reducedMotion ? (1 + Math.sin(performance.now() * Math.PI * 2 / 1600)) / 2 : 1;
+    context.save();
     context.fillStyle = node.kind === "account" ? "#a2927f"
-      : scores[node.id]?.screening?.label === "requires_further_analysis" ? "#c2a46f" : "#f4efe6";
+      : score?.pending ? "#86b6d8"
+        : score?.error ? "#f4efe6"
+          : score?.screening?.label === "propaganda" ? "#e34e48"
+            : score?.screening?.label === "requires_further_analysis" ? "#c2a46f" : "#f4efe6";
+    if (score?.pending) context.globalAlpha = reducedMotion ? 1 : 0.4 + 0.6 * pulse;
     context.beginPath();
     context.arc(x, y, radius, 0, Math.PI * 2);
     context.fill();
+    context.restore();
+    if (score?.pending) {
+      // Keep the halo and label readable when a large graph is zoomed out.
+      context.save();
+      context.strokeStyle = "#86b6d8";
+      context.globalAlpha = reducedMotion ? 1 : 0.55 + 0.45 * pulse;
+      context.lineWidth = 2 / scale;
+      context.beginPath();
+      context.arc(x, y, Math.max(radius + 3 / scale, (9 + 3 * pulse) / scale), 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    }
     if (highlighted.has(node.id)) {
       context.strokeStyle = "#e34e48";
       context.lineWidth = 1.5 / scale;
@@ -1174,13 +1206,13 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
       context.arc(x, y, radius + 3, 0, Math.PI * 2);
       context.stroke();
     }
-    if (highlighted.has(node.id) || (scale > 1.3 && node.kind === "account")) {
-      const label = entityLabel(node.id, snapshot);
+    if (score?.pending || highlighted.has(node.id) || (scale > 1.3 && node.kind === "account")) {
+      const label = score?.pending ? "Scoring…" : entityLabel(node.id, snapshot);
       context.font = `${11 / scale}px monospace`;
-      context.fillStyle = "#f4efe6";
+      context.fillStyle = score?.pending ? "#86b6d8" : "#f4efe6";
       context.fillText(
         label.length > 30 ? `${label.slice(0, 29)}…` : label,
-        x + radius + 5,
+        x + (score?.pending ? Math.max(radius + 5 / scale, 16 / scale) : radius + 5),
         y + 3 / scale,
       );
     }
@@ -1197,6 +1229,9 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
   return (
     <section className="swarm-panel" id="swarm-map" aria-label="Observed network graph">
       <header className="swarm-panel-heading"><span>Network map</span><span>{graph.nodes.length} items · {graph.links.filter(link => !link.connectivity).length} actions{isConnectivity(snapshot.result) && <> · {graph.links.filter(link => link.connectivity).length} agent connections</>}</span></header>
+      {posts.length > 0 && <p className="swarm-scoring-progress" role="status" aria-live="polite">
+        Post analysis: {completed} completed · <strong>{checking} checking</strong> · {queued} queued · {failed} failed
+      </p>}
       {snapshot.graph.hidden_nodes > 0 && <p className="swarm-notice swarm-graph-warning" role="note">Graph truncated: {number(snapshot.graph.hidden_nodes)} entities hidden; at most 300 are drawn. Analysis counts cover the full dataset. Saved source provenance includes the full collection.</p>}
       <div className="swarm-canvas" ref={containerRef}>
         {size.width > 0 && size.height > 0 && <ForceGraph2D<Entity, DisplayLink>
@@ -1206,6 +1241,7 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
           height={size.height}
           backgroundColor="#141414"
           cooldownTicks={100}
+          autoPauseRedraw={checking === 0 || reducedMotion}
           minZoom={0.05}
           maxZoom={20}
           nodeCanvasObject={drawNode}
@@ -1262,6 +1298,8 @@ function ObservationGraph({ snapshot, selection, select }: { snapshot: Snapshot;
             <i className="swarm-content-key" />
             post
           </span>
+          <span><i className="swarm-checking-key" />checking</span>
+          <span><i className="swarm-propaganda-key" />propaganda</span>
           <span>
             <i className="swarm-validation-key" />
             requires further analysis
@@ -1768,7 +1806,7 @@ export default function SwarmNetwork() {
                 <details id="swarm-fields" className="swarm-field-guide"><summary>Input fields &amp; timestamp requirements</summary><p>Fields: account_id, content_id, action, timestamp, text, url, platform, mentioned_account_ids. JSON must be an array of objects; CSV needs a header row. Mention IDs are an optional array of exact source account IDs on the same platform; encode them as a JSON array in CSV. Quote CSV fields containing commas or newlines.</p><p>Actions: created, reposted, replied_to, liked, quoted. Each interaction must reference content with a created observation; each content_id must have a consistent author and content.</p><p>Use ISO 8601 timestamps with Z or a UTC offset, e.g. 2026-11-14T09:00:00Z. Timestamps are optional for connectivity. Embeddings use authored text; likes and reposts remain observed actions only.</p><p>Imports accept created content with text or a URL. Connectivity compares accounts with collected authored text; other interacting accounts remain visible. URL-only materials are not fetched or embedded. Source validation on the server is authoritative.</p></details>
               </details>
               {inputConflict && <div id="swarm-input-conflict" className="swarm-error" role="alert"><strong>Choose one input source</strong><p>Both Bluesky links and advanced activity data are filled. Clear one input before analyzing; neither source will be used until this is resolved.</p></div>}
-              <p className="swarm-muted swarm-privacy-note">Activity is stored on this server. Agent connectivity sends authored text to OpenAI for embeddings. Optional post scoring uses AI when requested. Only upload data you have permission to use.</p>
+              <p className="swarm-muted swarm-privacy-note">Activity is stored on this server. Agent connectivity sends authored text to OpenAI for embeddings. Displayed posts are automatically scored with AI, two at a time. Only upload data you have permission to use.</p>
               <button type="submit" className="swarm-run" disabled={disabled || !!pending || inputConflict || !thresholdValid || (!input.trim() && !profiles.trim())}>{reading ? "Reading file…" : busy ? "Analyzing…" : collecting ? "Fetching posts…" : "Analyze activity"}</button>
               {collected && !activeCollection && <p className="swarm-notice">The name or raw data was edited. This will be saved as user-provided input, without claiming server-verified Bluesky provenance.</p>}
               <InputPreview input={input} format={format} collected={activeCollection} />
@@ -1817,7 +1855,8 @@ export default function SwarmNetwork() {
               ? <ConnectivitySummary snapshot={{ ...snapshot, result: snapshot.result }} exportResult={exportResult}
                   coverage={snapshot.result.collection && <CollectionCoverage collection={snapshot.result.collection} datasetId={snapshot.datasetId} />} />
               : <ResultSummary snapshot={{ ...snapshot, result: snapshot.result }} exportResult={exportResult} />}
-            <PostScoringProvider key={`${snapshot.datasetId}:${snapshot.jobId}`} initial={snapshot.graph.content_screenings}>
+            <PostScoringProvider key={`${snapshot.datasetId}:${snapshot.jobId}`} initial={snapshot.graph.content_screenings}
+              autoScoreIds={snapshot.graph.nodes.filter(node => node.kind === "content").map(node => node.id)}>
               <ObservationGraph key={`${snapshot.datasetId}:${snapshot.jobId}`} snapshot={snapshot} selection={selection} select={inspect} />
               {isConnectivity(snapshot.result) ? <ConnectivityEvidence snapshot={{ ...snapshot, result: snapshot.result }}
                 selection={selection} select={inspect} open={evidenceOpen} onClose={() => setEvidenceOpen(false)} load={request} /> : <>

@@ -47,12 +47,17 @@ function scoreDetails(result: ScoringResult) {
 
 const ScoringContext = createContext<{
   scores: Record<string, ContentScore>;
+  queue: string[];
   score: (contentId: string) => void;
   loadDetails: (contentId: string) => void;
 } | null>(null);
 
-export function PostScoringProvider({ initial, children }: { initial?: Record<string, ContentScore>; children: ReactNode }) {
+export function PostScoringProvider({ initial, autoScoreIds = [], children }: {
+  initial?: Record<string, ContentScore>; autoScoreIds?: string[]; children: ReactNode;
+}) {
   const [scores, setScores] = useState<Record<string, ContentScore>>(initial || {});
+  // Each provider belongs to one graph run; reuse complete cached screenings.
+  const [queue, setQueue] = useState(() => [...new Set(autoScoreIds)].filter(id => !initial?.[id]?.screening?.complete));
   const requests = useRef(new Map<string, AbortController>());
 
   useEffect(() => () => {
@@ -60,8 +65,19 @@ export function PostScoringProvider({ initial, children }: { initial?: Record<st
     requests.current.clear();
   }, []);
 
-  async function score(contentId: string) {
-    if (requests.current.has(contentId) || scores[contentId]?.screening?.complete) return;
+  function score(contentId: string) {
+    if (scores[contentId]?.screening?.complete) return;
+    setQueue(current => current.includes(contentId) ? current : [...current, contentId]);
+  }
+
+  useEffect(() => {
+    // Keep active IDs in the queue until settled, so either slot can finish first.
+    for (const contentId of queue.slice(0, 2)) {
+      if (!requests.current.has(contentId)) void run(contentId);
+    }
+  }, [queue]);
+
+  async function run(contentId: string) {
     requests.current.get(`details:${contentId}`)?.abort();
     const controller = new AbortController();
     requests.current.set(contentId, controller);
@@ -97,7 +113,11 @@ export function PostScoringProvider({ initial, children }: { initial?: Record<st
       setScores(current => ({ ...current, [contentId]: { ...current[contentId], pending: false, error: message } }));
     } finally {
       window.clearTimeout(deadline);
-      requests.current.delete(contentId);
+      // An aborted instance must not remove a replacement request or its queue entry.
+      if (requests.current.get(contentId) === controller) {
+        requests.current.delete(contentId);
+        setQueue(current => current.filter(id => id !== contentId));
+      }
     }
   }
 
@@ -134,7 +154,7 @@ export function PostScoringProvider({ initial, children }: { initial?: Record<st
     }
   }
 
-  return <ScoringContext.Provider value={{ scores, score, loadDetails }}>{children}</ScoringContext.Provider>;
+  return <ScoringContext.Provider value={{ scores, queue, score, loadDetails }}>{children}</ScoringContext.Provider>;
 }
 
 export function usePostScoring() {
@@ -144,18 +164,19 @@ export function usePostScoring() {
 }
 
 export function PostScoring({ contentId }: { contentId: string }) {
-  const { scores, score, loadDetails } = usePostScoring();
+  const { scores, queue, score, loadDetails } = usePostScoring();
   const result = scores[contentId];
+  const queued = queue.includes(contentId) && !result?.pending;
   const screening = result?.screening;
   const label = screening?.label === "propaganda" ? "Propaganda"
     : screening?.label === "not_propaganda" ? "Not propaganda" : "Requires further analysis";
   return <div className="swarm-content-scoring">
     <p role="status" title={screening ? `${screening.reason} Heuristic thresholds: ${screening.thresholds.review} / ${screening.thresholds.propaganda}.` : undefined}>
-      {result?.pending ? "Scoring post…" : screening ? label : result?.error ? "Scoring unavailable" : "Not scored"}
+      {result?.pending ? "Scoring post…" : queued ? "Queued for scoring" : result?.error ? "Scoring unavailable" : screening ? label : "Not scored"}
     </p>
-    {(!screening?.complete || result?.error) && <button type="button" disabled={result?.pending}
+    {(!screening?.complete || result?.error) && <button type="button" disabled={result?.pending || queued}
       title="Uses configured AI models to score this post. External validation is not run."
-      onClick={() => void score(contentId)}>{result?.pending ? "Scoring…" : result?.error || screening ? "Retry scoring" : "Score post"}</button>}
+      onClick={() => score(contentId)}>{result?.pending ? "Scoring…" : queued ? "Queued" : result?.error || screening ? "Retry scoring" : "Score post"}</button>}
     {result?.error && <p className="swarm-error" role="alert">{result.error}</p>}
     {result?.features && <details onToggle={event => { if (event.currentTarget.open) void loadDetails(contentId); }}>
       <summary>Propaganda features</summary>

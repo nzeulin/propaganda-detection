@@ -503,6 +503,27 @@
   border-radius: 50%;
 }
 
+.swarm-checking-key {
+  background: #86b6d8;
+  border-radius: 50%;
+}
+
+.swarm-propaganda-key {
+  background: #e34e48;
+  border-radius: 50%;
+}
+
+.swarm-workbench .swarm-scoring-progress {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid #38332f;
+  color: var(--swarm-muted);
+}
+
+.swarm-scoring-progress strong {
+  color: #86b6d8;
+}
+
 .swarm-workbench .swarm-needs-validation {
   background: #28231b;
   border-color: #8b7652;
